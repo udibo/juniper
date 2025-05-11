@@ -1,0 +1,109 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Deno TypeScript Development Guidelines
+
+## Runtime Environment
+- Use Deno's runtime environment and APIs instead of Node.js
+- Prefer Web APIs (fetch, Request, Response) over Node.js alternatives
+- Use JSR (jsr.io) packages when available instead of npm packages
+- File extensions are mandatory in imports (.ts, .tsx, .js)
+
+## Dependency Management
+- Use import maps defined in deno.json for managing dependencies
+- Never import directly from JSR or npm - always use import map aliases
+- Update versions in deno.json import map, not in individual files
+- Run `deno cache` after updating dependencies in deno.json
+
+## Task Management
+- Use `deno task` to run predefined tasks from deno.json
+- Common task examples:
+  - `deno task test` - Run all tests
+  - `deno task test path/to/test.ts` - Run specific test file
+  - Never call `deno test` directly. Always use the `deno task test` command.
+  - Check deno.json for other available tasks
+  - After running tests, use `deno coverage --detailed` to verify that new code has test coverage.
+
+## TypeScript Best Practices
+- Enable strict TypeScript checks
+- Use explicit type annotations for function parameters and returns
+- Leverage Deno's built-in TypeScript support
+- Use top-level await when needed (supported by default)
+
+## Testing
+- Use BDD-style testing with `@std/testing/bdd`
+- Structure tests using `describe()` for test groups and `it()` for individual tests
+- Co-locate related lifecycle hooks for better readability:
+  - `beforeAll()`/`afterAll()`: Setup and teardown for entire test group
+  - `beforeEach()`/`afterEach()`: Setup and teardown for each test case
+- Never use `node:test`. The lifecycle hooks should be imported from `@std/testing/bdd`.
+- Place test files adjacent to source files with .test.ts extension
+- Use assertions from `@std/assert`
+
+Example test structure:
+```typescript
+import { afterAll, afterEach, beforeAll, beforeEach, describe, it } from "@std/testing/bdd";
+import { assertEquals } from "@std/assert";
+
+describe("UserService", () => {
+  // Group-level setup and teardown
+  beforeAll(() => {
+    // Setup that runs once before all tests in this group
+    // e.g., database connection, test data initialization
+  });
+  afterAll(() => {
+    // Cleanup that runs once after all tests in this group complete
+    // e.g., close database connection, remove test data
+  });
+
+  // Per-test setup and teardown
+  beforeEach(() => {
+    // Setup that runs before each test case
+    // e.g., reset service state, mock setup
+  });
+  afterEach(() => {
+    // Cleanup that runs after each test case completes
+    // e.g., clear mocks, reset state
+  });
+
+  it("should create new user", () => {
+    // Test implementation
+    assertEquals(actual, expected);
+  });
+
+  describe("authentication", () => {
+    // Nested group setup and teardown
+    beforeAll(() => {
+      // Setup for this nested group only
+    });
+    afterAll(() => {
+      // Teardown for this nested group only
+    });
+
+    it("should validate credentials", () => {
+      // Nested test implementation
+    });
+  });
+});
+
+## Imports
+```typescript
+// ✅ Correct imports using import map defined in deno.json configuration file
+import { assertEquals } from "@std/assert";
+import { MyComponent } from "./components/MyComponent.ts";
+
+// ❌ Avoid
+import { assertEquals } from "jsr:@std/assert@1"; // Don't specify JSR URL directly
+import { something } from "./module"; // Missing extension
+import express from "npm:express"; // Don't specify npm URL directly
+```
+
+## Security
+- Use `--allow-` flags explicitly when running scripts
+- Review permissions in deno.json carefully
+- Avoid using `--allow-all` or `--unstable` without good reason
+
+## Style
+Avoid adding comments to the code. The examples in documentation can have comments explaining what is happening in the example. The only comments should be the docstrings for documentation.

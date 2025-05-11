@@ -1,0 +1,96 @@
+import { Hono } from "hono";
+import type { Env, Schema } from "hono";
+import { createMiddleware } from "hono/factory";
+import { serveStatic } from "hono/deno";
+import { trimTrailingSlash } from "hono/trailing-slash";
+import * as path from "@std/path";
+import { HttpError } from "@udibo/http-error";
+
+const notFound = createMiddleware(() => {
+  throw new HttpError(404, "Not found");
+});
+
+export interface Routes<
+  E extends Env = Env,
+  S extends Schema = Schema,
+  BasePath extends string = "/",
+> {
+  path: BasePath;
+  main?: { default: Hono<E, S, BasePath> };
+  index?: { default: Hono<E, S, BasePath> };
+  catchall?: { default: Hono<E, S, BasePath> };
+  children?: Routes<E, S, BasePath>[];
+}
+
+function buildAppFromRoutes<
+  E extends Env,
+  S extends Schema,
+  BasePath extends string,
+>(
+  rootUrl: string,
+  routeConfig: Routes<E, S, BasePath>,
+  root: boolean = false,
+): Hono<E, S, BasePath> {
+  const { main, index, catchall, children } = routeConfig;
+  const app = main?.default ?? new Hono<E, S, BasePath>();
+
+  if (children) {
+    for (const childRoute of children) {
+      const childApp = buildAppFromRoutes(rootUrl, childRoute);
+      app.route(
+        childRoute.path,
+        childApp,
+      );
+    }
+  }
+
+  if (index) {
+    app.route("/", index.default);
+  }
+
+  if (catchall) {
+    app.route(
+      "/:*{.+}",
+      catchall.default,
+    );
+    app.route(
+      "*",
+      catchall.default,
+    );
+  }
+
+  if (root) {
+    const url = new URL(rootUrl);
+    const dirname = path.dirname(url.pathname);
+
+    app.get(
+      "*",
+      serveStatic({
+        root: path.resolve(dirname, "./public"),
+      }),
+    );
+  }
+  app.use("*", notFound);
+
+  return app;
+}
+
+export function createApp<
+  E extends Env = Env,
+  S extends Schema = Schema,
+  BasePath extends string = "/",
+>(
+  rootUrl: string,
+  routes: Routes<E, S, BasePath>,
+): Hono<E, S, BasePath> {
+  const appWrapper = new Hono<E, S, BasePath>({ strict: true });
+  appWrapper.onError((cause) => {
+    const error = HttpError.from(cause);
+    console.error(error);
+    return error.getResponse();
+  });
+  appWrapper.use(trimTrailingSlash());
+  const app = buildAppFromRoutes(rootUrl, routes, true);
+  appWrapper.route("/", app);
+  return appWrapper;
+}

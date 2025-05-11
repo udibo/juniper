@@ -1,0 +1,57 @@
+import { describe, it } from "@std/testing/bdd";
+import { assertEquals } from "@std/assert";
+import { mergeReadableStreams, TextLineStream } from "@std/streams";
+import { resolve } from "@std/path/resolve";
+
+import { app } from "./main.ts";
+
+describe("serves static files", () => {
+  it("should serve a static file", async () => {
+    const res = await app.request("http://localhost/favicon.ico");
+
+    assertEquals(res.status, 200);
+    assertEquals(res.headers.get("content-type"), "image/x-icon");
+    assertEquals(
+      new Uint8Array(await res.arrayBuffer()).length,
+      (await Deno.readFile(
+        resolve(import.meta.dirname!, "./public/favicon.ico"),
+      )).length,
+      "Length of served file",
+    );
+  });
+});
+
+describe("serves application when running main.ts", () => {
+  it("should serve the application", async () => {
+    const command = new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "-A",
+        `--env-file=${resolve(import.meta.dirname!, "./.env")}`,
+        `--env-file=${resolve(import.meta.dirname!, "./.env.test")}`,
+        resolve(import.meta.dirname!, "./main.ts"),
+      ],
+      stdout: "piped",
+      stderr: "piped",
+    });
+    await using child = command.spawn();
+    const stdout = mergeReadableStreams(child.stdout, child.stderr)
+      .pipeThrough(new TextDecoderStream())
+      .pipeThrough(new TextLineStream());
+
+    for await (const line of stdout.values({ preventCancel: true })) {
+      if (line.includes("Listening on")) {
+        const address = Deno.build.os === "windows" ? "localhost" : "0.0.0.0";
+        assertEquals(
+          line,
+          `Listening on http://${address}:8100/ (http://localhost:8100/)`,
+        );
+        break;
+      }
+    }
+
+    const res = await fetch("http://localhost:8100/");
+    assertEquals(res.status, 200);
+    assertEquals(await res.text(), "Hello, World!");
+  });
+});
