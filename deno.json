@@ -9,6 +9,7 @@
     "./utils/otel": "./utils/otel.ts",
     "./utils/testing": "./utils/testing.ts"
   },
+  "exclude": ["./.cache/deno"],
   "tasks": {
     "serve": {
       "description": "Runs the server.",
