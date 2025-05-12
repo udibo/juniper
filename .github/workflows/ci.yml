@@ -1,0 +1,66 @@
+name: CI
+on:
+  workflow_call:
+    secrets:
+      CODECOV_TOKEN:
+        description: Repository codecov token
+        required: false
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Setup deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Lint source files
+        run: deno lint
+  format:
+    name: Check formatting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Setup deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Check formatting
+        run: deno fmt --check
+  test:
+    name: Test ${{ matrix.os }}
+    needs: [lint, format]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+      fail-fast: true
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Setup deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Build
+        run: deno task build-dev
+      - name: Run tests
+        if: matrix.os != 'ubuntu-latest'
+        run: deno task test
+      - name: Run tests and collect coverage
+        if: matrix.os == 'ubuntu-latest'
+        run: deno task test --coverage
+      - name: Generate coverage
+        if: matrix.os == 'ubuntu-latest'
+        run: deno coverage --lcov > coverage.lcov
+      - name: Upload coverage
+        if: matrix.os == 'ubuntu-latest'
+        uses: codecov/codecov-action@v4
+        with:
+          fail_ci_if_error: true
+          files: coverage.lcov
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
