@@ -54,22 +54,15 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Build and cache postgres image
+      - name: Build, cache, load, and optionally push postgres test image
         uses: docker/build-push-action@v6
         with:
           context: ./example
           file: ./example/database/Dockerfile.postgres
           tags: |
             ghcr.io/${{ github.repository_owner }}/postgres-test:latest
+            postgres-test-img:latest
           push: ${{ github.event_name != 'pull_request' }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      - name: Build and cache postgres-test
-        uses: docker/build-push-action@v6
-        with:
-          context: ./example
-          file: ./example/database/Dockerfile.postgres
-          tags: postgres-test-img:latest
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
