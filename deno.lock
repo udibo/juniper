@@ -3,6 +3,7 @@
   "specifiers": {
     "jsr:@std/assert@1": "1.0.13",
     "jsr:@std/assert@^1.0.12": "1.0.13",
+    "jsr:@std/async@1": "1.0.12",
     "jsr:@std/bytes@^1.0.5": "1.0.5",
     "jsr:@std/collections@1": "1.0.11",
     "jsr:@std/fs@1": "1.0.17",
@@ -13,13 +14,15 @@
     "jsr:@std/streams@1": "1.0.9",
     "jsr:@std/testing@1": "1.0.11",
     "jsr:@udibo/http-error@0.10": "0.10.0",
+    "npm:@opentelemetry/api@1": "1.9.0",
+    "npm:@opentelemetry/api@^1.1.0": "1.9.0",
     "npm:@testing-library/react@16": "16.3.0_@testing-library+dom@10.4.0_@types+react@18.3.20_react@18.3.1_react-dom@18.3.1__react@18.3.1",
     "npm:@types/node@*": "22.12.0",
     "npm:@types/pg@^8.11.14": "8.11.14",
     "npm:@types/react@18": "18.3.20",
     "npm:drizzle-kit@~0.31.1": "0.31.1_esbuild@0.25.3",
-    "npm:drizzle-orm@~0.43.1": "0.43.1_@types+pg@8.11.14_pg@8.15.6",
-    "npm:drizzle-zod@~0.7.1": "0.7.1_drizzle-orm@0.43.1__@types+pg@8.11.14__pg@8.15.6_zod@3.24.3_@types+pg@8.11.14_pg@8.15.6",
+    "npm:drizzle-orm@~0.43.1": "0.43.1_@types+pg@8.11.14_pg@8.15.6_@opentelemetry+api@1.9.0",
+    "npm:drizzle-zod@~0.7.1": "0.7.1_drizzle-orm@0.43.1__@types+pg@8.11.14__pg@8.15.6_zod@3.24.3_@types+pg@8.11.14_pg@8.15.6_@opentelemetry+api@1.9.0",
     "npm:global-jsdom@25": "25.0.0_jsdom@25.0.1",
     "npm:hono@4": "4.7.8",
     "npm:pg@^8.15.6": "8.15.6",
@@ -37,6 +40,9 @@
       "dependencies": [
         "jsr:@std/internal"
       ]
+    },
+    "@std/async@1.0.12": {
+      "integrity": "d1bfcec459e8012846fe4e38dfc4241ab23240ecda3d8d6dfcf6d81a632e803d"
     },
     "@std/bytes@1.0.5": {
       "integrity": "4465dd739d7963d964c809202ebea6d5c6b8e3829ef25c6a224290fbb8a1021e"
@@ -386,6 +392,9 @@
       "os": ["win32"],
       "cpu": ["x64"]
     },
+    "@opentelemetry/api@1.9.0": {
+      "integrity": "sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg=="
+    },
     "@testing-library/dom@10.4.0": {
       "integrity": "sha512-pemlzrSESWbdAloYml3bAJMEfNh1Z7EduzqPKprCH5S341frlpYnUEW0H72dLxa6IsYr+mPno20GiSm+h9dEdQ==",
       "dependencies": [
@@ -554,10 +563,30 @@
         "pg"
       ]
     },
+    "drizzle-orm@0.43.1_@types+pg@8.11.14_pg@8.15.6_@opentelemetry+api@1.9.0": {
+      "integrity": "sha512-dUcDaZtE/zN4RV/xqGrVSMpnEczxd5cIaoDeor7Zst9wOe/HzC/7eAaulywWGYXdDEc9oBPMjayVEDg0ziTLJA==",
+      "dependencies": [
+        "@opentelemetry/api",
+        "@types/pg",
+        "pg"
+      ],
+      "optionalPeers": [
+        "@opentelemetry/api",
+        "@types/pg",
+        "pg"
+      ]
+    },
     "drizzle-zod@0.7.1_drizzle-orm@0.43.1__@types+pg@8.11.14__pg@8.15.6_zod@3.24.3_@types+pg@8.11.14_pg@8.15.6": {
       "integrity": "sha512-nZzALOdz44/AL2U005UlmMqaQ1qe5JfanvLujiTHiiT8+vZJTBFhj3pY4Vk+L6UWyKFfNmLhk602Hn4kCTynKQ==",
       "dependencies": [
-        "drizzle-orm",
+        "drizzle-orm@0.43.1_@types+pg@8.11.14_pg@8.15.6",
+        "zod"
+      ]
+    },
+    "drizzle-zod@0.7.1_drizzle-orm@0.43.1__@types+pg@8.11.14__pg@8.15.6_zod@3.24.3_@types+pg@8.11.14_pg@8.15.6_@opentelemetry+api@1.9.0": {
+      "integrity": "sha512-nZzALOdz44/AL2U005UlmMqaQ1qe5JfanvLujiTHiiT8+vZJTBFhj3pY4Vk+L6UWyKFfNmLhk602Hn4kCTynKQ==",
+      "dependencies": [
+        "drizzle-orm@0.43.1_@types+pg@8.11.14_pg@8.15.6_@opentelemetry+api@1.9.0",
         "zod"
       ]
     },
@@ -1141,6 +1170,7 @@
       "jsr:@std/streams@1",
       "jsr:@std/testing@1",
       "jsr:@udibo/http-error@0.10",
+      "npm:@opentelemetry/api@1",
       "npm:@testing-library/react@16",
       "npm:@types/pg@^8.11.14",
       "npm:@types/react@18",

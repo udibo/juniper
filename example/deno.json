@@ -2,12 +2,12 @@
   "tasks": {
     "serve": {
       "description": "Runs the server.",
-      "command": "deno run -A --env-file --env-file=.env.production ./main.ts",
+      "command": "export OTEL_DENO=true OTEL_SERVICE_NAME=Example && deno run -A --env-file --env-file=.env.production --unstable-otel ./main.ts",
       "dependencies": ["start-dev"]
     },
     "test": {
       "description": "Runs the tests.",
-      "command": "deno test -A --env-file --env-file=.env.test --trace-leaks",
+      "command": "export OTEL_DENO=true OTEL_SERVICE_NAME=test && deno test -A --env-file --env-file=.env.test --trace-leaks --unstable-otel",
       "dependencies": ["start-test"]
     },
     "test-watch": {
@@ -36,9 +36,13 @@
       "description": "Starts the test services.",
       "command": "docker compose ps --services | grep -q '^postgres-test$' || (docker compose up -d --wait postgres-test && deno task drizzle-kit-test migrate && deno task drizzle-kit-test push && deno run -A --env-file --env-file=.env.test ./database/seeds/default.ts)"
     },
+    "start-lgtm": {
+      "description": "Starts the LGTM service.",
+      "command": "docker compose up -d --wait lgtm"
+    },
     "start": {
-      "description": "Starts the development and test services.",
-      "command": "deno task start-dev && deno task start-test"
+      "description": "Starts the development, test, and LGTM services.",
+      "command": "deno task start-dev && deno task start-test && deno task start-lgtm"
     },
     "stop-dev": {
       "description": "Stops the development services.",
@@ -48,9 +52,13 @@
       "description": "Stops the test services.",
       "command": "docker compose down postgres-test"
     },
+    "stop-lgtm": {
+      "description": "Stops the LGTM service.",
+      "command": "docker compose down lgtm"
+    },
     "stop": {
-      "description": "Stops the development and test services.",
-      "command": "deno task stop-dev ; deno task stop-test"
+      "description": "Stops the development, test, and LGTM services.",
+      "command": "deno task stop-dev ; deno task stop-test ; deno task stop-lgtm"
     },
     "drizzle-kit": {
       "description": "Runs the drizzle-kit commands for the database.",
@@ -73,6 +81,7 @@
     "./": "./",
     "@udibo/juniper": "../mod.ts",
     "@udibo/juniper/server": "../server.ts",
+    "@udibo/juniper/utils/otel": "../utils/otel.ts",
     "@udibo/juniper/utils/testing": "../utils/testing.ts",
     "@udibo/http-error": "jsr:@udibo/http-error@0.10",
     "@std/testing": "jsr:@std/testing@1",
@@ -86,6 +95,7 @@
     "drizzle-kit": "npm:drizzle-kit@^0.31.1",
     "drizzle-orm": "npm:drizzle-orm@^0.43.1",
     "drizzle-zod": "npm:drizzle-zod@^0.7.1",
+    "@opentelemetry/api": "npm:@opentelemetry/api@1",
     "pg": "npm:pg@^8.15.6",
     "zod": "npm:zod@^3.24.3",
     "hono": "npm:hono@^4",

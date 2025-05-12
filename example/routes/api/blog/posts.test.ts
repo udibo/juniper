@@ -5,7 +5,7 @@ import {
   describe,
   it,
 } from "@std/testing/bdd";
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { eq } from "drizzle-orm";
 
 import { app } from "/main.ts";
@@ -119,7 +119,9 @@ describe("Blog Posts API Routes", () => {
         `/api/blog/posts/${nonExistentId}`,
       );
       assertEquals(res.status, 404);
-      assertEquals(await res.json(), {
+      const { instance, ...error } = await res.json();
+      assert(instance);
+      assertEquals(error, {
         status: 404,
         title: "NotFoundError",
         detail: "Post not found",

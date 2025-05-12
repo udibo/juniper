@@ -5,6 +5,7 @@ import { serveStatic } from "hono/deno";
 import { trimTrailingSlash } from "hono/trailing-slash";
 import * as path from "@std/path";
 import { HttpError } from "@udibo/http-error";
+import { getInstance } from "@udibo/juniper/utils/otel";
 
 const notFound = createMiddleware(() => {
   throw new HttpError(404, "Not found");
@@ -86,6 +87,12 @@ export function createApp<
   const appWrapper = new Hono<E, S, BasePath>({ strict: true });
   appWrapper.onError((cause) => {
     const error = HttpError.from(cause);
+    if (!error.instance) {
+      const instance = getInstance();
+      if (instance) {
+        error.instance = instance;
+      }
+    }
     console.error(error);
     return error.getResponse();
   });

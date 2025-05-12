@@ -6,6 +6,7 @@
   "exports": {
     ".": "./mod.ts",
     "./server": "./server.ts",
+    "./utils/otel": "./utils/otel.ts",
     "./utils/testing": "./utils/testing.ts"
   },
   "tasks": {
@@ -15,7 +16,7 @@
     },
     "test": {
       "description": "Runs the tests.",
-      "command": "deno test -A --env-file=example/.env --env-file=example/.env.test --trace-leaks",
+      "command": "export OTEL_DENO=true OTEL_SERVICE_NAME=test && deno test -A --env-file=example/.env --env-file=example/.env.test --trace-leaks --unstable-otel",
       "dependencies": ["start-test"]
     },
     "test-watch": {
@@ -44,9 +45,13 @@
       "description": "Starts the test services.",
       "command": "cd ./example && deno task start-test"
     },
+    "start-lgtm": {
+      "description": "Starts the LGTM service.",
+      "command": "cd ./example && deno task start-lgtm"
+    },
     "start": {
-      "description": "Starts the development and test services.",
-      "command": "deno task start-dev && deno task start-test"
+      "description": "Starts the development, test, and LGTM services.",
+      "command": "deno task start-dev && deno task start-test && deno task start-lgtm"
     },
     "stop-dev": {
       "description": "Stops the development services.",
@@ -56,9 +61,13 @@
       "description": "Stops the test services.",
       "command": "cd ./example && deno task stop-test"
     },
+    "stop-lgtm": {
+      "description": "Stops the LGTM service.",
+      "command": "cd ./example && deno task stop-lgtm"
+    },
     "stop": {
-      "description": "Stops the development and test services.",
-      "command": "deno task stop-dev ; deno task stop-test"
+      "description": "Stops the development, test, and LGTM services.",
+      "command": "deno task stop-dev ; deno task stop-test ; deno task stop-lgtm"
     },
     "drizzle-kit": {
       "description": "Runs the drizzle-kit commands for the database.",
@@ -81,6 +90,7 @@
     "./": "./",
     "@udibo/juniper": "./mod.ts",
     "@udibo/juniper/server": "./server.ts",
+    "@udibo/juniper/utils/otel": "./utils/otel.ts",
     "@udibo/juniper/utils/testing": "./utils/testing.ts",
     "@udibo/http-error": "jsr:@udibo/http-error@0.10",
     "@std/testing": "jsr:@std/testing@1",
@@ -95,6 +105,7 @@
     "drizzle-kit": "npm:drizzle-kit@^0.31.1",
     "drizzle-orm": "npm:drizzle-orm@^0.43.1",
     "drizzle-zod": "npm:drizzle-zod@^0.7.1",
+    "@opentelemetry/api": "npm:@opentelemetry/api@1",
     "pg": "npm:pg@^8.15.6",
     "zod": "npm:zod@^3.24.3",
     "hono": "npm:hono@^4",
