@@ -38,7 +38,7 @@ jobs:
     needs: [lint, format]
     runs-on: ubuntu-latest
     env:
-      DENO_DIR: ${{ github.workspace }}/.deno
+      DENO_DIR: ${{ runner.temp }}/.cache/deno
     strategy:
       fail-fast: true
     steps:
