@@ -59,9 +59,7 @@ jobs:
         with:
           context: ./example
           file: ./example/database/Dockerfile.postgres
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/postgres-test:latest
-            postgres-test-img:latest
+          tags: ghcr.io/${{ github.repository_owner }}/postgres-test:latest
           push: ${{ github.event_name != 'pull_request' }}
           load: true
           cache-from: type=gha
@@ -71,7 +69,7 @@ jobs:
           cat <<EOF > example/docker-compose.override.yml
           services:
             postgres-test:
-              image: postgres-test-img:latest
+              image: ghcr.io/${{ github.repository_owner }}/postgres-test:latest
               build: null
           EOF
           deno task start-test
