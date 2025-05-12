@@ -45,6 +45,8 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      - name: Start test services
+        run: deno task start-test
       - name: Build
         run: deno task build-dev
       - name: Run tests
@@ -64,3 +66,5 @@ jobs:
           files: coverage/lcov.info
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      - name: Stop test services
+        run: deno task stop-test
