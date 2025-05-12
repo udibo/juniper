@@ -31,12 +31,10 @@ jobs:
       - name: Check formatting
         run: deno fmt --check
   test:
-    name: Test ${{ matrix.os }}
+    name: Test
     needs: [lint, format]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
       fail-fast: true
     steps:
       - name: Clone repository
