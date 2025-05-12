@@ -53,14 +53,14 @@ jobs:
       - name: Run tests and collect coverage
         if: matrix.os == 'ubuntu-latest'
         run: deno task test --coverage
-      - name: Generate coverage
+      - name: View coverage report
         if: matrix.os == 'ubuntu-latest'
-        run: deno coverage --lcov > coverage.lcov
+        run: deno coverage --detailed
       - name: Upload coverage
         if: matrix.os == 'ubuntu-latest'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           fail_ci_if_error: true
-          files: coverage.lcov
+          files: coverage/lcov.info
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
