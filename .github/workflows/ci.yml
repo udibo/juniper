@@ -47,8 +47,6 @@ jobs:
           deno-version: v2.x
       - name: Start test services
         run: deno task start-test
-      - name: Build
-        run: deno task build-dev
       - name: Run tests
         if: matrix.os != 'ubuntu-latest'
         run: deno task test
