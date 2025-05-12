@@ -2,6 +2,9 @@ name: CI
 on:
   workflow_call:
     secrets:
+      CACHE_VERSION:
+        description: Cache version used to invalidate cache if needed
+        required: false
       CODECOV_TOKEN:
         description: Repository codecov token
         required: false
