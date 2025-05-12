@@ -8,7 +8,7 @@ import {
 import { eq, sql } from "drizzle-orm";
 import { simulateEnvironment } from "@udibo/juniper/utils/testing";
 
-import { closeDb, Database, getDb, simulateDbFailure } from "./mod.ts";
+import { closeDb, type Database, getDb, simulateDbFailure } from "./mod.ts";
 import { usersTable } from "./schema/users.ts";
 
 describe("getDb", () => {
