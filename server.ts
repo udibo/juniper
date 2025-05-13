@@ -85,6 +85,7 @@ export function createApp<
   routes: Routes<E, S, BasePath>,
 ): Hono<E, S, BasePath> {
   const appWrapper = new Hono<E, S, BasePath>({ strict: true });
+
   appWrapper.onError((cause) => {
     const error = HttpError.from(cause);
     if (!error.instance) {
@@ -97,7 +98,9 @@ export function createApp<
     return error.getResponse();
   });
   appWrapper.use(trimTrailingSlash());
+
   const app = buildAppFromRoutes(rootUrl, routes, true);
+
   appWrapper.route("/", app);
   return appWrapper;
 }
