@@ -2,7 +2,7 @@ services:
   postgres-dev:
     build:
       context: .
-      dockerfile: ./database/Dockerfile.postgres
+      dockerfile: ./example/database/Dockerfile.postgres
     restart: always
     environment:
       POSTGRES_USER: dev
@@ -17,7 +17,7 @@ services:
   postgres-test:
     build:
       context: .
-      dockerfile: ./database/Dockerfile.postgres
+      dockerfile: ./example/database/Dockerfile.postgres
     restart: always
     environment:
       POSTGRES_USER: test

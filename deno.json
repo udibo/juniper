@@ -9,15 +9,16 @@
     "./utils/otel": "./utils/otel.ts",
     "./utils/testing": "./utils/testing.ts"
   },
-  "exclude": ["./.cache/deno"],
+  "exclude": [".cache/deno"],
   "tasks": {
     "serve": {
       "description": "Runs the server.",
-      "command": "cd ./example && deno task serve"
+      "command": "export OTEL_DENO=true OTEL_SERVICE_NAME=Example && deno run -A --env-file --env-file=.env.production --unstable-otel ./example/main.ts",
+      "dependencies": ["start-dev"]
     },
     "test": {
       "description": "Runs the tests.",
-      "command": "export OTEL_DENO=true OTEL_SERVICE_NAME=test && deno test -A --env-file=example/.env --env-file=example/.env.test --trace-leaks --unstable-otel",
+      "command": "export OTEL_DENO=true OTEL_SERVICE_NAME=test && deno test -A --env-file --env-file=.env.test --trace-leaks --unstable-otel",
       "dependencies": ["start-test"]
     },
     "test-watch": {
@@ -40,15 +41,15 @@
     },
     "start-dev": {
       "description": "Starts the development services.",
-      "command": "cd ./example && deno task start-dev"
+      "command": "docker compose ps --services | grep -q '^postgres-dev$' || (docker compose up -d --wait postgres-dev && deno task drizzle-kit migrate && deno task drizzle-kit push && deno run -A --env-file ./example/database/seeds/default.ts)"
     },
     "start-test": {
       "description": "Starts the test services.",
-      "command": "cd ./example && deno task start-test"
+      "command": "docker compose ps --services | grep -q '^postgres-test$' || (docker compose up -d --wait postgres-test && deno task drizzle-kit-test migrate && deno task drizzle-kit-test push && deno run -A --env-file --env-file=.env.test ./example/database/seeds/default.ts)"
     },
     "start-lgtm": {
       "description": "Starts the LGTM service.",
-      "command": "cd ./example && deno task start-lgtm"
+      "command": "docker compose up -d --wait lgtm"
     },
     "start": {
       "description": "Starts the development, test, and LGTM services.",
@@ -56,15 +57,15 @@
     },
     "stop-dev": {
       "description": "Stops the development services.",
-      "command": "cd ./example && deno task stop-dev"
+      "command": "docker compose down postgres-dev"
     },
     "stop-test": {
       "description": "Stops the test services.",
-      "command": "cd ./example && deno task stop-test"
+      "command": "docker compose down postgres-test"
     },
     "stop-lgtm": {
       "description": "Stops the LGTM service.",
-      "command": "cd ./example && deno task stop-lgtm"
+      "command": "docker compose down lgtm"
     },
     "stop": {
       "description": "Stops the development, test, and LGTM services.",
@@ -72,27 +73,23 @@
     },
     "drizzle-kit": {
       "description": "Runs the drizzle-kit commands for the database.",
-      "command": "cd ./example && deno task drizzle-kit",
+      "command": "deno -A --env-file npm:drizzle-kit",
       "dependencies": ["start-dev"]
     },
     "drizzle-kit-test": {
       "description": "Runs the drizzle-kit commands for the test database.",
-      "command": "cd ./example && deno task drizzle-kit-test",
+      "command": "deno -A --env-file --env-file=.env.test npm:drizzle-kit",
       "dependencies": ["start-test"]
     },
     "drizzle-kit:push": {
       "description": "Pushes your drizzle schema to the development and test databases.",
-      "command": "cd ./example && deno task drizzle-kit:push",
+      "command": "deno task drizzle-kit:push ; deno task drizzle-kit-test push",
       "dependencies": ["start-dev", "start-test"]
     }
   },
   "imports": {
     "/": "./example/",
     "./": "./",
-    "@udibo/juniper": "./mod.ts",
-    "@udibo/juniper/server": "./server.ts",
-    "@udibo/juniper/utils/otel": "./utils/otel.ts",
-    "@udibo/juniper/utils/testing": "./utils/testing.ts",
     "@udibo/http-error": "jsr:@udibo/http-error@0.10",
     "@std/testing": "jsr:@std/testing@1",
     "@std/assert": "jsr:@std/assert@1",

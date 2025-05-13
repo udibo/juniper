@@ -67,7 +67,7 @@ jobs:
       - name: Build, cache, load, and optionally push postgres test image
         uses: docker/build-push-action@v6
         with:
-          context: ./example
+          context: ./
           file: ./example/database/Dockerfile.postgres
           tags: ghcr.io/${{ github.repository_owner }}/postgres-test:latest
           push: ${{ github.event_name != 'pull_request' }}
@@ -76,7 +76,7 @@ jobs:
           cache-to: type=gha,mode=max
       - name: Start test services
         run: |
-          cat <<EOF > example/docker-compose.override.yml
+          cat <<EOF > docker-compose.override.yml
           services:
             postgres-test:
               image: ghcr.io/${{ github.repository_owner }}/postgres-test:latest
