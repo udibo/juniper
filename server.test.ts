@@ -5,7 +5,7 @@ import { createApp } from "./server.ts";
 describe("createApp", () => {
   it("should return 404 for a non-existent route", async () => {
     const app = createApp(import.meta.url, { path: "/" });
-    const res = await app.request("http://localhost/non-existent-route");
+    const res = await app.request("http://localhost/non-existent-route2");
     assertEquals(res.status, 404);
   });
 });
