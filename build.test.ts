@@ -18,7 +18,8 @@ describe("buildMainFile", () => {
     if (isSnapshotMode()) {
       await Deno.writeTextFile(exampleMainTsPath, generatedContent);
     } else {
-      const expectedContent = await Deno.readTextFile(exampleMainTsPath);
+      const expectedContent = (await Deno.readTextFile(exampleMainTsPath))
+        .replace(/\r\n/g, "\n");
 
       assertEquals(
         generatedContent,
