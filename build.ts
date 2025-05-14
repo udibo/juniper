@@ -257,5 +257,7 @@ if (import.meta.main) {
     throw new Error(`Failed to format generated file: ${code}`);
   }
 
-  return toText(fmt.stdout);
+  let formattedOutput = await toText(fmt.stdout);
+  formattedOutput = formattedOutput.replace(/\r\n/g, "\n");
+  return formattedOutput;
 }
