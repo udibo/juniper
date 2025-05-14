@@ -60,7 +60,7 @@ jobs:
       DATABASE_URL: postgresql://test:password@localhost:5432/test
     services:
       postgres-test:
-        image: ghcr.io/${{ github.repository_owner }}/postgres-test:latest
+        image: ghcr.io/${{ github.repository_owner }}/juniper-postgres:latest
         env:
           POSTGRES_DB: test
           POSTGRES_USER: test
@@ -98,7 +98,7 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
   build-postgres-image:
-    name: Build PostgreSQL Test Image
+    name: Build PostgreSQL Image
     needs: [formatAndLint]
     runs-on: ubuntu-latest
     permissions:
@@ -117,12 +117,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push postgres test image
+      - name: Build and push postgres image
         uses: docker/build-push-action@v6
         with:
           context: ./
           file: ./example/database/Dockerfile.postgres
-          tags: ghcr.io/${{ github.repository_owner }}/postgres-test:latest
+          tags: ghcr.io/${{ github.repository_owner }}/juniper-postgres:latest
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max

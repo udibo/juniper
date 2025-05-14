@@ -3,6 +3,7 @@ FROM postgres:17
 # Install build dependencies and clean up in the same layer
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        ca-certificates \
         build-essential \
         git \
         postgresql-server-dev-17 \

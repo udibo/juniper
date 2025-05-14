@@ -6,7 +6,7 @@ import { isSnapshotMode } from "./utils/testing.ts";
 import { buildMainFile } from "./build.ts";
 
 const exampleDir = path.resolve(
-  path.dirname(new URL(import.meta.url).pathname),
+  path.dirname(path.fromFileUrl(import.meta.url)),
   "example",
 );
 

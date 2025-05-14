@@ -28,7 +28,7 @@ function buildAppFromRoutes<
   S extends Schema,
   BasePath extends string,
 >(
-  rootUrl: string,
+  mainUrl: string,
   routeConfig: Routes<E, S, BasePath>,
   root: boolean = false,
 ): Hono<E, S, BasePath> {
@@ -37,7 +37,7 @@ function buildAppFromRoutes<
 
   if (children) {
     for (const childRoute of children) {
-      const childApp = buildAppFromRoutes(rootUrl, childRoute);
+      const childApp = buildAppFromRoutes(mainUrl, childRoute);
       app.route(
         childRoute.path,
         childApp,
@@ -61,8 +61,7 @@ function buildAppFromRoutes<
   }
 
   if (root) {
-    const url = new URL(rootUrl);
-    const dirname = path.dirname(url.pathname);
+    const dirname = path.dirname(path.fromFileUrl(mainUrl));
 
     app.get(
       "*",
@@ -81,7 +80,7 @@ export function createApp<
   S extends Schema = Schema,
   BasePath extends string = "/",
 >(
-  rootUrl: string,
+  mainUrl: string,
   routes: Routes<E, S, BasePath>,
 ): Hono<E, S, BasePath> {
   const appWrapper = new Hono<E, S, BasePath>({ strict: true });
@@ -99,7 +98,7 @@ export function createApp<
   });
   appWrapper.use(trimTrailingSlash());
 
-  const app = buildAppFromRoutes(rootUrl, routes, true);
+  const app = buildAppFromRoutes(mainUrl, routes, true);
 
   appWrapper.route("/", app);
   return appWrapper;
