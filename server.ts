@@ -17,9 +17,9 @@ export interface Routes<
   BasePath extends string = "/",
 > {
   path: BasePath;
-  main?: { default: Hono<E, S, BasePath> };
-  index?: { default: Hono<E, S, BasePath> };
-  catchall?: { default: Hono<E, S, BasePath> };
+  main?: { default?: Hono<E, S, BasePath> };
+  index?: { default?: Hono<E, S, BasePath> };
+  catchall?: { default?: Hono<E, S, BasePath> };
   children?: Routes<E, S, BasePath>[];
 }
 
@@ -45,11 +45,11 @@ function buildAppFromRoutes<
     }
   }
 
-  if (index) {
+  if (index?.default) {
     app.route("/", index.default);
   }
 
-  if (catchall) {
+  if (catchall?.default) {
     app.route(
       "/:*{.+}",
       catchall.default,

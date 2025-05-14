@@ -5,6 +5,7 @@ services:
       dockerfile: ./example/database/Dockerfile.postgres
     restart: always
     environment:
+      POSTGRES_DB: dev
       POSTGRES_USER: dev
       POSTGRES_PASSWORD: password
     ports:
@@ -20,6 +21,7 @@ services:
       dockerfile: ./example/database/Dockerfile.postgres
     restart: always
     environment:
+      POSTGRES_DB: test
       POSTGRES_USER: test
       POSTGRES_PASSWORD: password
     ports:

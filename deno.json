@@ -5,6 +5,7 @@
   "license": "MIT",
   "exports": {
     ".": "./mod.ts",
+    "./build": "./build.ts",
     "./server": "./server.ts",
     "./utils/otel": "./utils/otel.ts",
     "./utils/testing": "./utils/testing.ts"
