@@ -6,7 +6,7 @@ import { isSnapshotMode } from "./utils/testing.ts";
 import { buildMainFile } from "./build.ts";
 
 const exampleDir = path.resolve(
-  path.dirname(new URL(import.meta.url).pathname),
+  path.dirname(path.fromFileUrl(import.meta.url)),
   "example",
 );
 
@@ -18,7 +18,8 @@ describe("buildMainFile", () => {
     if (isSnapshotMode()) {
       await Deno.writeTextFile(exampleMainTsPath, generatedContent);
     } else {
-      const expectedContent = await Deno.readTextFile(exampleMainTsPath);
+      const expectedContent = (await Deno.readTextFile(exampleMainTsPath))
+        .replace(/\r\n/g, "\n");
 
       assertEquals(
         generatedContent,

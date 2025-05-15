@@ -1,0 +1,32 @@
+name: CD
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches:
+      - main
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    env:
+      DATABASE_URL: ${{ (github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main') && secrets.DATABASE_URL_PRODUCTION || secrets.DATABASE_URL_DEVELOPMENT }}
+      USE_NEON: true
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Apply migrations
+        run: deno task drizzle-kit migrate
+      - name: Deploy to Deno Deploy
+        uses: denoland/deployctl@v1
+        with:
+          project: ${{ (github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main') && 'juniper' || 'juniper-preview' }}
+          entrypoint: ./example/main.ts

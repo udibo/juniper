@@ -4,12 +4,13 @@ import {
   type NodePgDatabase,
 } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
+import { Pool as NeonPool } from "@neondatabase/serverless";
 
 export type Database = NodePgDatabase<Record<string, unknown>> & {
   $client: NodePgClient;
 };
 
-let pool: Pool | null = null;
+let pool: Pool | NeonPool | null = null;
 let db: Database | null = null;
 
 /**
@@ -26,7 +27,10 @@ export function getDb(): Database {
     if (!dbUrl) {
       throw new Error("DATABASE_URL environment variable is not set");
     }
-    pool = new Pool({ connectionString: dbUrl });
+    const poolConfig = { connectionString: dbUrl };
+    pool = Deno.env.get("USE_NEON") === "true"
+      ? new NeonPool(poolConfig)
+      : new Pool(poolConfig);
     db = drizzle(pool, { casing: "snake_case" });
   }
   return db;

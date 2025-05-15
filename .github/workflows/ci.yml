@@ -1,88 +1,91 @@
 name: CI
 on:
-  workflow_call:
-    secrets:
-      CACHE_VERSION:
-        description: Cache version used to invalidate cache if needed
-        required: false
-      CODECOV_TOKEN:
-        description: Repository codecov token
-        required: false
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-      - name: Setup deno
-        uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
-      - name: Lint source files
-        run: deno lint
-  format:
-    name: Check formatting
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-      - name: Setup deno
-        uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
-      - name: Check formatting
-        run: deno fmt --check
-  test:
-    name: Test
-    needs: [lint, format]
+  formatAndLint:
+    name: Check formatting and lint
     runs-on: ubuntu-latest
     env:
       DENO_DIR: .cache/deno
-    strategy:
-      fail-fast: true
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
+      - name: Setup deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
       - name: Cache Deno dependencies
         uses: actions/cache@v4
         with:
           path: ${{ env.DENO_DIR }}
           key: ${{ secrets.CACHE_VERSION }}-${{ hashFiles('deno.lock') }}
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Login to GitHub Container Registry
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check formatting
+        run: deno fmt --check
+      - name: Lint source files
+        run: deno lint
+  test-build:
+    name: Test build on ${{ matrix.os }}
+    needs: [formatAndLint]
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    env:
+      DENO_DIR: .cache/deno
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
       - name: Setup deno
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Build, cache, load, and optionally push postgres test image
-        uses: docker/build-push-action@v6
+      - name: Cache Deno dependencies
+        uses: actions/cache@v4
         with:
-          context: ./
-          file: ./example/database/Dockerfile.postgres
-          tags: ghcr.io/${{ github.repository_owner }}/postgres-test:latest
-          push: ${{ github.event_name != 'pull_request' }}
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      - name: Start test services
-        run: |
-          cat <<EOF > docker-compose.override.yml
-          services:
-            postgres-test:
-              image: ghcr.io/${{ github.repository_owner }}/postgres-test:latest
-              build: null
-          EOF
-          deno task start-test
+          path: ${{ env.DENO_DIR }}
+          key: ${{ secrets.CACHE_VERSION }}-${{ hashFiles('deno.lock') }}
+      - name: Run tests for build
+        run: deno test -A --env-file --env-file=.env.test --trace-leaks build.test.ts
+  test:
+    name: Test
+    needs: [build-postgres-image]
+    runs-on: ubuntu-latest
+    env:
+      DENO_DIR: .cache/deno
+      DATABASE_URL: postgresql://test:password@localhost:5432/test
+    services:
+      postgres-test:
+        image: ghcr.io/${{ github.repository_owner }}/juniper-postgres:latest
+        env:
+          POSTGRES_DB: test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    strategy:
+      fail-fast: true
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Setup deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Cache Deno dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.DENO_DIR }}
+          key: ${{ secrets.CACHE_VERSION }}-${{ hashFiles('deno.lock') }}
       - name: Run tests and collect coverage
         run: deno task test --coverage
       - name: View coverage report
@@ -94,5 +97,32 @@ jobs:
           files: coverage/lcov.info
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-      - name: Stop test services
-        run: deno task stop-test
+  build-postgres-image:
+    name: Build PostgreSQL Image
+    needs: [formatAndLint]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push postgres image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./
+          file: ./example/database/Dockerfile.postgres
+          tags: ghcr.io/${{ github.repository_owner }}/juniper-postgres:latest
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
