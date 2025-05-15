@@ -105,6 +105,7 @@ jobs:
       id-token: write
       contents: read
     env:
+      DENO_DIR: .cache/deno
       DATABASE_URL: ${{ github.event_name == 'pull_request' && secrets.DATABASE_URL_DEVELOPMENT || secrets.DATABASE_URL_PRODUCTION }}
     steps:
       - name: Clone repository
