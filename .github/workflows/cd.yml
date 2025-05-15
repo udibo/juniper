@@ -4,14 +4,12 @@ on:
     workflows: ["CI"]
     types:
       - completed
-    branches:
-      - main
 jobs:
   deploy:
     runs-on: ubuntu-latest
     if: github.event.workflow_run.conclusion == 'success'
     env:
-      DATABASE_URL: ${{ github.event_name == 'push' && secrets.DATABASE_URL_PRODUCTION || secrets.DATABASE_URL_DEVELOPMENT }}
+      DATABASE_URL: ${{ (github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main') && secrets.DATABASE_URL_PRODUCTION || secrets.DATABASE_URL_DEVELOPMENT }}
       USE_NEON: true
     permissions:
       id-token: write
@@ -28,5 +26,5 @@ jobs:
       - name: Deploy to Deno Deploy
         uses: denoland/deployctl@v1
         with:
-          project: ${{ github.event_name == 'push' && 'juniper' || 'juniper-preview' }}
+          project: ${{ (github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main') && 'juniper' || 'juniper-preview' }}
           entrypoint: ./example/main.ts
