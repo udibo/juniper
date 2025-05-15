@@ -74,23 +74,21 @@
     },
     "drizzle-kit": {
       "description": "Runs the drizzle-kit commands for the database.",
-      "command": "deno -A --env-file npm:drizzle-kit",
-      "dependencies": ["start-dev"]
+      "command": "deno -A --env-file npm:drizzle-kit"
     },
     "drizzle-kit-test": {
       "description": "Runs the drizzle-kit commands for the test database.",
-      "command": "deno -A --env-file --env-file=.env.test npm:drizzle-kit",
-      "dependencies": ["start-test"]
+      "command": "deno -A --env-file --env-file=.env.test npm:drizzle-kit"
     },
     "drizzle-kit:push": {
       "description": "Pushes your drizzle schema to the development and test databases.",
-      "command": "deno task drizzle-kit:push ; deno task drizzle-kit-test push",
-      "dependencies": ["start-dev", "start-test"]
+      "command": "deno task drizzle-kit:push ; deno task drizzle-kit-test push"
     }
   },
   "imports": {
     "/": "./example/",
     "./": "./",
+    "@neondatabase/serverless": "npm:@neondatabase/serverless@^1.0.0",
     "@udibo/http-error": "jsr:@udibo/http-error@0.10",
     "@std/testing": "jsr:@std/testing@1",
     "@std/assert": "jsr:@std/assert@1",
