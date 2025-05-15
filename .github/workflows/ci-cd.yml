@@ -101,6 +101,9 @@ jobs:
     name: Deploy
     needs: [test]
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     env:
       DATABASE_URL: ${{ github.event_name == 'pull_request' && secrets.DATABASE_URL_DEVELOPMENT || secrets.DATABASE_URL_PRODUCTION }}
     steps:
