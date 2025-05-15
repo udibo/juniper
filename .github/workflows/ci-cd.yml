@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD
 on:
   push:
     branches:
@@ -97,6 +97,26 @@ jobs:
           files: coverage/lcov.info
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+  deploy:
+    name: Deploy
+    needs: [test]
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ github.event_name == 'pull_request' && secrets.DATABASE_URL_DEVELOPMENT || secrets.DATABASE_URL_PRODUCTION }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Setup deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Apply migrations
+        run: deno task drizzle-kit migrate
+      - name: Deploy to Deno Deploy
+        uses: denoland/deployctl@v1
+        with:
+          project: ${{ github.event_name == 'pull_request' && 'juniper-preview' || 'juniper' }}
+          entrypoint: ./example/main.ts
   build-postgres-image:
     name: Build PostgreSQL Image
     needs: [formatAndLint]
