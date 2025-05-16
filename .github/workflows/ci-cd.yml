@@ -10,8 +10,6 @@ jobs:
   formatAndLint:
     name: Check formatting and lint
     runs-on: ubuntu-latest
-    env:
-      DENO_DIR: .cache/deno
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -19,11 +17,7 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Cache Deno dependencies
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.DENO_DIR }}
-          key: ${{ secrets.CACHE_VERSION }}-${{ hashFiles('deno.lock') }}
+          cache: true
       - name: Check formatting
         run: deno fmt --check
       - name: Lint source files
@@ -34,8 +28,6 @@ jobs:
     strategy:
       matrix:
         os: [macos-latest, windows-latest]
-    env:
-      DENO_DIR: .cache/deno
     runs-on: ${{ matrix.os }}
     steps:
       - name: Clone repository
@@ -44,11 +36,7 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Cache Deno dependencies
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.DENO_DIR }}
-          key: ${{ secrets.CACHE_VERSION }}-${{ hashFiles('deno.lock') }}
+          cache: true
       - name: Run tests for build
         run: deno test -A --env-file --env-file=.env.test --trace-leaks build.test.ts
   test:
@@ -56,7 +44,6 @@ jobs:
     needs: [build-postgres-image]
     runs-on: ubuntu-latest
     env:
-      DENO_DIR: .cache/deno
       DATABASE_URL: postgresql://test:password@localhost:5432/test
     services:
       postgres-test:
@@ -81,11 +68,7 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Cache Deno dependencies
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.DENO_DIR }}
-          key: ${{ secrets.CACHE_VERSION }}-${{ hashFiles('deno.lock') }}
+          cache: true
       - name: Run tests and collect coverage
         run: deno task test --coverage
       - name: View coverage report
@@ -105,7 +88,6 @@ jobs:
       id-token: write
       contents: read
     env:
-      DENO_DIR: .cache/deno
       DATABASE_URL: ${{ github.event_name == 'pull_request' && secrets.DATABASE_URL_DEVELOPMENT || secrets.DATABASE_URL_PRODUCTION }}
     steps:
       - name: Clone repository
@@ -114,11 +96,7 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Cache Deno dependencies
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.DENO_DIR }}
-          key: ${{ secrets.CACHE_VERSION }}-${{ hashFiles('deno.lock') }}
+          cache: true
       - name: Apply migrations
         run: deno task drizzle-kit migrate
       - name: Deploy to Deno Deploy
