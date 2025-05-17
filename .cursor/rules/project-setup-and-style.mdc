@@ -1,12 +1,12 @@
 ---
 description: 
-globs: **/*.ts,**/*.tsx,deno.json
-alwaysApply: false
+globs: 
+alwaysApply: true
 ---
 \
 ---
 description: "Guidelines for Deno & TypeScript project setup, dependency management, coding best practices, imports, security, and style for the Juniper project."
-alwaysApply: false # Or true if it should always apply. Agent Requested is also an option. Let's start with false.
+alwaysApply: true
 # globs: ["**/*.ts", "**/*.tsx", "deno.json"] # Optional: to auto-attach for specific files.
 ---
 # Deno TypeScript Development Guidelines

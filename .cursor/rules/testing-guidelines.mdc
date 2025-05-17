@@ -1,12 +1,12 @@
 ---
 description: 
-globs: **/*.test.ts
-alwaysApply: false
+globs: 
+alwaysApply: true
 ---
 \
 ---
 description: "Guidelines for writing and running tests in the Juniper project using Deno, @std/testing, and the mcp_juniper_test tool."
-alwaysApply: false
+alwaysApply: true
 # globs: ["**/*.test.ts"] # Optional: to auto-attach for test files.
 ---
 # Testing Guidelines
@@ -16,6 +16,9 @@ alwaysApply: false
   - To run all tests: (Assuming `mcp_juniper_test` without arguments runs all tests)
   - To run a specific test file: `mcp_juniper_test path/to/test.ts` (Provide the specific file path)
   - To run tests for examples in docstrings or markdown files: `mcp_juniper_test --doc path/to/file.ts` (Adjust if the flag is different for `mcp_juniper_test`)
+- **ALWAYS** run tests using `mcp_juniper_test` after writing or modifying test files (`*.test.ts`) or the source code files they cover.
+  - If you modified a specific file and its corresponding test, run `mcp_juniper_test path/to/your.test.ts`.
+  - If changes are broader or you are unsure, consider running all tests.
 - After running tests with the appropriate coverage flag (e.g., `mcp_juniper_test --coverage`), use `deno coverage --detailed` to view the coverage report. Ensure new code has test coverage.
 - The MCP server also provides a `coverage` tool that can be called to get a detailed coverage report directly (equivalent to `deno coverage --detailed`).
 
@@ -79,8 +82,8 @@ describe("UserService", () => {
     });
   });
 });
-```
-
-## Task Management (General)
+```## Task Management (General)
 - For tasks other than testing, use `deno task` to run predefined tasks from `deno.json`.
 - Check `deno.json` for available tasks.
+
+
