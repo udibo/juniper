@@ -4,12 +4,13 @@ import { resolve } from "@std/path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "./fork/client-stdio.ts";
 import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
+import { isSnapshotMode } from "@udibo/juniper/utils/testing";
 
-import { isSnapshotMode } from "../utils/testing.ts";
-
-// Strip timing information from test output
+// Strip timing information from test output and "Check file" lines
 function stripTimings(text: string): string {
-  return text.replace(/\(\d+m?s\)/g, "(0ms)");
+  const lines = text.split("\n");
+  const filteredLines = lines.filter((line) => !line.startsWith("Check file"));
+  return filteredLines.join("\n").replace(/\(\d+m?s\)/g, "(0ms)");
 }
 
 describe("MCP Server", () => {
@@ -19,7 +20,13 @@ describe("MCP Server", () => {
   beforeAll(async () => {
     transport = new StdioClientTransport({
       command: "deno",
-      args: ["run", "-A", "./mcp/server.ts"],
+      args: [
+        "run",
+        "-A",
+        "--env-file",
+        "--env-file=.env.test",
+        "./mcp/server.ts",
+      ],
     });
 
     client = new Client(
@@ -52,21 +59,29 @@ describe("MCP Server", () => {
       type: "object",
       properties: {
         file: {
+          description:
+            "The test file or directory to run tests for. If not provided, all tests will be run.",
           type: "string",
+        },
+        doc: {
+          description:
+            "Run tests for examples in docstrings or markdown files.",
+          type: "boolean",
+          default: false,
+        },
+        update: {
+          description: "Whether to update snapshot files.",
+          type: "boolean",
+          default: false,
         },
       },
       additionalProperties: false,
     });
-    assertEquals(tools.tools.find((t) => t.name === "echo")?.inputSchema, {
+    assertEquals(tools.tools.find((t) => t.name === "coverage")?.inputSchema, {
       "$schema": "http://json-schema.org/draft-07/schema#",
       type: "object",
-      properties: {
-        message: {
-          type: "string",
-        },
-      },
+      properties: {},
       additionalProperties: false,
-      required: ["message"],
     });
   });
 
@@ -88,5 +103,27 @@ describe("MCP Server", () => {
       stripTimings(content[0].text),
       await Deno.readTextFile(snapshotPath),
     );
+    assertEquals(result.isError, false);
+  });
+
+  it("should run tests with --doc flag", async () => {
+    const result = await client.callTool({
+      name: "test",
+      arguments: { doc: true, file: "mcp/example.test.ts" },
+    });
+    const content = result.content as TextContent[];
+    assertEquals(content[0].type, "text");
+    assertEquals(result.isError, false);
+  });
+
+  it("should run coverage tool", async () => {
+    const result = await client.callTool({
+      name: "coverage",
+      arguments: {},
+    });
+    const content = result.content as TextContent[];
+    assertEquals(content[0].type, "text");
+    // Does not assert anything about the output because it's not stable.
+    // Content will change depending on if all tests have run since the last change was made.
   });
 });

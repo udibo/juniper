@@ -1,0 +1,50 @@
+---
+description: 
+globs: **/*.ts,**/*.tsx,deno.json
+alwaysApply: false
+---
+\
+---
+description: "Guidelines for Deno & TypeScript project setup, dependency management, coding best practices, imports, security, and style for the Juniper project."
+alwaysApply: false # Or true if it should always apply. Agent Requested is also an option. Let's start with false.
+# globs: ["**/*.ts", "**/*.tsx", "deno.json"] # Optional: to auto-attach for specific files.
+---
+# Deno TypeScript Development Guidelines
+
+## Runtime Environment
+- Use Deno's runtime environment and APIs instead of Node.js
+- Prefer Web APIs (fetch, Request, Response) over Node.js alternatives
+- Use JSR (jsr.io) packages when available instead of npm packages
+- File extensions are mandatory in imports (.ts, .tsx, .js)
+
+## Dependency Management
+- Use import maps defined in deno.json for managing dependencies
+- Never import directly from JSR or npm - always use import map aliases
+- Update versions in deno.json import map, not in individual files
+- Run `deno cache` after updating dependencies in deno.json
+
+## TypeScript Best Practices
+- Enable strict TypeScript checks
+- Use explicit type annotations for function parameters and returns
+- Leverage Deno's built-in TypeScript support
+- Use top-level await when needed (supported by default)
+
+## Imports
+```typescript
+// ✅ Correct imports using import map defined in deno.json configuration file
+import { assertEquals } from "@std/assert";
+import { MyComponent } from "./components/MyComponent.ts";
+
+// ❌ Avoid
+import { assertEquals } from "jsr:@std/assert@1"; // Don\'t specify JSR URL directly
+import { something } from "./module"; // Missing extension
+import express from "npm:express"; // Don\'t specify npm URL directly
+```
+
+## Security
+- Use `--allow-` flags explicitly when running scripts
+- Review permissions in deno.json carefully
+- Avoid using `--allow-all` or `--unstable` without good reason
+
+## Style
+Avoid adding comments to the code. The examples in documentation can have comments explaining what is happening in the example. The only comments should be the docstrings for documentation.

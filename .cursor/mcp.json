@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "juniper": {
+      "command": "deno",
+      "args": ["run", "-A", "--env-file", "./mcp/server.ts"]
+    }
+  }
+}

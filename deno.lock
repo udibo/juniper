@@ -6,6 +6,7 @@
     "jsr:@std/async@1": "1.0.12",
     "jsr:@std/bytes@^1.0.5": "1.0.5",
     "jsr:@std/collections@1": "1.0.11",
+    "jsr:@std/crypto@^1.0.4": "1.0.4",
     "jsr:@std/data-structures@^1.0.6": "1.0.7",
     "jsr:@std/encoding@1": "1.0.8",
     "jsr:@std/fs@1": "1.0.17",
@@ -17,6 +18,7 @@
     "jsr:@std/path@^1.0.9": "1.0.9",
     "jsr:@std/streams@1": "1.0.9",
     "jsr:@std/testing@1": "1.0.11",
+    "jsr:@std/uuid@1": "1.0.7",
     "jsr:@udibo/http-error@0.10": "0.10.0",
     "npm:@modelcontextprotocol/sdk@^1.11.3": "1.11.3_express@5.1.0_zod@3.24.3",
     "npm:@neondatabase/serverless@1": "1.0.0",
@@ -58,6 +60,9 @@
     "@std/collections@1.0.11": {
       "integrity": "2f62cf9587484b1fff364f6c3e1f83478eea53dbb6faed6ffeda92ddb6b172f0"
     },
+    "@std/crypto@1.0.4": {
+      "integrity": "cee245c453bd5366207f4d8aa25ea3e9c86cecad2be3fefcaa6cb17203d79340"
+    },
     "@std/data-structures@1.0.7": {
       "integrity": "16932d2c8d281f65eaaa2209af2473209881e33b1ced54cd1b015e7b4cdbb0d2"
     },
@@ -93,6 +98,13 @@
         "jsr:@std/fs@^1.0.16",
         "jsr:@std/internal",
         "jsr:@std/path@^1.0.8"
+      ]
+    },
+    "@std/uuid@1.0.7": {
+      "integrity": "6885db5cd60794049d1661b5cf06b1e1ed65b2affd054ec8b06da7d2efd421ca",
+      "dependencies": [
+        "jsr:@std/bytes",
+        "jsr:@std/crypto"
       ]
     },
     "@udibo/http-error@0.10.0": {
@@ -1584,6 +1596,7 @@
       "jsr:@std/path@1",
       "jsr:@std/streams@1",
       "jsr:@std/testing@1",
+      "jsr:@std/uuid@1",
       "jsr:@udibo/http-error@0.10",
       "npm:@modelcontextprotocol/sdk@^1.11.3",
       "npm:@neondatabase/serverless@1",

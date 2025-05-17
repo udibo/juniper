@@ -7,10 +7,10 @@
     ".": "./mod.ts",
     "./build": "./build.ts",
     "./server": "./server.ts",
+    "./utils/env": "./utils/env.ts",
     "./utils/otel": "./utils/otel.ts",
     "./utils/testing": "./utils/testing.ts"
   },
-  "exclude": [".cache/deno"],
   "tasks": {
     "serve": {
       "description": "Runs the server.",
@@ -99,6 +99,7 @@
     "@std/path": "jsr:@std/path@1",
     "@std/streams": "jsr:@std/streams@1",
     "@std/collections": "jsr:@std/collections@1",
+    "@std/uuid": "jsr:@std/uuid@1",
     "@types/pg": "npm:@types/pg@^8.11.14",
     "cross-spawn": "npm:cross-spawn@^7.0.6",
     "drizzle-kit": "npm:drizzle-kit@^0.31.1",
@@ -119,8 +120,16 @@
     "global-jsdom": "npm:global-jsdom@^25"
   },
   "nodeModulesDir": "auto",
+  "unstable": ["kv"],
   "compilerOptions": {
-    "lib": ["esnext", "dom", "dom.iterable", "dom.asynciterable", "deno.ns"],
+    "lib": [
+      "esnext",
+      "dom",
+      "dom.iterable",
+      "dom.asynciterable",
+      "deno.ns",
+      "deno.unstable"
+    ],
     "jsx": "react-jsx",
     "jsxImportSource": "react",
     "jsxImportSourceTypes": "@types/react"
