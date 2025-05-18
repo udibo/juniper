@@ -113,6 +113,24 @@ export class Service<T extends Entity> implements Disposable {
   ): Promise<{ entries: T[]; cursor?: string }> {
     const { index, ...listOptions } = options || {};
     const kv = await this.getKv();
+
+    if (
+      index &&
+      index !== "id" &&
+      !this.uniqueIndexes.includes(index as Exclude<keyof T, "id">) &&
+      !this.indexes.includes(index as Exclude<keyof T, "id">)
+    ) {
+      const validIndexes = ["id", ...this.uniqueIndexes, ...this.indexes];
+      throw new HttpError(
+        400,
+        `Index "${
+          String(index)
+        }" is not a valid index for ${this.name}. Valid indexes are: ${
+          validIndexes.join(", ")
+        }.`,
+      );
+    }
+
     const entries = kv.list<T>(
       { prefix: [this.name, index ?? "id"] },
       listOptions,

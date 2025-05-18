@@ -1037,6 +1037,38 @@ describe("Service", () => {
       assertEquals(cursor, "");
     });
 
+    it("should throw HttpError if listing by a non-existent index", async () => {
+      using service = new Service({
+        name: "user",
+        schema: userSchema,
+        uniqueIndexes: ["name"],
+        indexes: ["age"],
+      });
+      await assertRejects(
+        async () => {
+          // @ts-expect-error: testing invalid index
+          await service.list({ index: "nonExistentIndex" });
+        },
+        HttpError,
+        `Index "nonExistentIndex" is not a valid index for user. Valid indexes are: id, name, age.`,
+      );
+    });
+
+    it("should throw HttpError if listing by a non-existent index when no indexes are defined", async () => {
+      using service = new Service({
+        name: "user",
+        schema: userSchema,
+      });
+      await assertRejects(
+        async () => {
+          // @ts-expect-error: testing invalid index
+          await service.list({ index: "nonExistentIndex" });
+        },
+        HttpError,
+        `Index "nonExistentIndex" is not a valid index for user. Valid indexes are: id.`,
+      );
+    });
+
     describe("with non-unique index", () => {
       let service: Service<IndexedUser>;
       const usersData: Array<
