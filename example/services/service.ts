@@ -17,19 +17,22 @@ export interface ServiceListOptions<T extends Entity>
 export interface ServiceOptions<T extends Entity> {
   name: string;
   schema: z.ZodSchema<T>;
-  secondaryIndexes?: Exclude<keyof T, "id">[];
+  uniqueIndexes?: Exclude<keyof T, "id">[];
+  indexes?: Exclude<keyof T, "id">[];
 }
 
 export class Service<T extends Entity> implements Disposable {
   private _kv: Deno.Kv | undefined;
   public readonly name: string;
   public readonly schema: z.ZodSchema<T>;
-  public readonly secondaryIndexes: Exclude<keyof T, "id">[];
+  public readonly uniqueIndexes: Exclude<keyof T, "id">[];
+  public readonly indexes: Exclude<keyof T, "id">[];
 
   constructor(options: ServiceOptions<T>) {
     this.name = options.name;
     this.schema = options.schema;
-    this.secondaryIndexes = options.secondaryIndexes || [];
+    this.uniqueIndexes = options.uniqueIndexes || [];
+    this.indexes = options.indexes || [];
   }
 
   private async getKv(): Promise<Deno.Kv> {
@@ -72,6 +75,19 @@ export class Service<T extends Entity> implements Disposable {
     index: keyof T,
     key: T[keyof T] & Deno.KvKeyPart,
   ): Promise<T> {
+    if (
+      index !== "id" &&
+      !this.uniqueIndexes.includes(index as Exclude<keyof T, "id">)
+    ) {
+      throw new HttpError(
+        400,
+        `Index "${
+          String(index)
+        }" is not a valid unique index for ${this.name}. Valid unique indexes are: ${
+          this.uniqueIndexes.join(", ")
+        }.`,
+      );
+    }
     const kv = await this.getKv();
     const entry = await kv.get<T>([this.name, index, key]);
     if (!entry.value) {
@@ -119,14 +135,18 @@ export class Service<T extends Entity> implements Disposable {
       updatedAt: now,
     });
     const transaction = kv.atomic();
-    for (const index of this.secondaryIndexes) {
+    for (const index of this.uniqueIndexes) {
       const key = created[index] as Deno.KvKeyPart;
       transaction.check({ key: [this.name, index, key], versionstamp: null });
     }
     transaction.set([this.name, "id", id], created);
-    for (const index of this.secondaryIndexes) {
+    for (const index of this.uniqueIndexes) {
       const key = created[index] as Deno.KvKeyPart;
       transaction.set([this.name, index, key], created);
+    }
+    for (const index of this.indexes) {
+      const key = created[index] as Deno.KvKeyPart;
+      transaction.set([this.name, index, key, id], created);
     }
     const result = await transaction.commit();
     if (!result.ok) {
@@ -151,7 +171,7 @@ export class Service<T extends Entity> implements Disposable {
 
     const transaction = kv.atomic();
     transaction.check(existing);
-    for (const index of this.secondaryIndexes) {
+    for (const index of this.uniqueIndexes) {
       const currentKey = existing.value?.[index] as Deno.KvKeyPart;
       const nextKey = updatedValue[index] as Deno.KvKeyPart;
       if (nextKey !== currentKey) {
@@ -166,13 +186,29 @@ export class Service<T extends Entity> implements Disposable {
       [this.name, "id", updatedValue.id],
       updatedValue,
     );
-    for (const index of this.secondaryIndexes) {
+    for (const index of this.uniqueIndexes) {
       const currentKey = existing.value?.[index] as Deno.KvKeyPart;
       const nextKey = updatedValue[index] as Deno.KvKeyPart;
       if (nextKey !== currentKey) {
         transaction.delete([this.name, index, currentKey]);
       }
       transaction.set([this.name, index, nextKey], updatedValue);
+    }
+    for (const index of this.indexes) {
+      const currentKey = existing.value?.[index] as Deno.KvKeyPart;
+      const nextKey = updatedValue[index] as Deno.KvKeyPart;
+      if (existing.value && currentKey !== nextKey) {
+        transaction.delete([
+          this.name,
+          index,
+          currentKey,
+          existing.value.id,
+        ]);
+      }
+      transaction.set(
+        [this.name, index, nextKey, updatedValue.id],
+        updatedValue,
+      );
     }
 
     const result = await transaction.commit();
@@ -201,7 +237,7 @@ export class Service<T extends Entity> implements Disposable {
 
     const transaction = kv.atomic();
     transaction.check(existing);
-    for (const index of this.secondaryIndexes) {
+    for (const index of this.uniqueIndexes) {
       const currentKey = existing.value?.[index] as Deno.KvKeyPart;
       const nextKey = newValue[index] as Deno.KvKeyPart;
       if (nextKey !== currentKey) {
@@ -213,13 +249,26 @@ export class Service<T extends Entity> implements Disposable {
     }
 
     transaction.set([this.name, "id", newValue.id], newValue);
-    for (const index of this.secondaryIndexes) {
+    for (const index of this.uniqueIndexes) {
       const currentKey = existing.value?.[index] as Deno.KvKeyPart;
       const nextKey = newValue[index] as Deno.KvKeyPart;
       if (nextKey !== currentKey) {
         transaction.delete([this.name, index, currentKey]);
       }
       transaction.set([this.name, index, nextKey], newValue);
+    }
+    for (const index of this.indexes) {
+      const currentKey = existing.value?.[index] as Deno.KvKeyPart;
+      const nextKey = newValue[index] as Deno.KvKeyPart;
+      if (existing.value && currentKey !== nextKey) {
+        transaction.delete([
+          this.name,
+          index,
+          currentKey,
+          existing.value.id,
+        ]);
+      }
+      transaction.set([this.name, index, nextKey, newValue.id], newValue);
     }
 
     const result = await transaction.commit();
@@ -243,9 +292,13 @@ export class Service<T extends Entity> implements Disposable {
     transaction.check(existingEntry);
 
     transaction.delete([this.name, "id", id]);
-    for (const index of this.secondaryIndexes) {
+    for (const index of this.uniqueIndexes) {
       const key = existingValue[index] as Deno.KvKeyPart;
       transaction.delete([this.name, index, key]);
+    }
+    for (const index of this.indexes) {
+      const key = existingValue[index] as Deno.KvKeyPart;
+      transaction.delete([this.name, index, key, id]);
     }
 
     const result = await transaction.commit();
