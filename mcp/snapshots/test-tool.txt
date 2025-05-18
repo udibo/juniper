@@ -1,9 +1,0 @@
-running 1 test from ./mcp/example.test.ts
-example ...
-  should pass ... ok (0ms)
-example ... ok (0ms)
-
-ok | 1 passed (1 step) | 0 failed (0ms)
-
-Task start-test docker compose ps --services | grep -q '^postgres-test$' || (docker compose up -d --wait postgres-test && deno task drizzle-kit-test migrate && deno task drizzle-kit-test push && deno run -A --env-file --env-file=.env.test ./example/database/seeds/default.ts)
-Task test export OTEL_DENO=true OTEL_SERVICE_NAME=test && deno test -A --env-file --env-file=.env.test --trace-leaks --unstable-otel "mcp/example.test.ts"

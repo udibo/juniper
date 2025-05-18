@@ -101,7 +101,6 @@
     "@std/collections": "jsr:@std/collections@1",
     "@std/uuid": "jsr:@std/uuid@1",
     "@types/pg": "npm:@types/pg@^8.11.14",
-    "cross-spawn": "npm:cross-spawn@^7.0.6",
     "drizzle-kit": "npm:drizzle-kit@^0.31.1",
     "drizzle-orm": "npm:drizzle-orm@^0.43.1",
     "drizzle-zod": "npm:drizzle-zod@^0.7.1",

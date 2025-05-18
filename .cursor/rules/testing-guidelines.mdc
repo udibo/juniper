@@ -5,25 +5,25 @@ alwaysApply: true
 ---
 \
 ---
-description: "Guidelines for writing and running tests in the Juniper project using Deno, @std/testing, and the mcp_juniper_test tool."
+description: "Guidelines for writing and running tests in the Juniper project using Deno, @std/testing, and the mcp_deno_test tool."
 alwaysApply: true
 # globs: ["**/*.test.ts"] # Optional: to auto-attach for test files.
 ---
 # Testing Guidelines
 
 ## Test Execution
-- Use the `mcp_juniper_test` tool to run tests.
-  - To run all tests: (Assuming `mcp_juniper_test` without arguments runs all tests)
-  - To run a specific test file: `mcp_juniper_test path/to/test.ts` (Provide the specific file path)
-  - To run tests for examples in docstrings or markdown files: `mcp_juniper_test --doc path/to/file.ts` (Adjust if the flag is different for `mcp_juniper_test`)
-- **ALWAYS** run tests using `mcp_juniper_test` after writing or modifying test files (`*.test.ts`) or the source code files they cover.
-  - If you modified a specific file and its corresponding test, run `mcp_juniper_test path/to/your.test.ts`.
+- Use the `mcp_deno_test` tool to run tests.
+  - To run all tests: (Assuming `mcp_deno_test` without arguments runs all tests)
+  - To run a specific test file: `mcp_deno_test path/to/test.ts` (Provide the specific file path)
+  - To run tests for examples in docstrings or markdown files: `mcp_deno_test --doc path/to/file.ts` (Adjust if the flag is different for `mcp_deno_test`)
+- **ALWAYS** run tests using `mcp_deno_test` after writing or modifying test files (`*.test.ts`) or the source code files they cover.
+  - If you modified a specific file and its corresponding test, run `mcp_deno_test path/to/your.test.ts`.
   - If changes are broader or you are unsure, consider running all tests.
-- After running tests with the appropriate coverage flag (e.g., `mcp_juniper_test --coverage`), use `deno coverage --detailed` to view the coverage report. Ensure new code has test coverage.
+- After running tests with the appropriate coverage flag (e.g., `mcp_deno_test --coverage`), use `deno coverage --detailed` to view the coverage report. Ensure new code has test coverage.
 - The MCP server also provides a `coverage` tool that can be called to get a detailed coverage report directly (equivalent to `deno coverage --detailed`).
 
 ## Coverage Notes
-- Coverage files (.cov) are generated when tests are run (e.g. via `deno task test` or the `test` MCP tool which includes `--coverage`).
+- Coverage files (.cov) are generated when tests are run (e.g. via `deno task test` or the `test` MCP tool with the coverage flag).
 - The output of the `coverage` MCP tool (and `deno coverage --detailed`) will be based on the last set of tests for which coverage data was generated and stored (typically in the `./cov` directory).
 - If you see the error "No covered files included in the report" when running the `coverage` tool or `deno coverage --detailed`, it means that no .cov files were found or they are empty. This usually indicates that the tests (which generate these coverage files) need to be run or re-run. Ensure tests have completed successfully and have generated coverage data before checking the coverage report.
 
@@ -36,6 +36,8 @@ alwaysApply: true
 - Never use `node:test`. Lifecycle hooks should be imported from `@std/testing/bdd`.
 - Use assertions from `@std/assert`.
 - Prefer snapshots created with `isSnapshotMode()` over `assertSnapshot()`. When using snapshot mode, the test should write to a file as shown in the relevant documentation for the function.
+- For time-dependent tests, use `FakeTime` from `@std/testing/time` to control time progression explicitly, avoiding real delays (e.g., `setTimeout`).
+
 
 ### Example Test Structure:
 ```typescript
@@ -82,7 +84,9 @@ describe("UserService", () => {
     });
   });
 });
-```## Task Management (General)
+```
+
+## Task Management (General)
 - For tasks other than testing, use `deno task` to run predefined tasks from `deno.json`.
 - Check `deno.json` for available tasks.
 
