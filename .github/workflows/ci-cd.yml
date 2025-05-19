@@ -98,7 +98,7 @@ jobs:
       - name: Deploy to Deno Deploy
         uses: denoland/deployctl@v1
         with:
-          project: 'juniper'
+          project: juniper
           entrypoint: ./example/main.ts
   build-postgres-image:
     name: Build PostgreSQL Image
