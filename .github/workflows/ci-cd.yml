@@ -87,8 +87,6 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    env:
-      DATABASE_URL: ${{ github.event_name == 'pull_request' && secrets.DATABASE_URL_DEVELOPMENT || secrets.DATABASE_URL_PRODUCTION }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -97,12 +95,10 @@ jobs:
         with:
           deno-version: v2.x
           cache: true
-      - name: Apply migrations
-        run: deno task drizzle-kit migrate
       - name: Deploy to Deno Deploy
         uses: denoland/deployctl@v1
         with:
-          project: ${{ github.event_name == 'pull_request' && 'juniper-preview' || 'juniper' }}
+          project: juniper
           entrypoint: ./example/main.ts
   build-postgres-image:
     name: Build PostgreSQL Image

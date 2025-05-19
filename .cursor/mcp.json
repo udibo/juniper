@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "deno": {
+      "command": "deno",
+      "args": [
+        "run",
+        "-A",
+        "jsr:@udibo/deno-mcp",
+        "-A",
+        "--env-file",
+        "--env-file=.env.test",
+        "--unstable-otel"
+      ],
+      "env": {
+        "OTEL_DENO": "true",
+        "OTEL_SERVICE_NAME": "test"
+      }
+    }
+  }
+}
