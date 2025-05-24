@@ -62,11 +62,39 @@ function buildAppFromRoutes<
 
   if (root) {
     const dirname = path.dirname(path.fromFileUrl(mainUrl));
+    const absolutePublicPath = path.resolve(dirname, "./public");
 
+    // Workaround for Hono Windows issue: use simple relative path from cwd
+    const cwd = Deno.cwd();
+    const relativePath = path.relative(cwd, absolutePublicPath);
+
+    // Ensure forward slashes on Windows for Hono compatibility
+    const publicPath = Deno.build.os === "windows"
+      ? relativePath.replace(/\\/g, "/")
+      : relativePath;
+
+    // Temporary debugging for Windows CI
+    console.log("Static path debug:", {
+      mainUrl,
+      dirname,
+      absolutePublicPath,
+      cwd,
+      relativePath,
+      publicPath,
+      os: Deno.build.os,
+    });
+
+    // Note: There's a known issue with Hono's serveStatic on Windows (https://github.com/honojs/hono/issues/3475)
+    // This workaround attempts to work around path separator and relative path issues
     app.get(
       "*",
       serveStatic({
-        root: path.resolve(dirname, "./public"),
+        root: publicPath,
+        onNotFound: (path, c) => {
+          console.error(
+            `Static file not found: ${path}, request path: ${c.req.path}, publicPath: ${publicPath}, cwd: ${cwd}`,
+          );
+        },
       }),
     );
   }

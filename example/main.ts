@@ -46,6 +46,10 @@ export const app = createApp(import.meta.url, {
             },
           ],
         },
+        {
+          path: "/users",
+          main: await import("./routes/api/users.ts"),
+        },
       ],
     },
     {

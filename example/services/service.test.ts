@@ -87,7 +87,7 @@ describe("Service", () => {
           await service.create({ name: "John Doe", age: 17 });
         },
         HttpError,
-        "Invalid user data: Age must be greater than or equal to 18",
+        "Invalid user: Age must be greater than or equal to 18",
       );
     });
 
@@ -224,7 +224,7 @@ describe("Service", () => {
           return Promise.resolve().then(() => service.parse(invalidData));
         },
         HttpError,
-        "Invalid user data: Age must be greater than or equal to 18",
+        "Invalid user: Age must be greater than or equal to 18",
       );
     });
 
@@ -240,7 +240,7 @@ describe("Service", () => {
           return Promise.resolve().then(() => service.parse(incompleteData));
         },
         HttpError,
-        "Invalid user data: Field 'name' is required.",
+        "Invalid user: Field 'name' is required.",
       );
     });
   });
@@ -393,7 +393,7 @@ describe("Service", () => {
             });
           },
           HttpError,
-          "Invalid user data: Age must be greater than or equal to 18",
+          "Invalid user: Age must be greater than or equal to 18",
         );
       });
     });
@@ -648,7 +648,7 @@ describe("Service", () => {
             await service.patch({ id: initialUser.id, age: 17 });
           },
           HttpError,
-          "Invalid user data: Age must be greater than or equal to 18",
+          "Invalid user: Age must be greater than or equal to 18",
         );
       });
     });
