@@ -62,11 +62,19 @@ function buildAppFromRoutes<
 
   if (root) {
     const dirname = path.dirname(path.fromFileUrl(mainUrl));
+    const publicPath = path.normalize(path.resolve(dirname, "./public"));
 
+    // Note: There's a known issue with Hono's serveStatic on Windows (https://github.com/honojs/hono/issues/3475)
+    // This may not work correctly on Windows until the issue is resolved
     app.get(
       "*",
       serveStatic({
-        root: path.join(dirname, "public"),
+        root: publicPath,
+        onNotFound: (path, c) => {
+          console.log(
+            `Static file not found: ${path}, request path: ${c.req.path}`,
+          );
+        },
       }),
     );
   }
