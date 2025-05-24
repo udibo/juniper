@@ -66,7 +66,7 @@ function buildAppFromRoutes<
     app.get(
       "*",
       serveStatic({
-        root: path.resolve(dirname, "./public"),
+        root: path.join(dirname, "public"),
       }),
     );
   }
