@@ -205,6 +205,55 @@ const fmtCommand = new Deno.Command(Deno.execPath(), {
   stdout: "piped",
 });
 
+/**
+ * Generates the main application file by scanning the routes directory and creating
+ * the appropriate route configuration. This function is used internally by the build script.
+ *
+ * This function walks through the routes directory, discovers all route files following
+ * Juniper's file-based routing conventions, and generates a main.ts file that imports
+ * and configures all routes using the createApp function.
+ *
+ * @param projectRoot - The absolute path to the project root directory
+ * @returns The generated main file content as a formatted string
+ *
+ * @example Generating main.ts file
+ * ```ts
+ * import { buildMainFile } from "@udibo/juniper/build";
+ *
+ * const projectRoot = new URL(".", import.meta.url).pathname;
+ * const mainFileContent = await buildMainFile(projectRoot);
+ *
+ * await Deno.writeTextFile("main.ts", mainFileContent);
+ * console.log("Generated main.ts");
+ * ```
+ *
+ * @example Generated output structure
+ * ```ts
+ * // Generated main.ts content will look like:
+ * import { createApp } from "@udibo/juniper/server";
+ *
+ * export const app = createApp(import.meta.url, {
+ *   path: "/",
+ *   main: await import("./routes/main.ts"),
+ *   children: [
+ *     {
+ *       path: "/api",
+ *       main: await import("./routes/api/main.ts"),
+ *       children: [
+ *         {
+ *           path: "/users",
+ *           main: await import("./routes/api/users.ts"),
+ *         }
+ *       ]
+ *     }
+ *   ]
+ * });
+ *
+ * if (import.meta.main) {
+ *   Deno.serve(app.fetch);
+ * }
+ * ```
+ */
 export async function buildMainFile(projectRoot: string): Promise<string> {
   const routesDirScanningRoot = path.resolve(projectRoot, "./routes");
   const importPrefixForRoutes = "./routes";
