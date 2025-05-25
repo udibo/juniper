@@ -23,8 +23,26 @@ export interface ServiceOptions<T extends Entity> {
   indexes?: Exclude<keyof T, "id">[];
 }
 
+const ListQuerySchema = z.object({
+  limit: z.string().optional().transform((val) => {
+    if (val === undefined) return undefined;
+    const num = parseInt(val, 10);
+    return isNaN(num) || num <= 0 ? undefined : num;
+  }),
+  cursor: z.string().optional(),
+  reverse: z.string().optional().transform((val) => val === "true"),
+  consistency: z.enum(["strong", "eventual"]).optional(),
+  batchSize: z.string().optional().transform((val) => {
+    if (val === undefined) return undefined;
+    const num = parseInt(val, 10);
+    return isNaN(num) || num <= 0 ? undefined : num;
+  }),
+  index: z.string().optional(),
+});
+
+let kv: Deno.Kv | undefined;
+
 export class Service<T extends Entity> implements Disposable {
-  private _kv: Deno.Kv | undefined;
   public readonly name: string;
   public readonly schema: z.ZodSchema<T>;
   public readonly uniqueIndexes: Exclude<keyof T, "id">[];
@@ -37,20 +55,70 @@ export class Service<T extends Entity> implements Disposable {
     this.indexes = options.indexes || [];
   }
 
-  private async getKv(): Promise<Deno.Kv> {
-    if (!this._kv) {
-      this._kv = await (isTest() ? Deno.openKv(":memory:") : Deno.openKv());
+  protected async getKv(): Promise<Deno.Kv> {
+    if (!kv) {
+      kv = await (isTest() ? Deno.openKv(":memory:") : Deno.openKv());
     }
 
-    return this._kv;
+    return kv;
   }
 
   close(): void {
-    this._kv?.close();
-    delete this._kv;
+    kv?.close();
+    kv = undefined;
   }
   [Symbol.dispose](): void {
     this.close();
+  }
+
+  parseListQueryParams(
+    queryParams: Record<string, string>,
+  ): ServiceListOptions<T> {
+    return startActiveSpan("parseListQueryParams", (span) => {
+      span.setAttribute("service", this.name);
+
+      try {
+        const parsed = ListQuerySchema.parse(queryParams);
+        const options: ServiceListOptions<T> = {
+          limit: parsed.limit,
+          cursor: parsed.cursor,
+          reverse: parsed.reverse,
+          consistency: parsed.consistency,
+          batchSize: parsed.batchSize,
+        };
+
+        if (parsed.index) {
+          span.setAttribute("query.index", parsed.index);
+          const explicitIndexes = [
+            ...this.uniqueIndexes,
+            ...this.indexes,
+          ] as string[];
+          if (explicitIndexes.includes(parsed.index)) {
+            options.index = parsed.index as
+              & Exclude<keyof T, "id">
+              & Deno.KvKeyPart;
+          } else {
+            const allValidIndexesForErrorMessage = ["id", ...explicitIndexes];
+            throw new HttpError(
+              400,
+              `Invalid index "${parsed.index}" for ${this.name}. Valid indexes are: ${
+                allValidIndexesForErrorMessage.join(", ")
+              }.`,
+            );
+          }
+        }
+        return options;
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          const messages = error.errors.map((e) => e.message);
+          throw new HttpError(
+            400,
+            `Invalid list options: ${messages.join(", ")}`,
+          );
+        }
+        throw HttpError.from(error);
+      }
+    });
   }
 
   parse(data: unknown): T {
@@ -68,7 +136,7 @@ export class Service<T extends Entity> implements Disposable {
           });
           throw new HttpError(
             400,
-            `Invalid ${this.name} data: ${messages.join(", ")}`,
+            `Invalid ${this.name}: ${messages.join(", ")}`,
           );
         }
         throw HttpError.from(error);
@@ -144,7 +212,6 @@ export class Service<T extends Entity> implements Disposable {
       if (listOptions.consistency) {
         span.setAttribute("consistency", listOptions.consistency);
       }
-      const kv = await this.getKv();
 
       if (
         index &&
@@ -163,6 +230,8 @@ export class Service<T extends Entity> implements Disposable {
         );
       }
 
+      const kv = await this.getKv();
+
       const entries = kv.list<T>(
         { prefix: [this.name, index ?? "id"] },
         listOptions,
@@ -173,6 +242,13 @@ export class Service<T extends Entity> implements Disposable {
       }
       return { entries: values, cursor: entries.cursor };
     });
+  }
+
+  protected getKvKeyPart(value: T[keyof T] | Date): Deno.KvKeyPart {
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    return value as Deno.KvKeyPart;
   }
 
   create(value: Omit<T, "id" | "createdAt" | "updatedAt">): Promise<T> {
@@ -190,21 +266,21 @@ export class Service<T extends Entity> implements Disposable {
       });
       const transaction = kv.atomic();
       for (const index of this.uniqueIndexes) {
-        const key = created[index] as Deno.KvKeyPart;
+        const key = this.getKvKeyPart(created[index]);
         transaction.check({ key: [this.name, index, key], versionstamp: null });
       }
       transaction.set([this.name, "id", id], created);
       for (const index of this.uniqueIndexes) {
-        const key = created[index] as Deno.KvKeyPart;
+        const key = this.getKvKeyPart(created[index]);
         transaction.set([this.name, index, key], created);
       }
       for (const index of this.indexes) {
-        const key = created[index] as Deno.KvKeyPart;
+        const key = this.getKvKeyPart(created[index]);
         transaction.set([this.name, index, key, id], created);
       }
       const result = await transaction.commit();
       if (!result.ok) {
-        throw new HttpError(500, `Failed to create ${this.name}`);
+        throw new HttpError(400, `Failed to create ${this.name}`);
       }
       return created;
     });
@@ -230,8 +306,8 @@ export class Service<T extends Entity> implements Disposable {
       const transaction = kv.atomic();
       transaction.check(existing);
       for (const index of this.uniqueIndexes) {
-        const currentKey = existing.value?.[index] as Deno.KvKeyPart;
-        const nextKey = updatedValue[index] as Deno.KvKeyPart;
+        const currentKey = this.getKvKeyPart(existing.value![index]);
+        const nextKey = this.getKvKeyPart(updatedValue[index]);
         if (nextKey !== currentKey) {
           transaction.check({
             key: [this.name, index, nextKey],
@@ -245,16 +321,16 @@ export class Service<T extends Entity> implements Disposable {
         updatedValue,
       );
       for (const index of this.uniqueIndexes) {
-        const currentKey = existing.value?.[index] as Deno.KvKeyPart;
-        const nextKey = updatedValue[index] as Deno.KvKeyPart;
+        const currentKey = this.getKvKeyPart(existing.value![index]);
+        const nextKey = this.getKvKeyPart(updatedValue[index]);
         if (nextKey !== currentKey) {
           transaction.delete([this.name, index, currentKey]);
         }
         transaction.set([this.name, index, nextKey], updatedValue);
       }
       for (const index of this.indexes) {
-        const currentKey = existing.value?.[index] as Deno.KvKeyPart;
-        const nextKey = updatedValue[index] as Deno.KvKeyPart;
+        const currentKey = this.getKvKeyPart(existing.value![index]);
+        const nextKey = this.getKvKeyPart(updatedValue[index]);
         if (existing.value && currentKey !== nextKey) {
           transaction.delete([
             this.name,
@@ -271,7 +347,7 @@ export class Service<T extends Entity> implements Disposable {
 
       const result = await transaction.commit();
       if (!result.ok) {
-        throw new HttpError(500, `Failed to update ${this.name}`);
+        throw new HttpError(400, `Failed to update ${this.name}`);
       }
 
       return updatedValue;
@@ -300,8 +376,8 @@ export class Service<T extends Entity> implements Disposable {
       const transaction = kv.atomic();
       transaction.check(existing);
       for (const index of this.uniqueIndexes) {
-        const currentKey = existing.value?.[index] as Deno.KvKeyPart;
-        const nextKey = newValue[index] as Deno.KvKeyPart;
+        const currentKey = this.getKvKeyPart(existing.value![index]);
+        const nextKey = this.getKvKeyPart(newValue[index]);
         if (nextKey !== currentKey) {
           transaction.check({
             key: [this.name, index, nextKey],
@@ -312,16 +388,16 @@ export class Service<T extends Entity> implements Disposable {
 
       transaction.set([this.name, "id", newValue.id], newValue);
       for (const index of this.uniqueIndexes) {
-        const currentKey = existing.value?.[index] as Deno.KvKeyPart;
-        const nextKey = newValue[index] as Deno.KvKeyPart;
+        const currentKey = this.getKvKeyPart(existing.value![index]);
+        const nextKey = this.getKvKeyPart(newValue[index]);
         if (nextKey !== currentKey) {
           transaction.delete([this.name, index, currentKey]);
         }
         transaction.set([this.name, index, nextKey], newValue);
       }
       for (const index of this.indexes) {
-        const currentKey = existing.value?.[index] as Deno.KvKeyPart;
-        const nextKey = newValue[index] as Deno.KvKeyPart;
+        const currentKey = this.getKvKeyPart(existing.value![index]);
+        const nextKey = this.getKvKeyPart(newValue[index]);
         if (existing.value && currentKey !== nextKey) {
           transaction.delete([
             this.name,
@@ -335,7 +411,7 @@ export class Service<T extends Entity> implements Disposable {
 
       const result = await transaction.commit();
       if (!result.ok) {
-        throw new HttpError(500, `Failed to patch ${this.name}`);
+        throw new HttpError(400, `Failed to patch ${this.name}`);
       }
 
       return newValue;
@@ -359,17 +435,17 @@ export class Service<T extends Entity> implements Disposable {
 
       transaction.delete([this.name, "id", id]);
       for (const index of this.uniqueIndexes) {
-        const key = existingValue[index] as Deno.KvKeyPart;
+        const key = this.getKvKeyPart(existingValue[index]);
         transaction.delete([this.name, index, key]);
       }
       for (const index of this.indexes) {
-        const key = existingValue[index] as Deno.KvKeyPart;
+        const key = this.getKvKeyPart(existingValue[index]);
         transaction.delete([this.name, index, key, id]);
       }
 
       const result = await transaction.commit();
       if (!result.ok) {
-        throw new HttpError(500, `Failed to delete ${this.name}`);
+        throw new HttpError(400, `Failed to delete ${this.name}`);
       }
     });
   }
