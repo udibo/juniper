@@ -17,7 +17,7 @@ describe("GET /api", () => {
 
 describe("GET /api/empty", () => {
   it("should return not found error", async () => {
-    const res = await app.request("http://localhost/empty");
+    const res = await app.request("http://localhost/api/empty");
     assertEquals(res.status, 404);
     assertEquals(await res.json(), {
       status: 404,

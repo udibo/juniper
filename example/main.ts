@@ -12,6 +12,10 @@ export const app = createApp(import.meta.url, {
       main: await import("./routes/api/main.ts"),
       children: [
         {
+          path: "/users",
+          main: await import("./routes/api/users.ts"),
+        },
+        {
           path: "/blog",
           children: [
             {
@@ -32,6 +36,10 @@ export const app = createApp(import.meta.url, {
           index: await import("./routes/api/hello/index.ts"),
           children: [
             {
+              path: "/example",
+              main: await import("./routes/api/hello/example.ts"),
+            },
+            {
               path: "/:name",
               main: await import("./routes/api/hello/[name].ts"),
             },
@@ -47,8 +55,8 @@ export const app = createApp(import.meta.url, {
           ],
         },
         {
-          path: "/users",
-          main: await import("./routes/api/users.ts"),
+          path: "/:api",
+          index: await import("./routes/api/[api]/index.ts"),
         },
       ],
     },

@@ -4,9 +4,11 @@
 [![codecov](https://codecov.io/gh/udibo/juniper/graph/badge.svg?token=ZXCYCMUQ34)](https://codecov.io/gh/udibo/juniper)
 [![license](https://img.shields.io/github/license/udibo/juniper)](https://github.com/udibo/juniper/blob/main/LICENSE)
 
+<img align="left" src="example/public/images/logo-81x100.png" alt="Juniper Logo" width="81" height="100" style="margin: 0 20px 10px 0;">
+
 Juniper is a web framework for building React applications with Deno. It makes
 it easy to understand your application as a tree. The server routing is built
-with Hono and the UI routing is built with React Router.
+with Hono and the client routing is built with React Router.
 
 This is a work in progress, not ready for use.
 
