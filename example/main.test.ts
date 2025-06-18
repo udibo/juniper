@@ -3,11 +3,11 @@ import { assertEquals } from "@std/assert";
 import { mergeReadableStreams, TextLineStream } from "@std/streams";
 import { resolve } from "@std/path/resolve";
 
-import { app } from "./main.ts";
+import { server } from "./main.ts";
 
 describe("serves static files", () => {
   it("should serve a static file", async () => {
-    const res = await app.request("http://localhost/favicon.ico");
+    const res = await server.request("http://localhost/favicon.ico");
 
     assertEquals(res.status, 200);
     assertEquals(res.headers.get("content-type"), "image/x-icon");

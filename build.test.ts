@@ -13,13 +13,13 @@ const exampleDir = path.resolve(
 );
 
 describe("Builder", () => {
-  describe("buildMainServerFile", () => {
+  describe("buildMainServerEntrypoint", () => {
     it("should generate content matching example/main.ts", async () => {
       using writeTextFileStub = isSnapshotMode()
         ? spy(deno, "writeTextFile")
         : stub(deno, "writeTextFile");
       await using builder = new Builder({ projectRoot: exampleDir });
-      await builder.buildMainServerFile();
+      await builder.buildMainServerEntrypoint();
 
       const exampleMainPath = path.resolve(exampleDir, "main.ts");
       const expectedContent = (await Deno.readTextFile(exampleMainPath))

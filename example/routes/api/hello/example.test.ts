@@ -1,11 +1,11 @@
 import { describe, it } from "@std/testing/bdd";
 import { assertEquals } from "@std/assert";
 
-import { app } from "/main.ts";
+import { server } from "/main.ts";
 
 describe("example route", () => {
   it("should return example message", async () => {
-    const res = await app.request("http://localhost/api/hello/example");
+    const res = await server.request("http://localhost/api/hello/example");
 
     assertEquals(res.status, 200);
 

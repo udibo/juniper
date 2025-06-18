@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, it } from "@std/testing/bdd";
 import { assert, assertEquals } from "@std/assert";
 import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
 
-import { app } from "/main.ts";
+import { server } from "/main.ts";
 import { type NewPost, type Post, postService } from "/services/post.ts";
 import { FakeTime } from "@std/testing/time";
 
@@ -52,7 +52,7 @@ describe("/api/blog/posts", () => {
     afterAll(() => postService.close());
 
     it("should return a list of posts", async () => {
-      const res = await app.request("/api/blog/posts");
+      const res = await server.request("/api/blog/posts");
       assertEquals(res.status, 200);
       const json = await res.json();
 
@@ -65,7 +65,7 @@ describe("/api/blog/posts", () => {
     });
 
     it("should return a limited number of posts when limit parameter is provided", async () => {
-      const res = await app.request("/api/blog/posts?limit=2");
+      const res = await server.request("/api/blog/posts?limit=2");
       assertEquals(res.status, 200);
       const json = await res.json();
 
@@ -77,7 +77,7 @@ describe("/api/blog/posts", () => {
     });
 
     it("should return posts in reverse order when reverse=true", async () => {
-      const res = await app.request("/api/blog/posts?reverse=true");
+      const res = await server.request("/api/blog/posts?reverse=true");
       assertEquals(res.status, 200);
       const json = await res.json();
 
@@ -90,7 +90,7 @@ describe("/api/blog/posts", () => {
     });
 
     it("should return remaining posts when using cursor parameter", async () => {
-      let res = await app.request("/api/blog/posts?limit=2");
+      let res = await server.request("/api/blog/posts?limit=2");
       assertEquals(res.status, 200);
       let json = await res.json();
       assert(json.cursor, "First response should have a cursor");
@@ -98,7 +98,7 @@ describe("/api/blog/posts", () => {
       assertEquals(json.posts[0].id, posts[0].id);
       assertEquals(json.posts[1].id, posts[1].id);
 
-      res = await app.request(`/api/blog/posts?limit=2&cursor=${json.cursor}`);
+      res = await server.request(`/api/blog/posts?limit=2&cursor=${json.cursor}`);
       assertEquals(res.status, 200);
       json = await res.json();
 
@@ -107,7 +107,7 @@ describe("/api/blog/posts", () => {
       assertEquals(json.posts[0].id, posts[2].id);
       assertEquals(json.posts[1].id, posts[3].id);
 
-      res = await app.request(`/api/blog/posts?limit=2&cursor=${json.cursor}`);
+      res = await server.request(`/api/blog/posts?limit=2&cursor=${json.cursor}`);
       assertEquals(res.status, 200);
       json = await res.json();
       assertEquals(json.posts.length, 0);
@@ -115,7 +115,7 @@ describe("/api/blog/posts", () => {
     });
 
     it("should return posts sorted by authorId when using index parameter", async () => {
-      const res = await app.request("/api/blog/posts?index=authorId");
+      const res = await server.request("/api/blog/posts?index=authorId");
       assertEquals(res.status, 200);
       const json = await res.json();
 
@@ -128,7 +128,7 @@ describe("/api/blog/posts", () => {
     });
 
     it("should return 400 error for invalid query parameters", async () => {
-      const res = await app.request("/api/blog/posts?index=invalidIndex");
+      const res = await server.request("/api/blog/posts?index=invalidIndex");
       assertEquals(res.status, 400);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 400);
@@ -151,7 +151,7 @@ describe("/api/blog/posts", () => {
         authorId: testAuthorId,
       });
 
-      const res = await app.request(`/api/blog/posts/${createdPost.id}`);
+      const res = await server.request(`/api/blog/posts/${createdPost.id}`);
       const post = await res.json();
 
       assertEquals(res.status, 200);
@@ -161,7 +161,7 @@ describe("/api/blog/posts", () => {
 
     it("should return 404 if post not found", async () => {
       const nonExistentId = generateUUIDv7();
-      const res = await app.request(`/api/blog/posts/${nonExistentId}`);
+      const res = await server.request(`/api/blog/posts/${nonExistentId}`);
       assertEquals(res.status, 404);
 
       const errorBody = await res.json();
@@ -182,7 +182,7 @@ describe("/api/blog/posts", () => {
         authorId: testAuthorId,
       };
 
-      const res = await app.request("/api/blog/posts", {
+      const res = await server.request("/api/blog/posts", {
         method: "POST",
         body: JSON.stringify(newPostData),
         headers: { "Content-Type": "application/json" },
@@ -204,7 +204,7 @@ describe("/api/blog/posts", () => {
         content: "Invalid content only",
       };
 
-      const res = await app.request("/api/blog/posts", {
+      const res = await server.request("/api/blog/posts", {
         method: "POST",
         body: JSON.stringify(invalidPostData),
         headers: { "Content-Type": "application/json" },
@@ -246,7 +246,7 @@ describe("/api/blog/posts", () => {
         authorId: testAuthorId,
       };
 
-      const res = await app.request(`/api/blog/posts/${createdPost.id}`, {
+      const res = await server.request(`/api/blog/posts/${createdPost.id}`, {
         method: "PUT",
         body: JSON.stringify(updatedPostData),
         headers: { "Content-Type": "application/json" },
@@ -273,7 +273,7 @@ describe("/api/blog/posts", () => {
         id: nonExistentId,
       };
 
-      const res = await app.request(`/api/blog/posts/${nonExistentId}`, {
+      const res = await server.request(`/api/blog/posts/${nonExistentId}`, {
         method: "PUT",
         body: JSON.stringify(updateData),
         headers: { "Content-Type": "application/json" },
@@ -297,7 +297,7 @@ describe("/api/blog/posts", () => {
         id: createdPost.id,
       };
 
-      const res = await app.request(`/api/blog/posts/${createdPost.id}`, {
+      const res = await server.request(`/api/blog/posts/${createdPost.id}`, {
         method: "PUT",
         body: JSON.stringify(invalidUpdateData),
         headers: { "Content-Type": "application/json" },
@@ -327,7 +327,7 @@ describe("/api/blog/posts", () => {
         content: "Patched content for API test post.",
       };
 
-      const res = await app.request(`/api/blog/posts/${createdPost.id}`, {
+      const res = await server.request(`/api/blog/posts/${createdPost.id}`, {
         method: "PATCH",
         body: JSON.stringify(patchData),
         headers: { "Content-Type": "application/json" },
@@ -351,7 +351,7 @@ describe("/api/blog/posts", () => {
         title: "Attempt to Patch Non-existent",
       };
 
-      const res = await app.request(`/api/blog/posts/${nonExistentId}`, {
+      const res = await server.request(`/api/blog/posts/${nonExistentId}`, {
         method: "PATCH",
         body: JSON.stringify(patchData),
         headers: { "Content-Type": "application/json" },
@@ -373,7 +373,7 @@ describe("/api/blog/posts", () => {
         title: "a".repeat(300),
       };
 
-      const res = await app.request(`/api/blog/posts/${createdPost.id}`, {
+      const res = await server.request(`/api/blog/posts/${createdPost.id}`, {
         method: "PATCH",
         body: JSON.stringify(invalidPatchData),
         headers: { "Content-Type": "application/json" },
@@ -399,21 +399,21 @@ describe("/api/blog/posts", () => {
         authorId: testAuthorId,
       });
 
-      const res = await app.request(`/api/blog/posts/${createdPost.id}`, {
+      const res = await server.request(`/api/blog/posts/${createdPost.id}`, {
         method: "DELETE",
       });
       assertEquals(res.status, 200);
       const json = await res.json();
       assertEquals(json.deleted, true);
 
-      const getRes = await app.request(`/api/blog/posts/${createdPost.id}`);
+      const getRes = await server.request(`/api/blog/posts/${createdPost.id}`);
       assertEquals(getRes.status, 404);
     });
 
     it("should return 404 if post to delete is not found", async () => {
       const nonExistentId = generateUUIDv7();
 
-      const res = await app.request(`/api/blog/posts/${nonExistentId}`, {
+      const res = await server.request(`/api/blog/posts/${nonExistentId}`, {
         method: "DELETE",
       });
       assertEquals(res.status, 404);

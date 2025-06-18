@@ -1,14 +1,14 @@
 import { describe, it } from "@std/testing/bdd";
 import { assertEquals } from "@std/assert";
 
-import { createApp } from "./server.ts";
+import { createServer } from "./server.ts";
 
-describe("createApp", () => {
+describe("createServer", () => {
   it("should return 404 for a non-existent route", async () => {
-    const app = createApp(import.meta.url, {
+    const server = createServer(import.meta.url, {
       path: "/",
     });
-    const res = await app.request("http://localhost/non-existent-route");
+    const res = await server.request("http://localhost/non-existent-route");
     assertEquals(res.status, 404);
   });
 });

@@ -1,11 +1,11 @@
 import { describe, it } from "@std/testing/bdd";
 import { assertEquals } from "@std/assert";
 
-import { app } from "/main.ts";
+import { server } from "/main.ts";
 
 describe("dynamic api route", () => {
   it("should throw 404 error for non-existent API", async () => {
-    const res = await app.request("http://localhost/api/nonexistent");
+    const res = await server.request("http://localhost/api/nonexistent");
 
     assertEquals(res.status, 404);
 

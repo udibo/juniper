@@ -4,7 +4,7 @@ import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
 import { FakeTime } from "@std/testing/time";
 import { sortBy } from "@std/collections/sort-by";
 
-import { app } from "/main.ts";
+import { server } from "/main.ts";
 import { type NewUser, type User, userService } from "/services/user.ts";
 
 describe("/api/users", () => {
@@ -68,7 +68,7 @@ describe("/api/users", () => {
     afterAll(() => userService.close());
 
     it("should return a list of users", async () => {
-      const res = await app.request("/api/users");
+      const res = await server.request("/api/users");
       assertEquals(res.status, 200);
       const json = await res.json();
 
@@ -81,7 +81,7 @@ describe("/api/users", () => {
     });
 
     it("should return a limited number of users when limit parameter is provided", async () => {
-      const res = await app.request("/api/users?limit=2");
+      const res = await server.request("/api/users?limit=2");
       assertEquals(res.status, 200);
       const json = await res.json();
 
@@ -93,7 +93,7 @@ describe("/api/users", () => {
     });
 
     it("should return users in reverse order when reverse=true", async () => {
-      const res = await app.request("/api/users?reverse=true");
+      const res = await server.request("/api/users?reverse=true");
       assertEquals(res.status, 200);
       const json = await res.json();
 
@@ -106,7 +106,7 @@ describe("/api/users", () => {
     });
 
     it("should return remaining users when using cursor parameter", async () => {
-      let res = await app.request("/api/users?limit=2");
+      let res = await server.request("/api/users?limit=2");
       assertEquals(res.status, 200);
       let json = await res.json();
       assert(json.cursor, "First response should have a cursor");
@@ -114,7 +114,7 @@ describe("/api/users", () => {
       assertEquals(json.users[0].id, users[0].id);
       assertEquals(json.users[1].id, users[1].id);
 
-      res = await app.request(`/api/users?limit=2&cursor=${json.cursor}`);
+      res = await server.request(`/api/users?limit=2&cursor=${json.cursor}`);
       assertEquals(res.status, 200);
       json = await res.json();
 
@@ -123,7 +123,7 @@ describe("/api/users", () => {
       assertEquals(json.users[0].id, users[2].id);
       assertEquals(json.users[1].id, users[3].id);
 
-      res = await app.request(`/api/users?limit=2&cursor=${json.cursor}`);
+      res = await server.request(`/api/users?limit=2&cursor=${json.cursor}`);
       assertEquals(res.status, 200);
       json = await res.json();
       assertEquals(json.users.length, 0);
@@ -132,7 +132,7 @@ describe("/api/users", () => {
 
     it("should return users sorted by username when using index parameter", async () => {
       const usersSortedByUsername = sortBy(users, (u) => u.username);
-      const res = await app.request("/api/users?index=username");
+      const res = await server.request("/api/users?index=username");
       assertEquals(res.status, 200);
       const json = await res.json();
 
@@ -146,7 +146,7 @@ describe("/api/users", () => {
 
     it("should return users sorted by email when using index parameter", async () => {
       const usersSortedByEmail = sortBy(users, (u) => u.email);
-      const res = await app.request("/api/users?index=email");
+      const res = await server.request("/api/users?index=email");
       assertEquals(res.status, 200);
       const json = await res.json();
 
@@ -159,7 +159,7 @@ describe("/api/users", () => {
 
     it("should return users sorted by updatedAt when using index parameter", async () => {
       const usersSortedByUpdatedAt = sortBy(users, (u) => u.updatedAt);
-      const res = await app.request("/api/users?index=updatedAt");
+      const res = await server.request("/api/users?index=updatedAt");
       assertEquals(res.status, 200);
       const json = await res.json();
 
@@ -170,7 +170,7 @@ describe("/api/users", () => {
     });
 
     it("should return 400 error for invalid query parameters", async () => {
-      const res = await app.request("/api/users?index=invalidIndex");
+      const res = await server.request("/api/users?index=invalidIndex");
       assertEquals(res.status, 400);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 400);
@@ -191,7 +191,7 @@ describe("/api/users", () => {
         }),
       );
 
-      const res = await app.request("/api/users");
+      const res = await server.request("/api/users");
       assertEquals(res.status, 200);
       const json = await res.json();
 
@@ -216,7 +216,7 @@ describe("/api/users", () => {
       const newUserData = createSampleUserInput();
       const createdUser = await userService.create(newUserData);
 
-      const res = await app.request(`/api/users/${createdUser.id}`);
+      const res = await server.request(`/api/users/${createdUser.id}`);
       const user = await res.json();
 
       assertEquals(res.status, 200);
@@ -233,7 +233,7 @@ describe("/api/users", () => {
         }),
       );
 
-      const res = await app.request(`/api/users/${userWithPassword.id}`);
+      const res = await server.request(`/api/users/${userWithPassword.id}`);
       assertEquals(res.status, 200);
       const user = await res.json();
 
@@ -249,7 +249,7 @@ describe("/api/users", () => {
 
     it("should return 404 if user not found", async () => {
       const nonExistentId = generateUUIDv7();
-      const res = await app.request(`/api/users/${nonExistentId}`);
+      const res = await server.request(`/api/users/${nonExistentId}`);
       assertEquals(res.status, 404);
 
       const errorBody = await res.json();
@@ -270,7 +270,7 @@ describe("/api/users", () => {
         displayName: "API POST User",
       });
 
-      const res = await app.request("/api/users", {
+      const res = await server.request("/api/users", {
         method: "POST",
         body: JSON.stringify(newUserData),
         headers: { "Content-Type": "application/json" },
@@ -294,7 +294,7 @@ describe("/api/users", () => {
         password: "securepassword123",
       });
 
-      const res = await app.request("/api/users", {
+      const res = await server.request("/api/users", {
         method: "POST",
         body: JSON.stringify(newUserData),
         headers: { "Content-Type": "application/json" },
@@ -327,7 +327,7 @@ describe("/api/users", () => {
         email: "nousername@example.com",
       };
 
-      const res = await app.request("/api/users", {
+      const res = await server.request("/api/users", {
         method: "POST",
         body: JSON.stringify(invalidUserData),
         headers: { "Content-Type": "application/json" },
@@ -353,7 +353,7 @@ describe("/api/users", () => {
         password: "short",
       });
 
-      const res = await app.request("/api/users", {
+      const res = await server.request("/api/users", {
         method: "POST",
         body: JSON.stringify(invalidUserData),
         headers: { "Content-Type": "application/json" },
@@ -379,7 +379,7 @@ describe("/api/users", () => {
       });
       await userService.create(newUserData);
 
-      const res = await app.request("/api/users", {
+      const res = await server.request("/api/users", {
         method: "POST",
         body: JSON.stringify(
           createSampleUserInput({
@@ -415,7 +415,7 @@ describe("/api/users", () => {
         email: createdUser.email,
       };
 
-      const res = await app.request(`/api/users/${createdUser.id}`, {
+      const res = await server.request(`/api/users/${createdUser.id}`, {
         method: "PUT",
         body: JSON.stringify(updatedUserData),
         headers: { "Content-Type": "application/json" },
@@ -446,7 +446,7 @@ describe("/api/users", () => {
         password: "newupdatedpassword123",
       };
 
-      const res = await app.request(`/api/users/${createdUser.id}`, {
+      const res = await server.request(`/api/users/${createdUser.id}`, {
         method: "PUT",
         body: JSON.stringify(updatedUserData),
         headers: { "Content-Type": "application/json" },
@@ -487,7 +487,7 @@ describe("/api/users", () => {
         id: nonExistentId,
       };
 
-      const res = await app.request(`/api/users/${nonExistentId}`, {
+      const res = await server.request(`/api/users/${nonExistentId}`, {
         method: "PUT",
         body: JSON.stringify(updateData),
         headers: { "Content-Type": "application/json" },
@@ -508,7 +508,7 @@ describe("/api/users", () => {
         email: createdUser.email,
       };
 
-      const res = await app.request(`/api/users/${createdUser.id}`, {
+      const res = await server.request(`/api/users/${createdUser.id}`, {
         method: "PUT",
         body: JSON.stringify(invalidUpdateData),
         headers: { "Content-Type": "application/json" },
@@ -532,7 +532,7 @@ describe("/api/users", () => {
         password: "short",
       };
 
-      const res = await app.request(`/api/users/${createdUser.id}`, {
+      const res = await server.request(`/api/users/${createdUser.id}`, {
         method: "PUT",
         body: JSON.stringify(invalidUpdateData),
         headers: { "Content-Type": "application/json" },
@@ -561,7 +561,7 @@ describe("/api/users", () => {
         email: user2.email,
       };
 
-      const res = await app.request(`/api/users/${user2.id}`, {
+      const res = await server.request(`/api/users/${user2.id}`, {
         method: "PUT",
         body: JSON.stringify(updateData),
         headers: { "Content-Type": "application/json" },
@@ -590,7 +590,7 @@ describe("/api/users", () => {
         displayName: "Patched User Display Name",
       };
 
-      const res = await app.request(`/api/users/${createdUser.id}`, {
+      const res = await server.request(`/api/users/${createdUser.id}`, {
         method: "PATCH",
         body: JSON.stringify(patchData),
         headers: { "Content-Type": "application/json" },
@@ -618,7 +618,7 @@ describe("/api/users", () => {
         password: "patchednewpassword123",
       };
 
-      const res = await app.request(`/api/users/${createdUser.id}`, {
+      const res = await server.request(`/api/users/${createdUser.id}`, {
         method: "PATCH",
         body: JSON.stringify(patchData),
         headers: { "Content-Type": "application/json" },
@@ -656,7 +656,7 @@ describe("/api/users", () => {
         displayName: "Attempt to Patch Non-existent",
       };
 
-      const res = await app.request(`/api/users/${nonExistentId}`, {
+      const res = await server.request(`/api/users/${nonExistentId}`, {
         method: "PATCH",
         body: JSON.stringify(patchData),
         headers: { "Content-Type": "application/json" },
@@ -676,7 +676,7 @@ describe("/api/users", () => {
         username: "u".repeat(51),
       };
 
-      const res = await app.request(`/api/users/${createdUser.id}`, {
+      const res = await server.request(`/api/users/${createdUser.id}`, {
         method: "PATCH",
         body: JSON.stringify(invalidPatchData),
         headers: { "Content-Type": "application/json" },
@@ -699,7 +699,7 @@ describe("/api/users", () => {
         password: "short",
       };
 
-      const res = await app.request(`/api/users/${createdUser.id}`, {
+      const res = await server.request(`/api/users/${createdUser.id}`, {
         method: "PATCH",
         body: JSON.stringify(invalidPatchData),
         headers: { "Content-Type": "application/json" },
@@ -726,7 +726,7 @@ describe("/api/users", () => {
         username: user1.username,
       };
 
-      const res = await app.request(`/api/users/${user2.id}`, {
+      const res = await server.request(`/api/users/${user2.id}`, {
         method: "PATCH",
         body: JSON.stringify(patchData),
         headers: { "Content-Type": "application/json" },
@@ -750,21 +750,21 @@ describe("/api/users", () => {
         createSampleUserInput({ username: "deleteuser" }),
       );
 
-      const res = await app.request(`/api/users/${createdUser.id}`, {
+      const res = await server.request(`/api/users/${createdUser.id}`, {
         method: "DELETE",
       });
       assertEquals(res.status, 200);
       const json = await res.json();
       assertEquals(json.deleted, true);
 
-      const getRes = await app.request(`/api/users/${createdUser.id}`);
+      const getRes = await server.request(`/api/users/${createdUser.id}`);
       assertEquals(getRes.status, 404);
     });
 
     it("should return 404 if user to delete is not found", async () => {
       const nonExistentId = generateUUIDv7();
 
-      const res = await app.request(`/api/users/${nonExistentId}`, {
+      const res = await server.request(`/api/users/${nonExistentId}`, {
         method: "DELETE",
       });
       assertEquals(res.status, 404);
