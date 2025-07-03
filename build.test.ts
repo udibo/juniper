@@ -99,7 +99,7 @@ describe("Builder", () => {
     });
 
     it("should throw error if no build context exists", async () => {
-      const builder = new Builder({
+      await using builder = new Builder({
         projectRoot: exampleDir,
         configPath: "../deno.json",
         write: false,

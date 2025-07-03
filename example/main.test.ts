@@ -1,5 +1,5 @@
 import { describe, it } from "@std/testing/bdd";
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import { mergeReadableStreams, TextLineStream } from "@std/streams";
 import { resolve } from "@std/path/resolve";
 
@@ -52,6 +52,9 @@ describe("serves application when running main.ts", () => {
 
     const res = await fetch("http://localhost:8100/");
     assertEquals(res.status, 200);
-    assertEquals(await res.text(), "Hello, World!");
+    assertEquals(res.headers.get("content-type"), "text/html; charset=utf-8");
+    const html = await res.text();
+    assertStringIncludes(html, "<!DOCTYPE html>");
+    assertStringIncludes(html, "Welcome to Juniper");
   });
 });

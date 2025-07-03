@@ -7,7 +7,8 @@
     ".": "./mod.ts",
     "./build": "./build.ts",
     "./dev": "./dev.ts",
-    "./server": "./server.ts",
+    "./server": "./server.tsx",
+    "./client": "./client.tsx",
     "./utils/env": "./utils/env.ts",
     "./utils/otel": "./utils/otel.ts",
     "./utils/testing": "./utils/testing.ts"
@@ -75,7 +76,7 @@
     "@std/uuid": "jsr:@std/uuid@1",
     "@luca/esbuild-deno-loader": "jsr:@kylejune/esbuild-deno-loader@0.12",
     "@opentelemetry/api": "npm:@opentelemetry/api@1",
-    "esbuild": "npm:esbuild@^0.24.0",
+    "esbuild": "npm:esbuild@^0.25.5",
     "zod": "npm:zod@^3.24.3",
     "hono": "npm:hono@^4",
     "react": "npm:react@^18",

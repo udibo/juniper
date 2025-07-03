@@ -4,7 +4,7 @@ import { assertEquals, assertStringIncludes } from "@std/assert";
 import { server } from "/main.ts";
 
 describe("GET /", () => {
-  it("should return HTML from React component", async () => {
+  it("should return HTML from converted client index route", async () => {
     const res = await server.request("http://localhost/");
     assertEquals(res.status, 200);
     assertEquals(res.headers.get("content-type"), "text/html; charset=utf-8");
