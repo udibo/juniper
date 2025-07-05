@@ -22,6 +22,9 @@ import {
 import type { RouteObject } from "react-router";
 import { StrictMode } from "react";
 import { renderToReadableStream } from "react-dom/server";
+import reactHelmetAsync from "react-helmet-async";
+const { HelmetProvider } = reactHelmetAsync;
+import type { HelmetServerState } from "react-helmet-async";
 
 import type { Client, Routes as ClientRoutes } from "./client.tsx";
 
@@ -110,9 +113,12 @@ function createHandlers(routes: RouteObject[]) {
 
       const router = createStaticRouter(dataRoutes, context);
 
+      const helmetContext = { helmet: {} as HelmetServerState };
       const renderStream = await renderToReadableStream(
         <StrictMode>
-          <StaticRouterProvider router={router} context={context} />
+          <HelmetProvider context={helmetContext}>
+            <StaticRouterProvider router={router} context={context} />
+          </HelmetProvider>
         </StrictMode>,
       );
       await renderStream.allReady;
@@ -130,9 +136,28 @@ function createHandlers(routes: RouteObject[]) {
 
       c.header("Content-Type", "text/html; charset=utf-8");
       return stream(c, async (stream) => {
-        await stream.writeln("<!DOCTYPE html>\n<html>");
+        await stream.writeln("<!DOCTYPE html>");
+        const { helmet } = helmetContext;
+        await stream.writeln(`<html ${helmet.htmlAttributes.toString()}>`);
+        await stream.writeln("  <head>");
+        await stream.writeln(`    ${helmet.base.toString()}`);
+        await stream.writeln(`    ${helmet.title.toString()}`);
+        await stream.writeln(`    ${helmet.priority.toString()}`);
+        await stream.writeln(`    ${helmet.meta.toString()}`);
+        await stream.writeln(`    ${helmet.link.toString()}`);
+        await stream.writeln(`    ${helmet.style.toString()}`);
+        await stream.writeln(`    ${helmet.script.toString()}`);
+        await stream.writeln(`    ${helmet.noscript.toString()}`);
+        await stream.writeln(
+          `    <script type="module" src="/build/main.js" defer></script>`,
+        );
+        await stream.writeln("  </head>");
+        await stream.writeln(`  <body ${helmet.bodyAttributes.toString()}>`);
+        await stream.write(`    <div id="root">`);
         await stream.pipe(renderStream);
-        await stream.writeln("\n</html>");
+        await stream.writeln("</div>");
+        await stream.writeln("  </body>");
+        await stream.writeln("</html>");
       });
     },
     async function handleDataRequest(c) {

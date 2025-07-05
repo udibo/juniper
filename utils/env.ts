@@ -7,6 +7,8 @@
  * @module utils/env
  */
 
+import { env } from "./_env.ts";
+
 /**
  * Determines if the application is running in development mode.
  *
@@ -33,4 +35,22 @@ export function isProduction(): boolean {
  */
 export function isTest(): boolean {
   return Deno.env.get("APP_ENV") === "test";
+}
+
+/**
+ * Determines if the application is running in a server environment.
+ *
+ * @returns `true` if the application is running in a server environment, `false` otherwise.
+ */
+export function isServer(): boolean {
+  return env.isServer();
+}
+
+/**
+ * Determines if the application is running in a browser environment.
+ *
+ * @returns `true` if the application is running in a browser environment, `false` otherwise.
+ */
+export function isBrowser(): boolean {
+  return !isServer();
 }

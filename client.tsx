@@ -181,10 +181,14 @@ export function hydrate(client: Client) {
     });
   }
 
+  /*
+  // Temporarily disabled until server/client loaders are implemented.
+  // The current example loaders only work on the server, not the client.
   if (typeof requestIdleCallback === "function") {
     requestIdleCallback(hydrate);
   } else {
     // Safari doesn't support requestIdleCallback
     setTimeout(hydrate, 1);
   }
+  */
 }
