@@ -353,7 +353,7 @@ export class Builder implements AsyncDisposable {
   /**
    * Disposes the esbuild context and marks the builder as inactive.
    * This can either be called manually or automatically using explicit resource management.
-   * If this is called for the last active builder, it will also stop esbuild.xd
+   * If this is called for the last active builder, it will also stop esbuild.
    *
    * @returns A promise that resolves when the builder is disposed.
    */
@@ -366,7 +366,7 @@ export class Builder implements AsyncDisposable {
     if (activeBuilders.size === 0) {
       await esbuild.stop();
       // Wait for esbuild to stop completely
-      await delay(4);
+      await delay(10);
     }
   }
   [Symbol.asyncDispose](): Promise<void> {

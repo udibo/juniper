@@ -17,13 +17,13 @@ import {
   createStaticHandler,
   createStaticRouter,
   StaticRouterProvider,
+  unstable_RouterContextProvider,
 } from "react-router";
 import type { RouteObject } from "react-router";
 import { StrictMode } from "react";
 import { renderToReadableStream } from "react-dom/server";
 
 import type { Client, Routes as ClientRoutes } from "./client.tsx";
-import { delay } from "@std/async/delay";
 
 const notFound = createMiddleware(() => {
   throw new HttpError(404, "Not found");
@@ -76,6 +76,9 @@ export interface Routes<
   children?: Routes<E, S, BasePath>[];
 }
 
+// TODO: Learn more about the context object.
+// TODO: Add loader and action to server and client routes. Learn how they impact the context.
+// TODO: Test having loader on both layout and child routes. How are loaders handled with multiple layers?
 // TODO: Update this to use react helmet and setup document start/end correctly
 /**
  * Creates handlers for React Router.
@@ -95,7 +98,11 @@ function createHandlers(routes: RouteObject[]) {
         return next();
       }
 
-      const context = await query(c.req.raw);
+      // TODO: Change where this is created so that it can be used by server middleware.
+      const requestContext = new unstable_RouterContextProvider();
+      const context = await query(c.req.raw, {
+        requestContext,
+      });
 
       if (context instanceof Response) {
         return context;
@@ -110,7 +117,6 @@ function createHandlers(routes: RouteObject[]) {
       );
       await renderStream.allReady;
 
-      // Setup headers from action and loaders from deepest match
       const deepestMatch = context.matches[context.matches.length - 1];
       const actionHeaders = context.actionHeaders[deepestMatch.route.id];
       const loaderHeaders = context.loaderHeaders[deepestMatch.route.id];
@@ -312,6 +318,11 @@ export function createServer<
   appWrapper.use(trimTrailingSlash());
 
   // TODO: Override client routes actions and loaders with server routes actions and loaders
+  // Initially manually override the client routes actions and loaders with server routes actions and loaders.
+  // Then after learning how they work automate it.
+  // client routes use lazy, need to unlazy them to replace the actions and loaders
+  // By unlazy, I mean the server will await the lazy function, replacing it on the route with it's contents.
+  // But the loader and action will be replaced with the server routes actions and loaders.
   const clientRoutes = client.routes;
   const handlers = createHandlers(clientRoutes);
   const app = buildApp(routes, client.appRoutes, handlers, projectRoot);

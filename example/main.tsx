@@ -12,6 +12,17 @@ export const client = createClient({
       path: "/about",
       main: () => import("./routes/about.tsx"),
     },
+    {
+      path: "/blog",
+      main: () => import("./routes/blog/main.tsx"),
+      index: () => import("./routes/blog/index.tsx"),
+      children: [
+        {
+          path: "/:id",
+          main: () => import("./routes/blog/[id].tsx"),
+        },
+      ],
+    },
   ],
 });
 

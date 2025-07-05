@@ -15,6 +15,22 @@ export default function HomePage() {
           <li>Hot reloading</li>
         </ul>
       </div>
+
+      <div style={{ marginTop: "2rem" }}>
+        <h2>Explore</h2>
+        <p>
+          <a
+            href="/blog"
+            style={{
+              color: "#2563eb",
+              textDecoration: "none",
+              fontWeight: "500",
+            }}
+          >
+            Visit our Blog →
+          </a>
+        </p>
+      </div>
     </div>
   );
 }

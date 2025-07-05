@@ -38,7 +38,6 @@ describe("createServer", () => {
       path: "/",
     });
 
-    // Test that client routes are converted to HTML server routes
     const aboutRes = await server.request("http://localhost/about");
     assertEquals(aboutRes.status, 200);
     assertEquals(

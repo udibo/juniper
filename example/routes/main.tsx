@@ -4,6 +4,7 @@ export default function Main() {
   return <Outlet />;
 }
 
-export function ErrorBoundary() {
+export function ErrorBoundary(...args: unknown[]) {
+  console.log("ErrorBoundary args", args);
   return <div>Error</div>;
 }

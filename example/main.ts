@@ -62,6 +62,9 @@ export const server = createServer(import.meta.url, client, {
       ],
     },
     {
+      path: "/blog",
+    },
+    {
       path: "/hello",
       main: await import("./routes/hello.ts"),
     },
