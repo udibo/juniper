@@ -32,6 +32,25 @@ describe("Builder", () => {
     });
   });
 
+  describe("buildMainClientEntrypoint", () => {
+    it("should generate content matching example/main.tsx", async () => {
+      using writeTextFileStub = isSnapshotMode()
+        ? spy(deno, "writeTextFile")
+        : stub(deno, "writeTextFile");
+      await using builder = new Builder({ projectRoot: exampleDir });
+      await builder.buildMainClientEntrypoint();
+
+      const exampleMainPath = path.resolve(exampleDir, "main.tsx");
+      const expectedContent = (await Deno.readTextFile(exampleMainPath))
+        .replace(/\r\n/g, "\n");
+
+      assertSpyCall(writeTextFileStub, 0, {
+        args: [exampleMainPath, expectedContent],
+      });
+      assertSpyCalls(writeTextFileStub, 1);
+    });
+  });
+
   describe("constructor", () => {
     it("should initialize with default options", async () => {
       await using builder = new Builder();

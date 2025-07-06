@@ -69,6 +69,37 @@ function isRegularFileModule(fileName: string): boolean {
     !fileName.includes(".test");
 }
 
+function isClientMainRoute(fileName: string): boolean {
+  return fileName === "main.tsx";
+}
+
+function isClientIndexRoute(fileName: string): boolean {
+  return fileName === "index.tsx";
+}
+
+function isClientCatchallRoute(fileName: string): boolean {
+  return fileName === "[...].tsx";
+}
+
+function isClientDynamicRoute(fileName: string): boolean {
+  return fileName.startsWith("[") && fileName.endsWith("].tsx") &&
+    !isClientCatchallRoute(fileName);
+}
+
+function getClientDynamicRouteParam(fileName: string): string {
+  return fileName.slice(1, -5);
+}
+
+function isRegularClientFileModule(fileName: string): boolean {
+  return fileName.endsWith(".tsx") &&
+    !isClientMainRoute(fileName) &&
+    !isClientIndexRoute(fileName) &&
+    !isClientCatchallRoute(fileName) &&
+    !isClientDynamicRoute(fileName) &&
+    !fileName.startsWith("_") &&
+    !fileName.includes(".test");
+}
+
 async function processDirectory(
   absoluteDirPath: string,
   importPathBase: string,
@@ -175,6 +206,124 @@ async function processDirectory(
 }
 
 /**
+ * Processes a directory for client routes (.tsx files).
+ * Similar to processDirectory but generates lazy loading syntax for client routes.
+ */
+async function processClientDirectory(
+  absoluteDirPath: string,
+  importPathBase: string,
+  isRootLevel: boolean,
+): Promise<DirRouteProperties> {
+  const properties: DirRouteProperties = {
+    fileModuleChildren: [],
+    parameterizedChildren: [],
+    directoryChildren: [],
+  };
+
+  let dirEntries = [];
+  let firstEntrySkipped = false;
+  for await (
+    const entry of walk(absoluteDirPath, {
+      maxDepth: 1,
+      includeDirs: true,
+      includeFiles: true,
+      followSymlinks: false,
+    })
+  ) {
+    if (!firstEntrySkipped) {
+      firstEntrySkipped = true;
+      continue;
+    }
+    dirEntries.push(entry);
+  }
+
+  const entryPriority = (name: string): number => {
+    if (isClientMainRoute(name)) return 0;
+    if (isClientIndexRoute(name)) return 1;
+    if (isClientCatchallRoute(name)) return 2;
+    if (isClientDynamicRoute(name)) return 3;
+    return 4;
+  };
+
+  dirEntries = sortBy(
+    dirEntries,
+    (e) => `${e.isFile ? "0" : "1"}-${entryPriority(e.name)}-${e.name}`,
+  );
+
+  for (const entry of dirEntries) {
+    const currentFileImportPath = `${importPathBase}/${entry.name}`;
+    const lazyImport = `() => import("${currentFileImportPath}")`;
+    const directImport = `await import("${currentFileImportPath}")`;
+
+    if (entry.isFile && entry.name.endsWith(".tsx")) {
+      if (isClientMainRoute(entry.name)) {
+        // Only root-level main routes use await import, nested main routes use lazy import
+        properties.main = isRootLevel ? directImport : lazyImport;
+      } else if (isClientIndexRoute(entry.name)) {
+        properties.index = lazyImport; // Index routes use lazy import
+      } else if (isClientCatchallRoute(entry.name)) {
+        properties.catchall = lazyImport; // Catchall routes use lazy import
+      } else if (isClientDynamicRoute(entry.name)) {
+        const paramName = getClientDynamicRouteParam(entry.name);
+        properties.parameterizedChildren.push({
+          path: `/:${paramName}`,
+          main: lazyImport, // Dynamic routes use lazy import
+        });
+      } else if (isRegularClientFileModule(entry.name)) {
+        const routeName = entry.name.slice(0, -4); // Remove .tsx
+        properties.fileModuleChildren.push({
+          path: `/${routeName}`,
+          main: lazyImport, // Regular file modules use lazy import
+        });
+      }
+    } else if (entry.isDirectory) {
+      // Skip conventionally private directories like _components, _utils, etc.
+      if (entry.name.startsWith("_")) continue;
+
+      const subDirAbsolutePath = path.join(absoluteDirPath, entry.name);
+      const subDirImportPathBase = `${importPathBase}/${entry.name}`;
+      const subDirProps = await processClientDirectory(
+        subDirAbsolutePath,
+        subDirImportPathBase,
+        false,
+      );
+
+      const children = [
+        ...subDirProps.fileModuleChildren,
+        ...subDirProps.directoryChildren,
+        ...subDirProps.parameterizedChildren,
+      ];
+
+      // Only include directories that have .tsx files (main, index, catchall, or children)
+      const hasClientRoutes = subDirProps.main || subDirProps.index ||
+        subDirProps.catchall || children.length > 0;
+      if (!hasClientRoutes) continue;
+
+      let routePathSegment = entry.name;
+      const isDynamicDir = isDynamicDirName(entry.name);
+      if (isDynamicDir) {
+        routePathSegment = `:${getDynamicDirParam(entry.name)}`;
+      }
+
+      const dirRoute: GeneratedRoute = {
+        path: `/${routePathSegment}`,
+      };
+      if (subDirProps.main) dirRoute.main = subDirProps.main;
+      if (subDirProps.index) dirRoute.index = subDirProps.index;
+      if (subDirProps.catchall) dirRoute.catchall = subDirProps.catchall;
+      if (children.length > 0) dirRoute.children = children;
+
+      if (isDynamicDir) {
+        properties.parameterizedChildren.push(dirRoute);
+      } else {
+        properties.directoryChildren.push(dirRoute);
+      }
+    }
+  }
+  return properties;
+}
+
+/**
  * Converts a generated route object to a string.
  *
  * @param obj The generated route object to convert to a string.
@@ -189,7 +338,7 @@ function generatedRouteObjectToString(
   const nextIndent = "  ".repeat(indentLevel + 1);
 
   if (typeof obj === "string") {
-    if (obj.startsWith("await import(")) {
+    if (obj.startsWith("await import(") || obj.startsWith("() => import(")) {
       return obj;
     }
     return `"${
@@ -314,6 +463,7 @@ export class Builder implements AsyncDisposable {
   readonly publicPath: string;
   readonly configPath: string;
   readonly serverPath: string;
+  readonly clientPath: string;
   readonly entryPoint: string;
   readonly watchPaths: string | string[];
   readonly outdir: string;
@@ -346,6 +496,7 @@ export class Builder implements AsyncDisposable {
     this.plugins = [...(options.plugins ?? [])];
     this.outdir = path.resolve(this.publicPath, "build");
     this.serverPath = path.resolve(this.projectRoot, "./main.ts");
+    this.clientPath = path.resolve(this.projectRoot, "./main.tsx");
     this._isBuilding = false;
     this.write = options.write ?? true;
   }
@@ -461,6 +612,82 @@ if (import.meta.main) {
   }
 
   /**
+   * Generates the main client file by scanning the routes directory for .tsx files
+   * and creating the appropriate client route configuration with lazy loading.
+   *
+   * This function walks through the routes directory, discovers all .tsx route files
+   * following Juniper's file-based routing conventions, and generates a main.tsx file
+   * that imports and configures all client routes using the createClient function.
+   *
+   * @returns A promise that resolves when the client entry point is built.
+   */
+  buildMainClientEntrypoint(): Promise<void> {
+    return startActiveSpan("buildMainClientEntrypoint", async () => {
+      const routesDirScanningRoot = this.routesPath;
+      const importPrefixForRoutes = "./" +
+        path.relative(this.projectRoot, this.routesPath);
+
+      const rootDirProperties = await processClientDirectory(
+        routesDirScanningRoot,
+        importPrefixForRoutes,
+        true,
+      );
+
+      const allRootChildren = [
+        ...rootDirProperties.fileModuleChildren,
+        ...rootDirProperties.parameterizedChildren,
+        ...rootDirProperties.directoryChildren,
+      ].sort((a, b) => a.path.localeCompare(b.path));
+
+      const finalRoutesConfig: GeneratedRoute = {
+        path: "/",
+      };
+      if (rootDirProperties.main) {
+        finalRoutesConfig.main = rootDirProperties.main;
+      }
+      if (rootDirProperties.index) {
+        finalRoutesConfig.index = rootDirProperties.index;
+      }
+      if (rootDirProperties.catchall) {
+        finalRoutesConfig.catchall = rootDirProperties.catchall;
+      }
+      if (allRootChildren.length > 0) {
+        finalRoutesConfig.children = allRootChildren;
+      }
+
+      const routesConfigString = generatedRouteObjectToString(
+        finalRoutesConfig,
+        1,
+      );
+
+      const fmt = fmtCommand.spawn();
+      const fmtWriter = fmt.stdin.getWriter();
+      const encoder = new TextEncoder();
+      fmtWriter.write(encoder.encode(`\
+// This file is auto-generated by @udibo/juniper/build
+// Do not edit this file directly.
+
+import { createClient, hydrate } from "@udibo/juniper/client";
+import { isBrowser } from "@udibo/juniper/utils/env";
+
+export const client = createClient(${routesConfigString});
+
+if (isBrowser()) {
+  hydrate(client);
+}
+`));
+      fmtWriter.close();
+      const { success, code } = await fmt.status;
+      if (!success) {
+        throw new Error(`Failed to format generated main client file: ${code}`);
+      }
+
+      const contents = await toText(fmt.stdout);
+      await deno.writeTextFile(this.clientPath, contents);
+    });
+  }
+
+  /**
    * Generates the build for a Juniper application.
    *
    * This function creates an esbuild context for the build and then triggers a build for the application.
@@ -498,7 +725,10 @@ if (import.meta.main) {
           };
         buildOptions.write = this.write;
 
-        if (this.write) await this.buildMainServerEntrypoint();
+        if (this.write) {
+          await this.buildMainServerEntrypoint();
+          await this.buildMainClientEntrypoint();
+        }
 
         this.context = await esbuild.context({
           plugins: [
@@ -551,8 +781,13 @@ if (import.meta.main) {
       const startTime = performance.now();
       let success = false;
       try {
-        if (options.server && this.write) {
-          await this.buildMainServerEntrypoint();
+        if (this.write) {
+          if (options.server) {
+            await this.buildMainServerEntrypoint();
+          }
+          if (options.client) {
+            await this.buildMainClientEntrypoint();
+          }
         }
         const results = await this.context.rebuild();
         success = true;
