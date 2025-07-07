@@ -13,6 +13,7 @@ import { trimTrailingSlash } from "hono/trailing-slash";
 import * as path from "@std/path";
 import { HttpError } from "@udibo/http-error";
 import { getInstance } from "@udibo/juniper/utils/otel";
+import { isDevelopment } from "@udibo/juniper/utils/env";
 import {
   createStaticHandler,
   createStaticRouter,
@@ -151,6 +152,11 @@ function createHandlers(routes: RouteObject[]) {
         await stream.writeln(
           `    <script type="module" src="/build/main.js" defer></script>`,
         );
+        if (isDevelopment()) {
+          await stream.writeln(
+            `    <script src="/dev-client.js" defer></script>`,
+          );
+        }
         await stream.writeln("  </head>");
         await stream.writeln(`  <body ${helmet.bodyAttributes.toString()}>`);
         await stream.write(`    <div id="root">`);
@@ -259,6 +265,19 @@ function buildApp<
     publicPath = Deno.build.os === "windows"
       ? relativePath.replace(/\\/g, "/")
       : relativePath;
+
+    // Serve dev client script in development mode
+    if (isDevelopment()) {
+      const devClientPath = path.fromFileUrl(
+        import.meta.resolve("./dev-client.js"),
+      );
+      const devClientContent = Deno.readTextFileSync(devClientPath);
+      app.get("/dev-client.js", (c) => {
+        return c.body(devClientContent, 200, {
+          "Content-Type": "application/javascript",
+        });
+      });
+    }
 
     // Note: There's a known issue with Hono's serveStatic on Windows (https://github.com/honojs/hono/issues/3475)
     // This workaround attempts to work around path separator and relative path issues

@@ -1,5 +1,9 @@
 import * as path from "@std/path";
 import { debounce } from "@std/async/debounce";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { streamSSE } from "hono/streaming";
+import type { SSEStreamingApi } from "hono/streaming";
 
 import { Builder } from "./build.ts";
 import { deno } from "./deno.ts";
@@ -39,10 +43,12 @@ const SHOULD_IGNORE_REGEX =
 export class DevServer {
   private watcher?: Deno.FsWatcher;
   private appProcess?: Deno.ChildProcess;
+  private devServer?: { shutdown: () => void };
   readonly port: number;
   readonly builder: Builder;
   private queuedRebuild?: RebuildRequest;
   private stopping: boolean;
+  private connectedClients: Set<SSEStreamingApi> = new Set();
 
   constructor(options?: DevServerOptions) {
     const { port, builder } = options ?? {};
@@ -60,9 +66,7 @@ export class DevServer {
     await this.builder.build();
 
     queueMicrotask(async () => {
-      // TODO: Add a dev server to communicate when browser should reload.
-      // console.log(`🌐 Dev server running at http://localhost:${this.port}`);
-
+      this.startDevServer();
       await this.startApp();
     });
 
@@ -82,6 +86,93 @@ export class DevServer {
   }
 
   /**
+   * Starts the Hono dev server with SSE endpoint
+   */
+  private startDevServer(): void {
+    const app = new Hono();
+
+    app.use(
+      "*",
+      cors({
+        origin: "*",
+        allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allowHeaders: ["Content-Type", "Authorization"],
+      }),
+    );
+
+    app.get("/sse", (c) => {
+      return streamSSE(c, async (stream) => {
+        this.connectedClients.add(stream);
+
+        await stream.writeSSE({
+          data: "connected",
+          event: "dev-connection",
+        });
+
+        stream.onAbort(() => {
+          this.connectedClients.delete(stream);
+        });
+
+        while (!this.stopping) {
+          await stream.sleep(30000);
+          await stream.writeSSE({
+            data: "keepalive",
+            event: "dev-keepalive",
+          });
+        }
+      });
+    });
+
+    app.get("/health", (c) => {
+      return c.json({ status: "ok", clients: this.connectedClients.size });
+    });
+
+    try {
+      this.devServer = Deno.serve({ port: this.port }, app.fetch);
+      console.log(`🌐 Dev server running at http://localhost:${this.port}`);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.includes("Address already in use")
+      ) {
+        console.log(
+          `⚠️  Port ${this.port} already in use, dev server not started`,
+        );
+        return;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Notifies all connected clients to reload
+   */
+  private async notifyClientsToReload(): Promise<void> {
+    if (this.connectedClients.size === 0) return;
+
+    console.log(
+      `🔄 Notifying ${this.connectedClients.size} connected client(s) to reload...`,
+    );
+
+    const clientsToRemove: SSEStreamingApi[] = [];
+
+    for (const client of this.connectedClients) {
+      try {
+        await client.writeSSE({
+          data: JSON.stringify({ type: "reload", timestamp: Date.now() }),
+          event: "dev-reload",
+        });
+      } catch {
+        clientsToRemove.push(client);
+      }
+    }
+
+    for (const client of clientsToRemove) {
+      this.connectedClients.delete(client);
+    }
+  }
+
+  /**
    * Stops the dev server and cleans up resources
    */
   async stop(): Promise<void> {
@@ -95,6 +186,11 @@ export class DevServer {
         console.error(error);
       }
       delete this.watcher;
+    }
+
+    if (this.devServer) {
+      this.devServer.shutdown();
+      delete this.devServer;
     }
 
     if (this.appProcess) {
@@ -262,5 +358,6 @@ export class DevServer {
     }
 
     await this.startApp();
+    await this.notifyClientsToReload();
   }
 }
