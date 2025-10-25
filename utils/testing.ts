@@ -4,6 +4,9 @@
  * @module utils/testing
  */
 
+import type { ClientGlobals } from "../client.tsx";
+import { env } from "./_env.ts";
+
 /**
  * Determines if the current process is running in snapshot mode.
  * This is useful for determining if tests that use snapshot assertion should be updating their snapshots.
@@ -176,6 +179,60 @@ export function simulateEnvironment(
         Deno.env.set(key, value);
       }
     }
+  }
+
+  return {
+    restore,
+    [Symbol.dispose]: () => {
+      restore();
+    },
+  };
+}
+
+/**
+ * A simulated browser environment that restores the globals when disposed.
+ */
+export interface SimulatedBrowser extends Disposable {
+  /** Restores the globals to their original values. */
+  restore: () => void;
+}
+
+/**
+ * Simulates the globals until the simulated browser is restored or disposed.
+ * The initial globals are the ones that were present in the current process.
+ * They are overridden by the globals passed to the `simulateBrowser` function.
+ *
+ * In addition to the globals, the environment functions for determining if the application
+ * is running in a server or browser environment are overridden.
+ *
+ * @param globals The initial globals for the simulated browser.
+ * @returns A simulated browser that restores the globals when disposed.
+ */
+export function simulateBrowser(globals: ClientGlobals): SimulatedBrowser {
+  const originalJuniperHydrationData =
+    (globalThis as ClientGlobals).__juniperHydrationData;
+  if (globals.__juniperHydrationData) {
+    (globalThis as ClientGlobals).__juniperHydrationData =
+      globals.__juniperHydrationData;
+  } else {
+    delete (globalThis as ClientGlobals).__juniperHydrationData;
+  }
+
+  const originalIsServer = env.isServer;
+  env.isServer = () => false;
+
+  let restored = false;
+  function restore() {
+    if (restored) throw new Error("Browser already restored");
+    restored = true;
+    if (originalJuniperHydrationData) {
+      (globalThis as ClientGlobals).__juniperHydrationData =
+        originalJuniperHydrationData;
+    } else {
+      delete (globalThis as ClientGlobals).__juniperHydrationData;
+    }
+
+    env.isServer = originalIsServer;
   }
 
   return {

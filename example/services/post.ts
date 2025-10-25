@@ -8,8 +8,8 @@ export const PostSchema = z.object({
     .max(255, "Title must be less than 255 characters"),
   content: z.string().min(1, "Content is required"),
   authorId: z.string().uuid("Invalid author ID"),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
 });
 
 export type Post = z.infer<typeof PostSchema>;

@@ -55,14 +55,15 @@ export default function BlogIndex() {
                     </Link>
                   </h2>
                   <div style={{ color: "#666", fontSize: "0.9rem" }}>
-                    <time dateTime={post.createdAt.toString()}>
+                    <time dateTime={new Date(post.createdAt).toISOString()}>
                       {new Date(post.createdAt).toLocaleDateString("en-US", {
                         year: "numeric",
                         month: "long",
                         day: "numeric",
                       })}
                     </time>
-                    {post.createdAt !== post.updatedAt && (
+                    {new Date(post.createdAt).getTime() !==
+                        new Date(post.updatedAt).getTime() && (
                       <span style={{ marginLeft: "1rem" }}>
                         (Updated:{" "}
                         {new Date(post.updatedAt).toLocaleDateString("en-US", {

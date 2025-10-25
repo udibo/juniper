@@ -1,3 +1,5 @@
+import { Link } from "react-router";
+
 export default function HomePage() {
   return (
     <div>
@@ -19,8 +21,8 @@ export default function HomePage() {
       <div style={{ marginTop: "2rem" }}>
         <h2>Explore</h2>
         <p>
-          <a
-            href="/blog"
+          <Link
+            to="/blog"
             style={{
               color: "#2563eb",
               textDecoration: "none",
@@ -28,7 +30,19 @@ export default function HomePage() {
             }}
           >
             Visit our Blog →
-          </a>
+          </Link>
+        </p>
+        <p>
+          <Link
+            to="/loaders/defer"
+            style={{
+              color: "#2563eb",
+              textDecoration: "none",
+              fontWeight: "500",
+            }}
+          >
+            Visit our Defer Page →
+          </Link>
         </p>
       </div>
     </div>

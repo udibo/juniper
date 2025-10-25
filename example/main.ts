@@ -9,64 +9,70 @@ export const server = createServer(import.meta.url, client, {
   main: await import("./routes/main.ts"),
   children: [
     {
-      path: "/api",
+      path: "api",
       main: await import("./routes/api/main.ts"),
       children: [
         {
-          path: "/users",
+          path: "users",
           main: await import("./routes/api/users.ts"),
         },
         {
-          path: "/blog",
+          path: "blog",
           children: [
             {
-              path: "/posts",
+              path: "posts",
               main: await import("./routes/api/blog/posts.ts"),
             },
           ],
         },
         {
-          path: "/catchall",
+          path: "catchall",
           catchall: await import("./routes/api/catchall/[...].ts"),
         },
         {
-          path: "/empty",
+          path: "empty",
         },
         {
-          path: "/hello",
+          path: "hello",
           index: await import("./routes/api/hello/index.ts"),
           children: [
             {
-              path: "/example",
+              path: "example",
               main: await import("./routes/api/hello/example.ts"),
             },
             {
-              path: "/:name",
+              path: ":name",
               main: await import("./routes/api/hello/[name].ts"),
             },
           ],
         },
         {
-          path: "/hello2",
+          path: "hello2",
           children: [
             {
-              path: "/:name",
+              path: ":name",
               main: await import("./routes/api/hello2/[name]/main.ts"),
             },
           ],
         },
         {
-          path: "/:api",
+          path: ":api",
           index: await import("./routes/api/[api]/index.ts"),
         },
       ],
     },
     {
-      path: "/blog",
+      path: "blog",
     },
     {
-      path: "/hello",
+      path: "errors",
+    },
+    {
+      path: "hello",
       main: await import("./routes/hello.ts"),
+    },
+    {
+      path: "loaders",
     },
   ],
 });

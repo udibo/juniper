@@ -3,9 +3,11 @@ import {
   type LoaderFunctionArgs,
   useLoaderData,
   useParams,
+  useRouteError,
 } from "react-router";
 import type { Post } from "/services/post.ts";
 import { postService } from "/services/post.ts";
+import { HttpError } from "@udibo/http-error";
 
 interface BlogPostLoaderData {
   post: Post;
@@ -19,9 +21,9 @@ export async function loader(
     return { post };
   } catch (error) {
     if (error instanceof Error && error.message.includes("Failed to find")) {
-      throw new Response("Blog post not found", { status: 404 });
+      throw new HttpError(404, "Blog post not found");
     }
-    throw new Response("Failed to load blog post", { status: 500 });
+    throw new HttpError(500, "Failed to load blog post");
   }
 }
 
@@ -72,15 +74,16 @@ export default function BlogPost() {
               alignItems: "center",
             }}
           >
-            <time dateTime={post.createdAt.toString()}>
+            <time dateTime={new Date(post.createdAt).toISOString()}>
               Published: {new Date(post.createdAt).toLocaleDateString("en-US", {
                 year: "numeric",
                 month: "long",
                 day: "numeric",
               })}
             </time>
-            {post.createdAt !== post.updatedAt && (
-              <time dateTime={post.updatedAt.toString()}>
+            {new Date(post.createdAt).getTime() !==
+                new Date(post.updatedAt).getTime() && (
+              <time dateTime={new Date(post.updatedAt).toISOString()}>
                 Updated: {new Date(post.updatedAt).toLocaleDateString("en-US", {
                   year: "numeric",
                   month: "long",
@@ -119,7 +122,10 @@ export default function BlogPost() {
   );
 }
 
-export function ErrorBoundary() {
+export function ErrorBoundary(args: unknown) {
+  console.log("ErrorBoundary args", args);
+  const error = useRouteError();
+  console.log("ErrorBoundary error", error);
   const params = useParams();
 
   return (
@@ -129,6 +135,9 @@ export function ErrorBoundary() {
         {params.id
           ? `Sorry, we couldn't find a blog post with ID "${params.id}".`
           : "Sorry, we couldn't find that blog post."}
+      </p>
+      <p>
+        {error instanceof Error ? error.message : "Unknown error"}
       </p>
       <Link
         to="/blog"

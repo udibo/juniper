@@ -2,11 +2,11 @@ import { describe, it } from "@std/testing/bdd";
 import { assertEquals, assertStringIncludes } from "@std/assert";
 
 import { createServer } from "./server.tsx";
-import { createClient } from "./client.tsx";
+import { Client } from "./client.tsx";
 
 describe("createServer", () => {
   it("should return 404 for a non-existent route", async () => {
-    const client = createClient({
+    const client = new Client({
       path: "/",
       main: { default: () => null },
     });
@@ -19,16 +19,16 @@ describe("createServer", () => {
   });
 
   it("should convert client routes to server routes with HTML response", async () => {
-    const client = createClient({
+    const client = new Client({
       path: "/",
       main: { default: () => null },
       children: [
         {
-          path: "/about",
+          path: "about",
           main: () => Promise.resolve({ default: () => null }),
         },
         {
-          path: "/contact",
+          path: "contact",
           index: () => Promise.resolve({ default: () => null }),
         },
       ],
@@ -58,12 +58,12 @@ describe("createServer", () => {
   });
 
   it("should give priority to server routes over client routes", async () => {
-    const client = createClient({
+    const client = new Client({
       path: "/",
       main: { default: () => null },
       children: [
         {
-          path: "/test",
+          path: "test",
           main: () => Promise.resolve({ default: () => null }),
         },
       ],
@@ -76,7 +76,7 @@ describe("createServer", () => {
       path: "/",
       children: [
         {
-          path: "/test",
+          path: "test",
           main: { default: testApp },
         },
       ],

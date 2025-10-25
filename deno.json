@@ -83,7 +83,7 @@
     "@types/react": "npm:@types/react@^18",
     "react-dom": "npm:react-dom@^18",
     "react-error-boundary": "npm:react-error-boundary@^4",
-    "react-router": "npm:react-router@^7.3",
+    "react-router": "npm:react-router@^7.8",
     "react-helmet-async": "npm:react-helmet-async@^2",
     "serialize-javascript": "npm:serialize-javascript@^6",
     "@testing-library/react": "npm:@testing-library/react@^16",

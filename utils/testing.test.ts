@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { assertEquals, assertThrows } from "@std/assert";
 
-import { simulateEnvironment } from "./testing.ts";
+import { simulateBrowser, simulateEnvironment } from "./testing.ts";
+import { isBrowser, isServer } from "@udibo/juniper/utils/env";
+import type { ClientGlobals } from "@udibo/juniper/client";
 
 describe("simulateEnvironment", () => {
   const originalEnv = Deno.env.toObject();
@@ -112,5 +114,155 @@ describe("simulateEnvironment", () => {
     assertEquals(Deno.env.get("BAZ"), "qux");
     assertEquals(Deno.env.get("QUUX"), undefined);
     assertEquals(Deno.env.get("EXTRA"), undefined);
+  });
+});
+
+describe("simulateBrowser", () => {
+  it("should simulate browser globals with manual restore", () => {
+    const browser = simulateBrowser({
+      __juniperHydrationData: {
+        errors: null,
+        loaderData: {},
+      },
+    });
+
+    assertEquals(isBrowser(), true);
+    assertEquals(isServer(), false);
+    assertEquals((globalThis as ClientGlobals).__juniperHydrationData, {
+      errors: null,
+      loaderData: {},
+    });
+
+    browser.restore();
+
+    assertEquals(isBrowser(), false);
+    assertEquals(isServer(), true);
+    assertEquals(
+      (globalThis as ClientGlobals).__juniperHydrationData,
+      undefined,
+    );
+  });
+
+  it("should simulate browser globals with automatic restore using 'using'", () => {
+    {
+      using _browser = simulateBrowser({
+        __juniperHydrationData: {
+          errors: null,
+          loaderData: {},
+        },
+      });
+
+      assertEquals(isBrowser(), true);
+      assertEquals(isServer(), false);
+      assertEquals(
+        (globalThis as ClientGlobals).__juniperHydrationData,
+        {
+          errors: null,
+          loaderData: {},
+        },
+      );
+    }
+
+    assertEquals(isBrowser(), false);
+    assertEquals(isServer(), true);
+    assertEquals(
+      (globalThis as ClientGlobals).__juniperHydrationData,
+      undefined,
+    );
+  });
+
+  it("should throw error when trying to restore browser multiple times", () => {
+    const browser = simulateBrowser({
+      __juniperHydrationData: {
+        errors: null,
+        loaderData: {},
+      },
+    });
+
+    browser.restore();
+
+    assertThrows(() => browser.restore(), Error, "Browser already restored");
+  });
+
+  it("should support nested simulated browsers", () => {
+    const outerBrowser = simulateBrowser({
+      __juniperHydrationData: {
+        errors: {
+          "0": {
+            __type: "Error",
+            message: "outer error",
+          },
+        },
+        loaderData: {},
+      },
+    });
+
+    assertEquals(isBrowser(), true);
+    assertEquals(isServer(), false);
+    assertEquals(
+      (globalThis as ClientGlobals).__juniperHydrationData,
+      {
+        errors: {
+          "0": {
+            __type: "Error",
+            message: "outer error",
+          },
+        },
+        loaderData: {},
+      },
+    );
+
+    {
+      using _innerBrowser = simulateBrowser({
+        __juniperHydrationData: {
+          errors: {
+            "0": {
+              __type: "Error",
+              message: "inner error",
+            },
+          },
+          loaderData: {},
+        },
+      });
+
+      assertEquals(isBrowser(), true);
+      assertEquals(isServer(), false);
+      assertEquals(
+        (globalThis as ClientGlobals).__juniperHydrationData,
+        {
+          errors: {
+            "0": {
+              __type: "Error",
+              message: "inner error",
+            },
+          },
+          loaderData: {},
+        },
+      );
+    }
+
+    assertEquals(isBrowser(), true);
+    assertEquals(isServer(), false);
+    assertEquals(
+      (globalThis as ClientGlobals).__juniperHydrationData,
+      {
+        errors: {
+          "0": {
+            __type: "Error",
+            message: "outer error",
+          },
+        },
+        loaderData: {},
+      },
+    );
+
+    outerBrowser.restore();
+
+    assertEquals(isBrowser(), false);
+    assertEquals(isServer(), true);
+    assertEquals(
+      (globalThis as ClientGlobals).__juniperHydrationData,
+      undefined,
+    );
   });
 });
