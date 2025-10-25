@@ -16,27 +16,27 @@
   "tasks": {
     "serve": {
       "description": "Runs the server in development mode.",
-      "command": "export OTEL_DENO=true OTEL_SERVICE_NAME=Example && deno run -A --env-file --unstable-otel ./example/main.ts"
+      "command": "deno run -A --env-file ./example/main.ts"
     },
     "serve-prod": {
       "description": "Runs the server in production mode.",
-      "command": "export OTEL_DENO=true OTEL_SERVICE_NAME=Example && deno run -A --env-file --env-file=.env.production --unstable-otel ./example/main.ts"
+      "command": "deno run -A --env-file --env-file=.env.production ./example/main.ts"
     },
     "build": {
       "description": "Builds the application for development.",
-      "command": "export OTEL_DENO=true OTEL_SERVICE_NAME=build && deno run -A --env-file --unstable-otel ./example/build.ts"
+      "command": "export OTEL_SERVICE_NAME=build && deno run -A --env-file ./example/build.ts"
     },
     "build-prod": {
       "description": "Builds the application for production.",
-      "command": "export OTEL_DENO=true OTEL_SERVICE_NAME=build && deno run -A --env-file --env-file=.env.production --unstable-otel ./example/build.ts"
+      "command": "export OTEL_SERVICE_NAME=build && deno run -A --env-file --env-file=.env.production ./example/build.ts"
     },
     "dev": {
       "description": "Runs the development server.",
-      "command": "export OTEL_DENO=true OTEL_SERVICE_NAME=dev && deno run -A --env-file --unstable-otel ./dev.ts --project-root ./example"
+      "command": "export OTEL_SERVICE_NAME=dev && deno run -A --env-file ./dev.ts --project-root ./example"
     },
     "test": {
       "description": "Runs the tests.",
-      "command": "export OTEL_DENO=true OTEL_SERVICE_NAME=test && deno test -A --env-file --env-file=.env.test --unstable-otel"
+      "command": "deno test -A --env-file --env-file=.env.test --unstable-otel"
     },
     "test-update": {
       "description": "Runs the tests and updates the snapshots.",
