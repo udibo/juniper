@@ -10,14 +10,14 @@ import type {
   HydrationState,
   LoaderFunctionArgs,
   RouteObject,
-  unstable_RouterContextProvider,
+  RouterContextProvider,
 } from "react-router";
 import { startTransition, StrictMode } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { HttpError } from "@udibo/http-error";
 
 /** The default router context type. */
-export type DefaultContext = unstable_RouterContextProvider;
+export type DefaultContext = RouterContextProvider;
 
 /** A client route file. */
 export interface ClientRouteFile<Context = DefaultContext> {

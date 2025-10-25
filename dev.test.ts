@@ -7,7 +7,13 @@ import { delay } from "@std/async";
 
 import { DevServer } from "./_dev.ts";
 import { Builder } from "./build.ts";
-import { deno, FakeChildProcess, FakeCommand, FakeFsWatcher } from "./deno.ts";
+import {
+  deno,
+  FakeChildProcess,
+  FakeCommand,
+  FakeFsWatcher,
+  FakeSubprocessReadableStream,
+} from "./deno.ts";
 import { isSnapshotMode } from "./utils/testing.ts";
 import type * as esbuild from "esbuild";
 
@@ -526,7 +532,7 @@ describe("DevServer", () => {
         }
 
         override get stdout() {
-          return new ReadableStream({
+          return new FakeSubprocessReadableStream({
             start(controller) {
               const encoder = new TextEncoder();
               controller.enqueue(
@@ -576,7 +582,7 @@ describe("DevServer", () => {
         }
 
         override get stderr() {
-          return new ReadableStream({
+          return new FakeSubprocessReadableStream({
             start(controller) {
               const encoder = new TextEncoder();
               controller.enqueue(
@@ -626,7 +632,7 @@ describe("DevServer", () => {
         }
 
         override get stdout() {
-          return new ReadableStream({
+          return new FakeSubprocessReadableStream({
             start(controller) {
               const encoder = new TextEncoder();
               controller.enqueue(
@@ -761,7 +767,7 @@ describe("DevServer", () => {
         }
 
         override get stdout() {
-          return new ReadableStream({
+          return new FakeSubprocessReadableStream({
             start(controller) {
               controller.error(new Error("Read error"));
             },
@@ -769,7 +775,7 @@ describe("DevServer", () => {
         }
 
         override get stderr() {
-          return new ReadableStream({
+          return new FakeSubprocessReadableStream({
             start(controller) {
               const encoder = new TextEncoder();
               controller.enqueue(
@@ -812,7 +818,7 @@ describe("DevServer", () => {
         }
 
         override get stdout() {
-          return new ReadableStream({
+          return new FakeSubprocessReadableStream({
             start(controller) {
               const encoder = new TextEncoder();
               controller.enqueue(
@@ -824,7 +830,7 @@ describe("DevServer", () => {
         }
 
         override get stderr() {
-          return new ReadableStream({
+          return new FakeSubprocessReadableStream({
             start(controller) {
               const error = new Error("Stream interrupted");
               error.name = "Interrupted";

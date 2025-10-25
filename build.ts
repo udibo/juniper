@@ -732,9 +732,9 @@ if (isBrowser()) {
 
         this.context = await esbuild.context({
           plugins: [
-            denoResolverPlugin({ configPath }),
+            denoResolverPlugin({ configPath }) as any,
             ...this.plugins,
-            denoLoaderPlugin({ configPath }),
+            denoLoaderPlugin({ configPath }) as any,
           ],
           absWorkingDir: path.dirname(configPath),
           entryPoints: this.entryPoints,

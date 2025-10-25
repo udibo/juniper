@@ -2,6 +2,81 @@
 
 import { spy } from "@std/testing/mock";
 
+/**
+ * A fake SubprocessReadableStream for testing purposes.
+ * Extends ReadableStream and implements Deno.SubprocessReadableStream.
+ */
+export class FakeSubprocessReadableStream
+  implements Deno.SubprocessReadableStream {
+  private stream: ReadableStream;
+
+  constructor(underlyingSource?: UnderlyingSource) {
+    this.stream = new ReadableStream(underlyingSource);
+  }
+
+  // Delegate ReadableStream methods to the underlying stream
+  getReader() {
+    return this.stream.getReader();
+  }
+
+  get locked() {
+    return this.stream.locked;
+  }
+
+  cancel(reason?: unknown) {
+    return this.stream.cancel(reason);
+  }
+
+  pipeTo(destination: WritableStream, options?: StreamPipeOptions) {
+    return this.stream.pipeTo(destination, options);
+  }
+
+  pipeThrough(transform: ReadableWritablePair, options?: StreamPipeOptions) {
+    return this.stream.pipeThrough(transform, options);
+  }
+
+  tee() {
+    return this.stream.tee();
+  }
+
+  values() {
+    return this.stream.values();
+  }
+
+  [Symbol.asyncIterator]() {
+    return this.stream[Symbol.asyncIterator]();
+  }
+
+  // SubprocessReadableStream specific methods
+  async arrayBuffer(): Promise<ArrayBuffer> {
+    const result = await this.getReader().read();
+    return result.value?.buffer ?? new ArrayBuffer(0);
+  }
+
+  async bytes(): Promise<Uint8Array<ArrayBuffer>> {
+    const result = await this.getReader().read();
+    return result.value
+      ? new Uint8Array(result.value.buffer)
+      : new Uint8Array(0);
+  }
+
+  async json(): Promise<Record<string, unknown>> {
+    const result = await this.getReader().read();
+    if (!result.value) return {};
+    const text = new TextDecoder().decode(result.value);
+    try {
+      return JSON.parse(text);
+    } catch {
+      return {};
+    }
+  }
+
+  async text(): Promise<string> {
+    const result = await this.getReader().read();
+    return result.value ? new TextDecoder().decode(result.value) : "";
+  }
+}
+
 export const deno = {
   writeTextFile(
     path: string | URL,
@@ -91,7 +166,7 @@ export class FakeChildProcess implements Deno.ChildProcess {
   }
 
   get stdout() {
-    return new ReadableStream({
+    return new FakeSubprocessReadableStream({
       start(controller) {
         // Immediately close the stream for testing
         controller.close();
@@ -100,7 +175,7 @@ export class FakeChildProcess implements Deno.ChildProcess {
   }
 
   get stderr() {
-    return new ReadableStream({
+    return new FakeSubprocessReadableStream({
       start(controller) {
         // Immediately close the stream for testing
         controller.close();

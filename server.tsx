@@ -17,8 +17,8 @@ import { isDevelopment } from "@udibo/juniper/utils/env";
 import {
   createStaticHandler,
   createStaticRouter,
+  RouterContextProvider,
   StaticRouterProvider,
-  unstable_RouterContextProvider,
 } from "react-router";
 import type { RouteObject } from "react-router";
 import { StrictMode } from "react";
@@ -65,7 +65,7 @@ function createHandlers<
       }
 
       // TODO: Change where this is created so that it can be used by server middleware.
-      const requestContext = new unstable_RouterContextProvider();
+      const requestContext = new RouterContextProvider();
       const contextOrResponse = await query(c.req.raw, {
         requestContext,
       });
