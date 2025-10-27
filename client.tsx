@@ -7,14 +7,21 @@ import type { ComponentType } from "react";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import type {
   ActionFunctionArgs,
-  HydrationState,
   LoaderFunctionArgs,
   RouteObject,
   RouterContextProvider,
 } from "react-router";
 import { startTransition, StrictMode } from "react";
 import { hydrateRoot } from "react-dom/client";
-import { HttpError } from "@udibo/http-error";
+
+import { deserializeHydrationData } from "./_client.tsx";
+import type {
+  ClientGlobals,
+  HydrationData,
+  SerializedError,
+  SerializedHydrationData,
+} from "./_client.tsx";
+export type { ClientGlobals, HydrationData, SerializedError };
 
 /** The default router context type. */
 export type DefaultContext = RouterContextProvider;
@@ -62,7 +69,7 @@ export interface RootClientRoute<Context = DefaultContext>
 }
 
 /** A route object that is lazy loaded. */
-export type LazyRouteObject = () => Promise<{
+type LazyRouteObject = () => Promise<{
   Component?: ComponentType;
   ErrorBoundary?: ComponentType;
   loader?: (args: LoaderFunctionArgs) => Promise<unknown>;
@@ -86,14 +93,6 @@ export function createLazyRouteObject(
   };
 }
 
-/** A serialized error. */
-export type SerializedError = {
-  __type: "Error";
-  __subType?: string;
-  message?: string;
-  stack?: string;
-};
-
 /**
  * Checks if a value is a serialized error.
  */
@@ -104,122 +103,6 @@ export function isSerializedError(
     serializedError !== null &&
     "__type" in serializedError &&
     serializedError.__type === "Error";
-}
-
-/**
- * Deserializes a serialized error to an error.
- * The default deserialize error function supports HttpError, Error, and Error subclasses like TypeError.
- */
-export function deserializeErrorDefault(
-  serializedError: SerializedError | unknown,
-): Error | unknown | undefined {
-  let error: Error | unknown = serializedError;
-  const { __type, __subType, stack, ...rest } =
-    (typeof error === "object" ? error : {}) as SerializedError;
-  if (__type === "Error") {
-    if (__subType === "HttpError") {
-      error = HttpError.from(rest);
-    } else {
-      const message = rest.message;
-      const ErrorConstructor = __subType
-        ? (globalThis as Record<string, unknown>)[__subType] as ErrorConstructor
-        : Error;
-      error = typeof ErrorConstructor === "function"
-        ? new ErrorConstructor(message)
-        : new Error(message);
-    }
-
-    if (stack) {
-      (error as Error).stack = stack;
-    }
-  }
-  return error;
-}
-
-export type SerializedField = {
-  __type?: "Promise";
-  value?: unknown;
-  error?: unknown;
-};
-
-export type SerializedFieldMap = Record<string, SerializedField>;
-
-export type SerializedRouteData = {
-  __type?: "Promise";
-  value?: SerializedFieldMap;
-  error?: unknown;
-};
-
-export type SerializedRouteDataMap = Record<string, SerializedRouteData>;
-
-/** The hydration data for the application. */
-export type HydrationData = {
-  /** The matches for server rendered routes. */
-  matches?: {
-    id: string;
-  }[];
-  /** The errors for the application. */
-  errors?: Record<string, SerializedError | unknown> | null;
-  /** The loader data for the application. */
-  loaderData?: SerializedRouteDataMap;
-  /** The action data for the application. */
-  actionData?: SerializedRouteDataMap | null;
-};
-
-/** The globals available in the browser for the application. */
-export type ClientGlobals = {
-  /** The Juniper application's hydration data. */
-  __juniperHydrationData?: HydrationData;
-  // Delete this later, going to remove it completely at some point.
-  __staticRouterHydrationData?: HydrationState;
-};
-
-/**
- * Deserializes serialized route data (loaderData or actionData) to its client-side format.
- */
-export function deserializeRouteData(
-  serializedRouteData: SerializedRouteDataMap,
-  deserializeError: (error: unknown) => unknown,
-): HydrationState["loaderData"] {
-  const deserializedData: HydrationState["loaderData"] = {};
-  for (
-    const [id, serializedRouteDataEntry] of Object.entries(serializedRouteData)
-  ) {
-    const deserializedRouteDataEntry: Record<
-      string,
-      Promise<unknown> | unknown
-    > = {};
-    const { __type, value: fieldMap, error } = serializedRouteDataEntry;
-    if (fieldMap) {
-      for (const [key, serializedField] of Object.entries(fieldMap)) {
-        const { __type, value, error } = serializedField;
-        if (__type === "Promise") {
-          if (error) {
-            deserializedRouteDataEntry[key] = Promise.reject(
-              deserializeError(error) ?? deserializeErrorDefault(error),
-            );
-          } else {
-            deserializedRouteDataEntry[key] = Promise.resolve(value);
-          }
-        } else {
-          deserializedRouteDataEntry[key] = value;
-        }
-      }
-    }
-
-    if (__type === "Promise") {
-      if (error) {
-        deserializedData[id] = Promise.reject(
-          deserializeError(error) ?? deserializeErrorDefault(error),
-        );
-      } else {
-        deserializedData[id] = Promise.resolve(deserializedRouteDataEntry);
-      }
-    } else {
-      deserializedData[id] = deserializedRouteDataEntry;
-    }
-  }
-  return deserializedData;
 }
 
 /** The client for a Juniper application. */
@@ -309,33 +192,16 @@ export class Client {
   }
 
   /**
-   * Gets the react router hydration data for the application.
+   * Gets the hydration data for the application.
    */
-  getHydrationData(): HydrationState {
-    const hydrationData: HydrationData =
-      (globalThis as ClientGlobals).__juniperHydrationData ?? {};
+  getHydrationData(): HydrationData {
+    const serializedHydrationData: SerializedHydrationData =
+      (globalThis as ClientGlobals).__juniperHydrationData ?? { json: {} };
+    const deserializeError = this.rootRoute.main?.deserializeError;
 
-    // move this to it's own function
-    let errors: HydrationState["errors"] = null;
-    const serializedErrors = hydrationData.errors ?? {};
-    const deserializeError = this.rootRoute.main?.deserializeError ??
-      (() => {});
-    for (const [key, serializedError] of Object.entries(serializedErrors)) {
-      if (!errors) errors = {};
-      errors[key] = deserializeError?.(serializedError) ??
-        deserializeErrorDefault(serializedError);
-    }
-
-    const deserializedLoaderData = hydrationData.loaderData &&
-      deserializeRouteData(hydrationData.loaderData, deserializeError);
-    const deserializedActionData = hydrationData.actionData &&
-      deserializeRouteData(hydrationData.actionData, deserializeError);
-
-    return {
-      errors,
-      loaderData: deserializedLoaderData,
-      actionData: deserializedActionData,
-    };
+    return deserializeHydrationData(serializedHydrationData, {
+      deserializeError,
+    });
   }
 
   /**
@@ -343,10 +209,8 @@ export class Client {
    * before hydrating the application. This prevents loaders and actions from needing to be called
    * again on the client when initially rendering.
    */
-  async loadLazyMatches(): Promise<void> {
-    const hydrationData: HydrationData =
-      (globalThis as ClientGlobals).__juniperHydrationData ?? {};
-    for (const match of hydrationData.matches ?? []) {
+  async loadLazyMatches(matches: { id: string }[]): Promise<void> {
+    for (const match of matches) {
       const route = this.routeObjectMap.get(match.id);
       if (route?.lazy) {
         const { Component, ErrorBoundary, loader, action } =
@@ -365,11 +229,11 @@ export class Client {
    * This function sets up the browser router and renders the application.
    */
   async hydrate() {
-    await this.loadLazyMatches();
+    const { matches, ...hydrationData } = this.getHydrationData();
 
-    const router = createBrowserRouter(this.routeObjects, {
-      hydrationData: this.getHydrationData(),
-    });
+    await this.loadLazyMatches(matches);
+
+    const router = createBrowserRouter(this.routeObjects, { hydrationData });
 
     function hydrate() {
       startTransition(() => {

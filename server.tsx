@@ -28,13 +28,8 @@ const { HelmetProvider } = reactHelmetAsync;
 import type { HelmetServerState } from "react-helmet-async";
 import serialize from "serialize-javascript";
 
-import type {
-  Client,
-  ClientRoute,
-  HydrationData,
-  SerializedError,
-} from "./client.tsx";
-import { serializeErrorDefault, serializeRouteData } from "./_server.tsx";
+import type { Client, ClientRoute, HydrationData } from "./client.tsx";
+import { serializeHydrationData } from "./_server.tsx";
 import type { Route } from "./_server.tsx";
 
 const notFound = createMiddleware(() => {
@@ -116,22 +111,6 @@ function createHandlers<
       }
       await render();
 
-      console.log("context", context);
-      const hydrationData: HydrationData = {
-        matches: context.matches.map((match) => ({
-          id: match.route.id,
-        })),
-        errors: context.errors && Object.entries(context.errors)
-          .reduce((acc, [id, error]) => {
-            acc[id] = serializeError(error) ?? serializeErrorDefault(error);
-            return acc;
-          }, {} as Record<string, SerializedError | unknown>),
-        loaderData: context.loaderData &&
-          await serializeRouteData(route, context.loaderData),
-        actionData: context.actionData &&
-          await serializeRouteData(route, context.actionData),
-      };
-
       const deepestMatch = context.matches[context.matches.length - 1];
       const actionHeaders = context.actionHeaders[deepestMatch.route.id];
       const loaderHeaders = context.loaderHeaders[deepestMatch.route.id];
@@ -162,11 +141,27 @@ function createHandlers<
         for (const tag of headTags) {
           await stream.writeln(`    ${tag}`);
         }
+
+        const hydrationData: HydrationData = {
+          matches: context.matches.map((match) => ({
+            id: match.route.id,
+          })),
+          errors: context.errors,
+          loaderData: context.loaderData,
+          actionData: context.actionData,
+        };
+        const serializedHydrationData = await serializeHydrationData(
+          hydrationData,
+          { serializeError },
+        );
         await stream.writeln(
           `    <script>window.__juniperHydrationData = ${
-            serialize(hydrationData, { isJSON: true })
+            serialize(serializedHydrationData, {
+              isJSON: true,
+            })
           }</script>`,
         );
+
         await stream.writeln(
           `    <script type="module" src="/build/main.js"></script>`,
         );

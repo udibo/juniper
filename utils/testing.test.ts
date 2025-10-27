@@ -3,7 +3,8 @@ import { assertEquals, assertThrows } from "@std/assert";
 
 import { simulateBrowser, simulateEnvironment } from "./testing.ts";
 import { isBrowser, isServer } from "@udibo/juniper/utils/env";
-import type { ClientGlobals } from "@udibo/juniper/client";
+import type { ClientGlobals } from "../_client.tsx";
+import { serializeHydrationData } from "../_server.tsx";
 
 describe("simulateEnvironment", () => {
   const originalEnv = Deno.env.toObject();
@@ -118,20 +119,25 @@ describe("simulateEnvironment", () => {
 });
 
 describe("simulateBrowser", () => {
-  it("should simulate browser globals with manual restore", () => {
+  it("should simulate browser globals with manual restore", async () => {
     const browser = simulateBrowser({
-      __juniperHydrationData: {
+      __juniperHydrationData: await serializeHydrationData({
+        matches: [],
         errors: null,
         loaderData: {},
-      },
+      }),
     });
 
     assertEquals(isBrowser(), true);
     assertEquals(isServer(), false);
-    assertEquals((globalThis as ClientGlobals).__juniperHydrationData, {
-      errors: null,
-      loaderData: {},
-    });
+    assertEquals(
+      (globalThis as ClientGlobals).__juniperHydrationData,
+      await serializeHydrationData({
+        matches: [],
+        errors: null,
+        loaderData: {},
+      }),
+    );
 
     browser.restore();
 
@@ -143,23 +149,25 @@ describe("simulateBrowser", () => {
     );
   });
 
-  it("should simulate browser globals with automatic restore using 'using'", () => {
+  it("should simulate browser globals with automatic restore using 'using'", async () => {
     {
       using _browser = simulateBrowser({
-        __juniperHydrationData: {
+        __juniperHydrationData: await serializeHydrationData({
+          matches: [],
           errors: null,
           loaderData: {},
-        },
+        }),
       });
 
       assertEquals(isBrowser(), true);
       assertEquals(isServer(), false);
       assertEquals(
         (globalThis as ClientGlobals).__juniperHydrationData,
-        {
+        await serializeHydrationData({
+          matches: [],
           errors: null,
           loaderData: {},
-        },
+        }),
       );
     }
 
@@ -171,12 +179,13 @@ describe("simulateBrowser", () => {
     );
   });
 
-  it("should throw error when trying to restore browser multiple times", () => {
+  it("should throw error when trying to restore browser multiple times", async () => {
     const browser = simulateBrowser({
-      __juniperHydrationData: {
+      __juniperHydrationData: await serializeHydrationData({
+        matches: [],
         errors: null,
         loaderData: {},
-      },
+      }),
     });
 
     browser.restore();
@@ -184,60 +193,52 @@ describe("simulateBrowser", () => {
     assertThrows(() => browser.restore(), Error, "Browser already restored");
   });
 
-  it("should support nested simulated browsers", () => {
+  it("should support nested simulated browsers", async () => {
     const outerBrowser = simulateBrowser({
-      __juniperHydrationData: {
+      __juniperHydrationData: await serializeHydrationData({
+        matches: [],
         errors: {
-          "0": {
-            __type: "Error",
-            message: "outer error",
-          },
+          "0": new Error("outer error"),
         },
         loaderData: {},
-      },
+      }),
     });
 
     assertEquals(isBrowser(), true);
     assertEquals(isServer(), false);
     assertEquals(
       (globalThis as ClientGlobals).__juniperHydrationData,
-      {
+      await serializeHydrationData({
+        matches: [],
         errors: {
-          "0": {
-            __type: "Error",
-            message: "outer error",
-          },
+          "0": new Error("outer error"),
         },
         loaderData: {},
-      },
+      }),
     );
 
     {
       using _innerBrowser = simulateBrowser({
-        __juniperHydrationData: {
+        __juniperHydrationData: await serializeHydrationData({
+          matches: [],
           errors: {
-            "0": {
-              __type: "Error",
-              message: "inner error",
-            },
+            "0": new Error("inner error"),
           },
           loaderData: {},
-        },
+        }),
       });
 
       assertEquals(isBrowser(), true);
       assertEquals(isServer(), false);
       assertEquals(
         (globalThis as ClientGlobals).__juniperHydrationData,
-        {
+        await serializeHydrationData({
+          matches: [],
           errors: {
-            "0": {
-              __type: "Error",
-              message: "inner error",
-            },
+            "0": new Error("inner error"),
           },
           loaderData: {},
-        },
+        }),
       );
     }
 
@@ -245,15 +246,13 @@ describe("simulateBrowser", () => {
     assertEquals(isServer(), false);
     assertEquals(
       (globalThis as ClientGlobals).__juniperHydrationData,
-      {
+      await serializeHydrationData({
+        matches: [],
         errors: {
-          "0": {
-            __type: "Error",
-            message: "outer error",
-          },
+          "0": new Error("outer error"),
         },
         loaderData: {},
-      },
+      }),
     );
 
     outerBrowser.restore();
