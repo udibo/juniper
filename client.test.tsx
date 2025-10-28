@@ -26,6 +26,7 @@ import type {
   ClientRouteFile,
   HydrationData,
   RootClientRoute,
+  SerializedError,
 } from "@udibo/juniper/client";
 import {
   simulateBrowser,
@@ -67,6 +68,48 @@ const routes = {
     },
   ],
 } satisfies RootClientRoute;
+
+class CustomError extends Error {
+  detail: string;
+  constructor(message: string, detail: string) {
+    super(message);
+    this.name = "CustomError";
+    this.detail = detail;
+  }
+}
+
+interface SerializedCustomError extends SerializedError {
+  __subType: "CustomError";
+  message: string;
+  detail: string;
+}
+function isSerializedCustomError(
+  serializedError: unknown,
+): serializedError is SerializedCustomError {
+  return isSerializedError(serializedError) &&
+    serializedError.__subType === "CustomError";
+}
+
+function serializeError(
+  error: unknown,
+): SerializedCustomError | undefined {
+  if (error instanceof CustomError) {
+    return {
+      __type: "Error",
+      __subType: "CustomError",
+      message: error.message,
+      detail: error.detail,
+    };
+  }
+}
+
+function deserializeError(serializedError: unknown): CustomError | undefined {
+  if (
+    isSerializedCustomError(serializedError)
+  ) {
+    return new CustomError(serializedError.message, serializedError.detail);
+  }
+}
 
 describe("Client", () => {
   it("should create a client with the correct structure", () => {
@@ -292,6 +335,7 @@ describe("getHydrationData", () => {
                 __type: "Error",
                 __subType: "CustomError",
                 message: "Custom error",
+                detail: "Custom detail",
               },
             },
             loaderData: {},
@@ -319,27 +363,15 @@ describe("getHydrationData", () => {
       assertEquals(data.errors["0-1-0"].status, 400);
 
       assertIsError(data.errors["0-1-0-1"], Error, "Custom error");
+      assertEquals(data.errors["0-1-0-1"] instanceof CustomError, false);
     });
 
     it("with custom deserializeError function", () => {
-      class CustomError extends Error {
-        constructor(message: string) {
-          super(message);
-          this.name = "CustomError";
-        }
-      }
       const client = new Client({
         ...routes,
         main: {
           ...routes.main,
-          deserializeError: (serializedError) => {
-            if (
-              isSerializedError(serializedError) &&
-              serializedError.__subType === "CustomError"
-            ) {
-              return new CustomError(serializedError.message ?? "Unknown");
-            }
-          },
+          deserializeError,
         },
       });
       const data = client.getHydrationData();
@@ -355,6 +387,7 @@ describe("getHydrationData", () => {
       assertEquals(data.errors["0-1-0"].status, 400);
 
       assertIsError(data.errors["0-1-0-1"], CustomError, "Custom error");
+      assertEquals(data.errors["0-1-0-1"].detail, "Custom detail");
     });
   });
 
@@ -602,6 +635,7 @@ describe("getHydrationData", () => {
 
 describe("HydrationData serialization and deserialization", () => {
   let hydrationData: HydrationData, deserializedHydrationData: HydrationData;
+
   beforeAll(async () => {
     hydrationData = {
       matches: [{ id: "0" }, { id: "0-4" }, { id: "0-4-0" }],
@@ -629,6 +663,9 @@ describe("HydrationData serialization and deserialization", () => {
           error: Promise.reject(new Error("Loader failed")),
           typeError: Promise.reject(new TypeError("Loader wrong type")),
           httpError: Promise.reject(new HttpError(400, "Loader bad request")),
+          customError: Promise.reject(
+            new CustomError("Loader custom error", "Loader custom detail"),
+          ),
         },
       },
       actionData: {
@@ -650,14 +687,21 @@ describe("HydrationData serialization and deserialization", () => {
           error: Promise.reject(new Error("Action failed")),
           typeError: Promise.reject(new TypeError("Action wrong type")),
           httpError: Promise.reject(new HttpError(400, "Action bad request")),
+          customError: Promise.reject(
+            new CustomError("Action custom error", "Action custom detail"),
+          ),
         },
       },
     };
     const serializedHydrationData = JSON.parse(
-      serialize(await serializeHydrationData(hydrationData), { isJSON: true }),
+      serialize(
+        await serializeHydrationData(hydrationData, { serializeError }),
+        { isJSON: true },
+      ),
     );
     deserializedHydrationData = deserializeHydrationData(
       serializedHydrationData,
+      { deserializeError },
     );
   });
 
@@ -701,18 +745,28 @@ describe("HydrationData serialization and deserialization", () => {
       Error,
       `${messagePrefix} failed`,
     );
+
     await assertRejects(
       () => routeData!["0-4"].typeError,
       TypeError,
       `${messagePrefix} wrong type`,
     );
-    const error = await assertRejects(
+
+    const httpError = await assertRejects(
       () => routeData!["0-4"].httpError,
       HttpError,
       `${messagePrefix} bad request`,
     );
-    assertEquals(error.name, "BadRequestError");
-    assertEquals(error.status, 400);
+    assertEquals(httpError.name, "BadRequestError");
+    assertEquals(httpError.status, 400);
+
+    const customError = await assertRejects(
+      () => routeData!["0-4"].customError,
+      CustomError,
+      `${messagePrefix} custom error`,
+    );
+    assertEquals(customError.name, "CustomError");
+    assertEquals(customError.detail, `${messagePrefix} custom detail`);
   }
 
   it("loaderData is the same", async () => {
