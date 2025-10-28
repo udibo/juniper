@@ -23,10 +23,14 @@ import type {
 } from "./_client.tsx";
 export type { ClientGlobals, HydrationData, SerializedError };
 
-/** The default router context type. */
+/** The default router context provider. */
 export type DefaultContext = RouterContextProvider;
 
-/** A client route file. */
+/**
+ * A client route file.
+ *
+ * @template Context - The router context type.
+ */
 export interface ClientRouteFile<Context = DefaultContext> {
   /** The route's component. */
   default?: ComponentType;
@@ -38,7 +42,11 @@ export interface ClientRouteFile<Context = DefaultContext> {
   action?: (args: ActionFunctionArgs<Context>) => Promise<unknown>;
 }
 
-/** A root client route file. This is the top level main.tsx file in the routes directory. */
+/**
+ * A root client route file. This is the top level main.tsx file in the routes directory.
+ *
+ * @template Context - The router context type.
+ */
 export interface RootClientRouteFile<Context = DefaultContext>
   extends ClientRouteFile<Context> {
   /**
@@ -49,7 +57,11 @@ export interface RootClientRouteFile<Context = DefaultContext>
   deserializeError?: (serializedError: unknown) => unknown;
 }
 
-/** A client route. */
+/**
+ * A client route.
+ *
+ * @template Context - The router context type.
+ */
 export interface ClientRoute<Context = DefaultContext> {
   path: string;
   /** The route's main file. */
@@ -62,14 +74,23 @@ export interface ClientRoute<Context = DefaultContext> {
   children?: ClientRoute<Context>[];
 }
 
-/** The root client route. */
+/**
+ * The root client route.
+ *
+ * @template Context - The router context type.
+ */
 export interface RootClientRoute<Context = DefaultContext>
   extends ClientRoute<Context> {
+  /** The root route's main file. */
   main?: RootClientRouteFile<Context>;
 }
 
-/** A route object that is lazy loaded. */
-type LazyRouteObject = () => Promise<{
+/**
+ * A function that lazy loads a route file and returns a route object.
+ *
+ * @returns A promise that resolves to the route object.
+ */
+export type LazyRouteObject = () => Promise<{
   Component?: ComponentType;
   ErrorBoundary?: ComponentType;
   loader?: (args: LoaderFunctionArgs) => Promise<unknown>;
@@ -78,6 +99,9 @@ type LazyRouteObject = () => Promise<{
 
 /**
  * Creates a lazy route object that loads the route file and converts it to a route object.
+ *
+ * @param lazyRouteFile - The lazy route file to create a lazy route object from.
+ * @returns A lazy route object.
  */
 export function createLazyRouteObject(
   lazyRouteFile: () => Promise<ClientRouteFile>,
@@ -95,6 +119,9 @@ export function createLazyRouteObject(
 
 /**
  * Checks if a value is a serialized error.
+ *
+ * @param serializedError - The value to check.
+ * @returns True if the value is a serialized error, false otherwise.
  */
 export function isSerializedError(
   serializedError: unknown,
@@ -105,7 +132,34 @@ export function isSerializedError(
     serializedError.__type === "Error";
 }
 
-/** The client for a Juniper application. */
+/**
+ * The client for a Juniper application.
+ *
+ * @example Creating a client
+ * ```ts
+ * import { Client } from "@udibo/juniper/client";
+ * import { isBrowser } from "@udibo/juniper/utils/env";
+ *
+ * export const client = new Client({
+ *   path: "/",
+ *   main: await import("./routes/main.tsx"),
+ *   index: () => import("./routes/index.tsx"),
+ *   children: [
+ *     {
+ *       path: "about",
+ *       main: () => import("./routes/about.tsx"),
+ *     },
+ *   ],
+ * });
+ *
+ * if (isBrowser()) {
+ *   await client.hydrate();
+ * }
+ * ```
+ *
+ * @param rootRoute - The root client route.
+ * @returns A new client instance.
+ */
 export class Client {
   /** The root client route. */
   rootRoute: RootClientRoute;
@@ -193,6 +247,8 @@ export class Client {
 
   /**
    * Gets the hydration data for the application.
+   *
+   * @returns The hydration data for the application.
    */
   getHydrationData(): HydrationData {
     const serializedHydrationData: SerializedHydrationData =
@@ -208,6 +264,9 @@ export class Client {
    * Awaits lazy-loaded routes for the current matches to ensure they are fully loaded
    * before hydrating the application. This prevents loaders and actions from needing to be called
    * again on the client when initially rendering.
+   *
+   * @param matches - The matches to load.
+   * @returns A promise that resolves when the lazy matches are loaded.
    */
   async loadLazyMatches(matches: { id: string }[]): Promise<void> {
     for (const match of matches) {

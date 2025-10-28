@@ -3,9 +3,11 @@ import type { Env, Schema } from "hono";
 import type { HydrationState } from "react-router";
 import SuperJSON from "superjson";
 import { HttpError } from "@udibo/http-error";
+
 import { getInstance } from "@udibo/juniper/utils/otel";
 import { isDevelopment } from "@udibo/juniper/utils/env";
 import type { HydrationData, SerializedError } from "@udibo/juniper/client";
+
 import type {
   SerializedHydrationData,
   SerializedHydrationDataPromises,
@@ -20,9 +22,10 @@ import type {
  *
  * @example Basic route configuration
  * ```ts
- * import { createApp } from "@udibo/juniper/server";
+ * import { createServer } from "@udibo/juniper/server";
+ * import { client } from "./main.tsx";
  *
- * const routes: Routes = {
+ * export const server = createServer(import.meta.url, client, {
  *   path: "/",
  *   main: await import("./routes/main.ts"),
  *   index: await import("./routes/index.ts"),
@@ -37,8 +40,12 @@ import type {
  *         }
  *       ]
  *     }
- *   ]
- * };
+ *   ],
+ * });
+ *
+ * if (import.meta.main) {
+ *   Deno.serve(server.fetch);
+ * }
  * ```
  */
 export interface Route<
@@ -61,6 +68,13 @@ export interface Route<
   children?: Route<E, S, BasePath>[];
 }
 
+/**
+ * Serializes an error to a serialized error.
+ * The default serialize error function supports HttpError, Error, and global Error subclasses like TypeError.
+ *
+ * @param error - The error to serialize.
+ * @returns The serialized error.
+ */
 export function serializeErrorDefault(
   error: unknown,
 ): SerializedError | unknown {

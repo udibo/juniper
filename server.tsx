@@ -12,8 +12,6 @@ import { serveStatic } from "hono/deno";
 import { trimTrailingSlash } from "hono/trailing-slash";
 import * as path from "@std/path";
 import { HttpError } from "@udibo/http-error";
-import { getInstance } from "@udibo/juniper/utils/otel";
-import { isDevelopment } from "@udibo/juniper/utils/env";
 import {
   createStaticHandler,
   createStaticRouter,
@@ -28,7 +26,10 @@ const { HelmetProvider } = reactHelmetAsync;
 import type { HelmetServerState } from "react-helmet-async";
 import serialize from "serialize-javascript";
 
-import type { Client, ClientRoute, HydrationData } from "./client.tsx";
+import { getInstance } from "@udibo/juniper/utils/otel";
+import { isDevelopment } from "@udibo/juniper/utils/env";
+import type { Client, ClientRoute, HydrationData } from "@udibo/juniper/client";
+
 import { serializeHydrationData } from "./_server.tsx";
 import type { Route } from "./_server.tsx";
 
@@ -274,8 +275,6 @@ function buildApp<
       });
     }
 
-    // Note: There's a known issue with Hono's serveStatic on Windows (https://github.com/honojs/hono/issues/3475)
-    // This workaround attempts to work around path separator and relative path issues
     app.get(
       "*",
       serveStatic({
@@ -311,6 +310,7 @@ function buildApp<
  * @example Creating an application
  * ```ts
  * import { createServer } from "@udibo/juniper/server";
+ * import { client } from "./main.tsx";
  *
  * export const server = createServer(import.meta.url, client, {
  *   path: "/",
@@ -326,7 +326,7 @@ function buildApp<
  *         }
  *       ]
  *     }
- *   ]
+ *   ],
  * });
  *
  * if (import.meta.main) {
@@ -368,12 +368,6 @@ export function createServer<
   });
   appWrapper.use(trimTrailingSlash());
 
-  // TODO: Override client routes actions and loaders with server routes actions and loaders
-  // Initially manually override the client routes actions and loaders with server routes actions and loaders.
-  // Then after learning how they work automate it.
-  // client routes use lazy, need to unlazy them to replace the actions and loaders
-  // By unlazy, I mean the server will await the lazy function, replacing it on the route with it's contents.
-  // But the loader and action will be replaced with the server routes actions and loaders.
   const clientRoutes = client.routeObjects;
   const handlers = createHandlers(route, clientRoutes);
   const app = buildApp(route, client.rootRoute, handlers, projectRoot);
