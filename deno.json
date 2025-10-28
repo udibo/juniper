@@ -36,7 +36,7 @@
     },
     "test": {
       "description": "Runs the tests.",
-      "command": "deno test -A --env-file --env-file=.env.test --unstable-otel"
+      "command": "deno test -A --env-file --env-file=.env.test"
     },
     "test-update": {
       "description": "Runs the tests and updates the snapshots.",
