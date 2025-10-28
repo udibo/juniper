@@ -23,11 +23,14 @@
 - Files in the example directory should not import any internal Juniper modules.
   - It can import `@udibo/juniper/server`.
   - It should never import `../_server.tsx`.
-- Example imports should use absolute paths.
+- Example imports should use absolute paths if outside curent directory.
   - The root directory is the example directory.
   - Absolute paths like `/main.tsx` will import `./example/main.tsx`.
   - For example, use `/components/button.tsx` instead of
     `../../components/button.tsx`.
+  - It is still fine to use relative paths instead of absolute if files are in
+    the same directory.
+    - For example, `./button.tsx` is fine but `../components/button.tsx` is not.
 - Imports should be in 3 groups separated by a new line
   - Thirt party modules from import map
   - `@udibo/juniper` modules

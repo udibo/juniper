@@ -169,6 +169,4 @@ export function deserializeHydrationData(
 export type ClientGlobals = {
   /** The Juniper application's hydration data. */
   __juniperHydrationData?: SerializedHydrationData;
-  // Delete this later, going to remove it completely at some point.
-  __staticRouterHydrationData?: HydrationState;
 };
