@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { HttpError } from "@udibo/http-error";
+
 import { getInstance } from "@udibo/juniper/utils/otel";
 
 const app = new Hono();

@@ -1,8 +1,12 @@
-import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { assertEquals, assertThrows } from "@std/assert";
+import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 
-import { simulateBrowser, simulateEnvironment } from "./testing.ts";
 import { isBrowser, isServer } from "@udibo/juniper/utils/env";
+import {
+  simulateBrowser,
+  simulateEnvironment,
+} from "@udibo/juniper/utils/testing";
+
 import type { ClientGlobals } from "../_client.tsx";
 import { serializeHydrationData } from "../_server.tsx";
 

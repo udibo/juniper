@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { isProduction } from "@udibo/juniper/utils/env";
 
-import { CustomError, SerializedCustomError } from "/utils/error.ts";
+import { CustomError } from "/utils/error.ts";
+import type { SerializedCustomError } from "/utils/error.ts";
 
 const app = new Hono();
 

@@ -1,5 +1,6 @@
-import { Builder } from "@udibo/juniper/build";
 import * as path from "@std/path";
+
+import { Builder } from "@udibo/juniper/build";
 
 const projectRoot = path.dirname(path.fromFileUrl(import.meta.url));
 export const builder = new Builder({

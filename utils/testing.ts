@@ -4,7 +4,8 @@
  * @module utils/testing
  */
 
-import type { ClientGlobals } from "../client.tsx";
+import type { ClientGlobals } from "@udibo/juniper/client";
+
 import { env } from "./_env.ts";
 
 /**

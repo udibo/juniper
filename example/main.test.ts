@@ -1,7 +1,7 @@
-import { describe, it } from "@std/testing/bdd";
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import { mergeReadableStreams, TextLineStream } from "@std/streams";
 import { resolve } from "@std/path/resolve";
+import { mergeReadableStreams, TextLineStream } from "@std/streams";
+import { describe, it } from "@std/testing/bdd";
 
 import { server } from "./main.ts";
 

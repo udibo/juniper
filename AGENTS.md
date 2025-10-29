@@ -31,10 +31,14 @@
   - It is still fine to use relative paths instead of absolute if files are in
     the same directory.
     - For example, `./button.tsx` is fine but `../components/button.tsx` is not.
-- Imports should be in 3 groups separated by a new line
+- Imports should be in 4 groups separated by a new line
   - Thirt party modules from import map
   - `@udibo/juniper` modules
-  - Absolute or relative paths
+  - Absolute paths
+  - Relative paths
 - Separate regular imports and type only imports.
   - Prefer `import type { Example } from "@udibo/juniper";` over
     `import { type Example } from "@udibo/juniper";`.
+  - When importing both types and non types, the imports should be next to
+    eachother with the import type coming after the regular import.
+- Sort the imports in each group alphabetically.

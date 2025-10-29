@@ -4,14 +4,14 @@
  *
  * @module
  */
+import * as path from "@std/path";
+import { HttpError } from "@udibo/http-error";
 import { Hono } from "hono";
 import type { Env, Schema } from "hono";
 import { createFactory, createMiddleware } from "hono/factory";
-import { stream } from "hono/streaming";
 import { serveStatic } from "hono/deno";
+import { stream } from "hono/streaming";
 import { trimTrailingSlash } from "hono/trailing-slash";
-import * as path from "@std/path";
-import { HttpError } from "@udibo/http-error";
 import {
   createStaticHandler,
   createStaticRouter,
@@ -22,16 +22,17 @@ import type { RouteObject } from "react-router";
 import { StrictMode } from "react";
 import { renderToReadableStream } from "react-dom/server";
 import reactHelmetAsync from "react-helmet-async";
-const { HelmetProvider } = reactHelmetAsync;
 import type { HelmetServerState } from "react-helmet-async";
 import serialize from "serialize-javascript";
 
-import { getInstance } from "@udibo/juniper/utils/otel";
-import { isDevelopment } from "@udibo/juniper/utils/env";
 import type { Client, ClientRoute, HydrationData } from "@udibo/juniper/client";
+import { isDevelopment } from "@udibo/juniper/utils/env";
+import { getInstance } from "@udibo/juniper/utils/otel";
 
 import { serializeHydrationData } from "./_server.tsx";
 import type { Route } from "./_server.tsx";
+
+const { HelmetProvider } = reactHelmetAsync;
 
 const notFound = createMiddleware(() => {
   throw new HttpError(404, "Not found");

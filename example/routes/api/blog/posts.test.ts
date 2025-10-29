@@ -1,10 +1,12 @@
-import { afterAll, afterEach, beforeAll, describe, it } from "@std/testing/bdd";
 import { assert, assertEquals } from "@std/assert";
+import { afterAll, afterEach, beforeAll, describe, it } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
 
+import { postService } from "/services/post.ts";
+import type { NewPost, Post } from "/services/post.ts";
+
 import { server } from "/main.ts";
-import { type NewPost, type Post, postService } from "/services/post.ts";
-import { FakeTime } from "@std/testing/time";
 
 describe("/api/blog/posts", () => {
   let time: FakeTime;
@@ -98,7 +100,9 @@ describe("/api/blog/posts", () => {
       assertEquals(json.posts[0].id, posts[0].id);
       assertEquals(json.posts[1].id, posts[1].id);
 
-      res = await server.request(`/api/blog/posts?limit=2&cursor=${json.cursor}`);
+      res = await server.request(
+        `/api/blog/posts?limit=2&cursor=${json.cursor}`,
+      );
       assertEquals(res.status, 200);
       json = await res.json();
 
@@ -107,7 +111,9 @@ describe("/api/blog/posts", () => {
       assertEquals(json.posts[0].id, posts[2].id);
       assertEquals(json.posts[1].id, posts[3].id);
 
-      res = await server.request(`/api/blog/posts?limit=2&cursor=${json.cursor}`);
+      res = await server.request(
+        `/api/blog/posts?limit=2&cursor=${json.cursor}`,
+      );
       assertEquals(res.status, 200);
       json = await res.json();
       assertEquals(json.posts.length, 0);

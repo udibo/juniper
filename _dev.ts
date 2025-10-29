@@ -5,7 +5,8 @@ import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import type { SSEStreamingApi } from "hono/streaming";
 
-import { Builder } from "./build.ts";
+import { Builder } from "@udibo/juniper/build";
+
 import { deno } from "./deno.ts";
 
 export interface DevServerOptions {

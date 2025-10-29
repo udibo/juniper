@@ -1,6 +1,7 @@
 import { Link, useLoaderData } from "react-router";
-import type { Post } from "/services/post.ts";
+
 import { postService } from "/services/post.ts";
+import type { Post } from "/services/post.ts";
 
 interface BlogIndexLoaderData {
   posts: Post[];

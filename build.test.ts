@@ -1,10 +1,11 @@
-import { describe, it } from "@std/testing/bdd";
-import { assertSpyCall, assertSpyCalls, spy, stub } from "@std/testing/mock";
 import { assertEquals, assertRejects } from "@std/assert";
 import * as path from "@std/path";
+import { describe, it } from "@std/testing/bdd";
+import { assertSpyCall, assertSpyCalls, spy, stub } from "@std/testing/mock";
 
-import { isSnapshotMode } from "./utils/testing.ts";
-import { Builder } from "./build.ts";
+import { Builder } from "@udibo/juniper/build";
+import { isSnapshotMode } from "@udibo/juniper/utils/testing";
+
 import { deno } from "./deno.ts";
 
 const exampleDir = path.resolve(

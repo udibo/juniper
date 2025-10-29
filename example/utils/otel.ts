@@ -1,7 +1,10 @@
-import { otelUtils } from "@udibo/juniper/utils/otel";
 import { trace } from "@opentelemetry/api";
 
-export const tracer = trace.getTracer("example", "0.0.1");
+import { otelUtils } from "@udibo/juniper/utils/otel";
+
+import denoConfig from "../../deno.json" with { type: "json" };
+
+export const tracer = trace.getTracer(denoConfig.name, denoConfig.version);
 
 const { startActiveSpan } = otelUtils(tracer);
 export { startActiveSpan };

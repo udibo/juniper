@@ -1,5 +1,5 @@
-import { describe, it } from "@std/testing/bdd";
 import { assertEquals } from "@std/assert";
+import { describe, it } from "@std/testing/bdd";
 
 import { server } from "/main.ts";
 

@@ -1,11 +1,4 @@
 import {
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  it,
-} from "@std/testing/bdd";
-import {
   assert,
   assertEquals,
   assertExists,
@@ -13,8 +6,15 @@ import {
   assertObjectMatch,
   assertRejects,
 } from "@std/assert";
-import { Outlet } from "react-router";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  it,
+} from "@std/testing/bdd";
 import { HttpError } from "@udibo/http-error";
+import { Outlet } from "react-router";
 import serialize from "serialize-javascript";
 
 import {
@@ -28,10 +28,8 @@ import type {
   RootClientRoute,
   SerializedError,
 } from "@udibo/juniper/client";
-import {
-  simulateBrowser,
-  type SimulatedBrowser,
-} from "@udibo/juniper/utils/testing";
+import { simulateBrowser } from "@udibo/juniper/utils/testing";
+import type { SimulatedBrowser } from "@udibo/juniper/utils/testing";
 
 import {
   deserializeErrorDefault,

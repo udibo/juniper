@@ -1,13 +1,9 @@
-import {
-  Link,
-  type LoaderFunctionArgs,
-  useLoaderData,
-  useParams,
-  useRouteError,
-} from "react-router";
+import { HttpError } from "@udibo/http-error";
+import type { LoaderFunctionArgs } from "react-router";
+import { Link, useLoaderData, useParams, useRouteError } from "react-router";
+
 import type { Post } from "/services/post.ts";
 import { postService } from "/services/post.ts";
-import { HttpError } from "@udibo/http-error";
 
 interface BlogPostLoaderData {
   post: Post;

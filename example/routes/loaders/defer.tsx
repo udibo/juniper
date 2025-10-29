@@ -1,6 +1,6 @@
-import { Await, useAsyncError, useLoaderData } from "react-router";
-import { Suspense } from "react";
 import { delay } from "@std/async/delay";
+import { Suspense } from "react";
+import { Await, useAsyncError, useLoaderData } from "react-router";
 
 export function loader() {
   console.log("loader called");

@@ -1,8 +1,8 @@
-import { describe, it } from "@std/testing/bdd";
 import { assertEquals, assertStringIncludes } from "@std/assert";
+import { describe, it } from "@std/testing/bdd";
 
-import { createServer } from "@udibo/juniper/server";
 import { Client } from "@udibo/juniper/client";
+import { createServer } from "@udibo/juniper/server";
 
 describe("createServer", () => {
   it("should return 404 for a non-existent route", async () => {

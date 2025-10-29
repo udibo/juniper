@@ -1,15 +1,17 @@
-import { describe, it } from "@std/testing/bdd";
 import { assertEquals } from "@std/assert";
+import { describe, it } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+
 import {
   isBrowser,
   isDevelopment,
   isProduction,
   isServer,
   isTest,
-} from "./env.ts";
-import { simulateEnvironment } from "./testing.ts";
+} from "@udibo/juniper/utils/env";
+import { simulateEnvironment } from "@udibo/juniper/utils/testing";
+
 import { env } from "./_env.ts";
-import { stub } from "@std/testing/mock";
 
 describe("Environment Utilities", () => {
   describe("isDevelopment", () => {

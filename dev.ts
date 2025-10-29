@@ -1,6 +1,7 @@
 import { parseArgs } from "@std/cli/parse-args";
 
-import { Builder } from "./build.ts";
+import { Builder } from "@udibo/juniper/build";
+
 import { DevServer } from "./_dev.ts";
 
 if (import.meta.main) {

@@ -3,7 +3,9 @@
  *
  * @module
  */
+import { startTransition, StrictMode } from "react";
 import type { ComponentType } from "react";
+import { hydrateRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import type {
   ActionFunctionArgs,
@@ -11,8 +13,6 @@ import type {
   RouteObject,
   RouterContextProvider,
 } from "react-router";
-import { startTransition, StrictMode } from "react";
-import { hydrateRoot } from "react-dom/client";
 
 import { deserializeHydrationData } from "./_client.tsx";
 import type {
@@ -21,6 +21,7 @@ import type {
   SerializedError,
   SerializedHydrationData,
 } from "./_client.tsx";
+
 export type { ClientGlobals, HydrationData, SerializedError };
 
 /** The default router context provider. */

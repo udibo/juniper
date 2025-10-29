@@ -1,11 +1,13 @@
-import { afterAll, afterEach, beforeAll, describe, it } from "@std/testing/bdd";
 import { assert, assertEquals, assertExists } from "@std/assert";
-import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
-import { FakeTime } from "@std/testing/time";
 import { sortBy } from "@std/collections/sort-by";
+import { afterAll, afterEach, beforeAll, describe, it } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
+import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
+
+import { userService } from "/services/user.ts";
+import type { NewUser, User } from "/services/user.ts";
 
 import { server } from "/main.ts";
-import { type NewUser, type User, userService } from "/services/user.ts";
 
 describe("/api/users", () => {
   let time: FakeTime;

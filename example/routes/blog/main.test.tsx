@@ -1,5 +1,5 @@
-import { afterAll, describe, it } from "@std/testing/bdd";
 import { assertEquals, assertStringIncludes } from "@std/assert";
+import { afterAll, describe, it } from "@std/testing/bdd";
 
 import { server } from "/main.ts";
 import { postService } from "/services/post.ts";

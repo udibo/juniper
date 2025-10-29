@@ -1,5 +1,5 @@
-import { Hono } from "hono";
 import { HttpError } from "@udibo/http-error";
+import { Hono } from "hono";
 
 const app = new Hono();
 

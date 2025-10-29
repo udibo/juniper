@@ -1,12 +1,15 @@
-import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { assertEquals, assertRejects } from "@std/assert";
+import { delay } from "@std/async";
+import * as path from "@std/path";
+import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { assertSpyCall, assertSpyCalls, spy, stub } from "@std/testing/mock";
 import type { Spy } from "@std/testing/mock";
-import * as path from "@std/path";
-import { delay } from "@std/async";
+import type * as esbuild from "esbuild";
+
+import { Builder } from "@udibo/juniper/build";
+import { isSnapshotMode } from "@udibo/juniper/utils/testing";
 
 import { DevServer } from "./_dev.ts";
-import { Builder } from "./build.ts";
 import {
   deno,
   FakeChildProcess,
@@ -14,8 +17,6 @@ import {
   FakeFsWatcher,
   FakeSubprocessReadableStream,
 } from "./deno.ts";
-import { isSnapshotMode } from "./utils/testing.ts";
-import type * as esbuild from "esbuild";
 
 const exampleDir = path.resolve(
   path.dirname(path.fromFileUrl(import.meta.url)),
