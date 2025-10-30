@@ -11,6 +11,8 @@
   - start the dev server with `deno task dev`.
   - After any edits are made to the example, it will rebuild the application and
     refresh the page.
+- CI will reject a commit if it doesn't pass `deno task check`.
+- Formatting issues can be automatically fixed with `deno fmt`.
 
 ## Style
 
