@@ -64,6 +64,8 @@ jobs:
         with:
           deno-version: v2.x
           cache: true
+      - name: Build for production
+        run: deno task build-prod
       - name: Deploy to Deno Deploy
         uses: denoland/deployctl@v1
         with:

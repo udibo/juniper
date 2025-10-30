@@ -1,3 +1,5 @@
+**Warning: This file is old and needs updated**
+
 # HTTP Middleware
 
 Juniper is built on Hono, which means you can use any Hono middleware in your

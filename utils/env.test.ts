@@ -1,7 +1,17 @@
-import { describe, it } from "@std/testing/bdd";
 import { assertEquals } from "@std/assert";
-import { isDevelopment, isProduction, isTest } from "./env.ts";
-import { simulateEnvironment } from "./testing.ts";
+import { describe, it } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+
+import {
+  isBrowser,
+  isDevelopment,
+  isProduction,
+  isServer,
+  isTest,
+} from "@udibo/juniper/utils/env";
+import { simulateEnvironment } from "@udibo/juniper/utils/testing";
+
+import { env } from "./_env.ts";
 
 describe("Environment Utilities", () => {
   describe("isDevelopment", () => {
@@ -82,6 +92,29 @@ describe("Environment Utilities", () => {
     it("should return false when APP_ENV is an unknown value", () => {
       using _env = simulateEnvironment({ "APP_ENV": "staging" });
       assertEquals(isTest(), false);
+    });
+  });
+
+  describe("isServer", () => {
+    it("should return true", () => {
+      assertEquals(isServer(), true);
+    });
+
+    it("should return false when env.isServer returns false", () => {
+      using _isServerStub = stub(env, "isServer", () => false);
+      assertEquals(isServer(), false);
+    });
+  });
+
+  describe("isBrowser", () => {
+    it("should return true when env.isServer returns false", () => {
+      using _isServerStub = stub(env, "isServer", () => false);
+      assertEquals(isBrowser(), true);
+    });
+
+    it("should return false when env.isServer returns true", () => {
+      using _isServerStub = stub(env, "isServer", () => true);
+      assertEquals(isBrowser(), false);
     });
   });
 });

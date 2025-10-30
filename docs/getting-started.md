@@ -1,3 +1,5 @@
+**Warning: This file is old and needs updated**
+
 # Getting Started
 
 Juniper is a web framework for building React applications with Deno. It

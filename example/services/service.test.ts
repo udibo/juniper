@@ -24,8 +24,8 @@ const userSchema = z.object({
   age: z.number()
     .min(18, { message: "Age must be greater than or equal to 18" })
     .max(150, { message: "Age must be less than or equal to 150" }),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
 });
 
 describe("Service", () => {
@@ -208,6 +208,20 @@ describe("Service", () => {
         updatedAt: now,
       };
       const parsed = service.parse(validData);
+      assertEquals(parsed, validData);
+    });
+
+    it("should return parsed data for valid JSON input", () => {
+      const now = new Date();
+      const validData = {
+        id: generateUUIDv7(),
+        name: "Test User",
+        age: 25,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const validJsonData = JSON.parse(JSON.stringify(validData));
+      const parsed = service.parse(validJsonData);
       assertEquals(parsed, validData);
     });
 

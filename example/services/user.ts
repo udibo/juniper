@@ -1,10 +1,12 @@
-import { z } from "zod";
 import { encodeHex } from "@std/encoding/hex";
 import { HttpError } from "@udibo/http-error";
+import { z } from "zod";
+
 import { isDevelopment } from "@udibo/juniper/utils/env";
 
-import { Service } from "./service.ts";
 import { startActiveSpan } from "/utils/otel.ts";
+
+import { Service } from "./service.ts";
 
 /**
  * Generates random salt. The length is the number of bytes.
@@ -63,8 +65,8 @@ export const UserSchema = z.object({
     .min(8, "Password must be at least 8 characters")
     .max(256, "Password must be less than 256 characters")
     .optional(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
 });
 
 export type User = z.infer<typeof UserSchema>;

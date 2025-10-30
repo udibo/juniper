@@ -4,6 +4,10 @@
  * @module utils/testing
  */
 
+import type { ClientGlobals, HydrationData } from "../_client.tsx";
+import { serializeHydrationData } from "../_server.tsx";
+import { env } from "./_env.ts";
+
 /**
  * Determines if the current process is running in snapshot mode.
  * This is useful for determining if tests that use snapshot assertion should be updating their snapshots.
@@ -176,6 +180,67 @@ export function simulateEnvironment(
         Deno.env.set(key, value);
       }
     }
+  }
+
+  return {
+    restore,
+    [Symbol.dispose]: () => {
+      restore();
+    },
+  };
+}
+
+/**
+ * A simulated browser environment that restores the globals when disposed.
+ */
+export interface SimulatedBrowser extends Disposable {
+  /** Restores the globals to their original values. */
+  restore: () => void;
+}
+
+/**
+ * Simulates the globals until the simulated browser is restored or disposed.
+ * The initial globals are the ones that were present in the current process.
+ * They are overridden by the hydration data passed to the `simulateBrowser` function.
+ *
+ * In addition to the globals, the environment functions for determining if the application
+ * is running in a server or browser environment are overridden.
+ *
+ * @param hydrationData The hydration data for the simulated browser.
+ * @param options Optional configuration for serialization.
+ * @returns A promise that resolves to a simulated browser that restores the globals when disposed.
+ */
+export async function simulateBrowser(
+  hydrationData: HydrationData,
+  options: {
+    serializeError?: (error: unknown) => unknown;
+  } = {},
+): Promise<SimulatedBrowser> {
+  const serializedHydrationData = await serializeHydrationData(
+    hydrationData,
+    options,
+  );
+
+  const originalJuniperHydrationData =
+    (globalThis as ClientGlobals).__juniperHydrationData;
+  (globalThis as ClientGlobals).__juniperHydrationData =
+    serializedHydrationData;
+
+  const originalIsServer = env.isServer;
+  env.isServer = () => false;
+
+  let restored = false;
+  function restore() {
+    if (restored) throw new Error("Browser already restored");
+    restored = true;
+    if (originalJuniperHydrationData) {
+      (globalThis as ClientGlobals).__juniperHydrationData =
+        originalJuniperHydrationData;
+    } else {
+      delete (globalThis as ClientGlobals).__juniperHydrationData;
+    }
+
+    env.isServer = originalIsServer;
   }
 
   return {

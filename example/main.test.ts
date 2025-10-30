@@ -1,13 +1,13 @@
-import { describe, it } from "@std/testing/bdd";
-import { assertEquals } from "@std/assert";
-import { mergeReadableStreams, TextLineStream } from "@std/streams";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import { resolve } from "@std/path/resolve";
+import { mergeReadableStreams, TextLineStream } from "@std/streams";
+import { describe, it } from "@std/testing/bdd";
 
-import { app } from "./main.ts";
+import { server } from "./main.ts";
 
 describe("serves static files", () => {
   it("should serve a static file", async () => {
-    const res = await app.request("http://localhost/favicon.ico");
+    const res = await server.request("http://localhost/favicon.ico");
 
     assertEquals(res.status, 200);
     assertEquals(res.headers.get("content-type"), "image/x-icon");
@@ -52,6 +52,9 @@ describe("serves application when running main.ts", () => {
 
     const res = await fetch("http://localhost:8100/");
     assertEquals(res.status, 200);
-    assertEquals(await res.text(), "Hello, World!");
+    assertEquals(res.headers.get("content-type"), "text/html; charset=utf-8");
+    const html = await res.text();
+    assertStringIncludes(html, "<!DOCTYPE html>");
+    assertStringIncludes(html, "Welcome to Juniper");
   });
 });
