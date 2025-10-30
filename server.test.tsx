@@ -91,6 +91,59 @@ describe("createServer", () => {
     assertEquals(testRes.status, 200);
     assertEquals(await testRes.text(), "Server Route");
   });
+
+  it("should forward loader headers to the HTML response", async () => {
+    const client = new Client({
+      path: "/",
+      main: {
+        default: () => null,
+        loader: () =>
+          Promise.resolve(
+            new Response(null, {
+              headers: new Headers([["X-Loader", "yes"]]),
+            }),
+          ),
+      },
+    });
+
+    const server = createServer(import.meta.url, client, { path: "/" });
+    const res = await server.request("http://localhost/");
+    assertEquals(res.status, 200);
+    // Header is copied from loaderHeaders in server.tsx
+    assertEquals(res.headers.get("x-loader"), "yes");
+  });
+
+  it("should include dev-client script tag in development", async () => {
+    using _env = simulateEnvironment({ "APP_ENV": null });
+
+    const client = new Client({
+      path: "/",
+      main: { default: () => null },
+    });
+    const server = createServer(import.meta.url, client, { path: "/" });
+    const res = await server.request("http://localhost/");
+    const html = await res.text();
+    // server.tsx writes the dev client script only in development
+    assertStringIncludes(html, '<script src="/dev-client.js" defer></script>');
+  });
+
+  it("should return JSON for data requests when Accept is application/json", async () => {
+    const client = new Client({
+      path: "/",
+      main: {
+        default: () => null,
+        loader: () => Promise.resolve({ ok: true }),
+      },
+    });
+
+    const server = createServer(import.meta.url, client, { path: "/" });
+    const res = await server.request("http://localhost/", {
+      headers: { accept: "application/json" },
+    });
+    assertEquals(res.status, 200);
+    const ct = res.headers.get("content-type");
+    assertEquals(ct && ct.startsWith("application/json"), true);
+  });
 });
 
 describe("serializeErrorDefault", () => {

@@ -4,5 +4,9 @@
  * @internal
  */
 export const env = {
-  isServer: () => "Deno" in globalThis || "process" in globalThis,
+  isServer: () => {
+    const hasDeno = "Deno" in globalThis;
+    const hasProcess = "process" in globalThis;
+    return hasDeno || hasProcess;
+  },
 };

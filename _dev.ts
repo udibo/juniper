@@ -42,14 +42,14 @@ const SHOULD_IGNORE_REGEX =
   /~|\.tmp$|\.lock$|\.log$|^(build|dev)\.ts$|^public\/build|\/\_|^\_|\.test\./;
 
 export class DevServer {
-  private watcher?: Deno.FsWatcher;
-  private appProcess?: Deno.ChildProcess;
-  private devServer?: { shutdown: () => void };
+  watcher?: Deno.FsWatcher;
+  appProcess?: Deno.ChildProcess;
+  devServer?: { shutdown: () => void };
   readonly port: number;
   readonly builder: Builder;
-  private queuedRebuild?: RebuildRequest;
-  private stopping: boolean;
-  private connectedClients: Set<SSEStreamingApi> = new Set();
+  queuedRebuild?: RebuildRequest;
+  stopping: boolean;
+  connectedClients: Set<SSEStreamingApi> = new Set();
 
   constructor(options?: DevServerOptions) {
     const { port, builder } = options ?? {};
@@ -89,7 +89,7 @@ export class DevServer {
   /**
    * Starts the Hono dev server with SSE endpoint
    */
-  private startDevServer(): void {
+  startDevServer(): void {
     const app = new Hono();
 
     app.use(
@@ -148,7 +148,7 @@ export class DevServer {
   /**
    * Notifies all connected clients to reload
    */
-  private async notifyClientsToReload(): Promise<void> {
+  async notifyClientsToReload(): Promise<void> {
     if (this.connectedClients.size === 0) return;
 
     console.log(
@@ -207,7 +207,7 @@ export class DevServer {
   /**
    * Determines if a file is a valid route file
    */
-  private isValidRouteFile(relativePath: string): boolean {
+  isValidRouteFile(relativePath: string): boolean {
     const posixPath = relativePath.replace(/\\/g, "/");
     return VALID_ROUTE_FILE_REGEX.test(posixPath);
   }
@@ -216,7 +216,7 @@ export class DevServer {
    * Determines if changes to a file should trigger a rebuild.
    * Default implementation excludes temporary, lock, log, and build files.
    */
-  protected shouldTriggerRebuild(relativePath: string): boolean {
+  shouldTriggerRebuild(relativePath: string): boolean {
     const posixPath = relativePath.replace(/\\/g, "/");
     return !SHOULD_IGNORE_REGEX.test(posixPath);
   }
@@ -224,7 +224,7 @@ export class DevServer {
   /**
    * Handles file system events
    */
-  private handleFileEvents(events: Deno.FsEvent[]): void {
+  handleFileEvents(events: Deno.FsEvent[]): void {
     const relativePaths = new Set(
       events
         .filter((e) => e.kind !== "access")
@@ -253,7 +253,7 @@ export class DevServer {
     this.checkRebuildQueue();
   }
 
-  private async checkRebuildQueue(): Promise<void> {
+  async checkRebuildQueue(): Promise<void> {
     if (!this.builder.isBuilding && this.queuedRebuild) {
       const queuedRebuild = this.queuedRebuild;
       delete this.queuedRebuild;
@@ -274,7 +274,7 @@ export class DevServer {
   /**
    * Starts the application in a child process
    */
-  private async startApp(): Promise<void> {
+  async startApp(): Promise<void> {
     if (this.appProcess) {
       throw new Error("App already running");
     }
@@ -353,7 +353,7 @@ export class DevServer {
   /**
    * Restarts the application
    */
-  private async restartApp(): Promise<void> {
+  async restartApp(): Promise<void> {
     console.log("🔄 Restarting application...");
 
     if (this.appProcess) {
