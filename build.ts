@@ -732,7 +732,9 @@ if (isBrowser()) {
           await this.buildMainClientEntrypoint();
         }
 
-        const normalizedEntryPoints = this.entryPoints;
+        const normalizedEntryPoints = Deno.build.os === "windows"
+          ? this.entryPoints.map((p) => path.toFileUrl(p).href)
+          : this.entryPoints;
 
         this.context = await esbuild.context({
           plugins: [
@@ -742,7 +744,7 @@ if (isBrowser()) {
             // deno-lint-ignore no-explicit-any
             denoLoaderPlugin({ configPath }) as any,
           ],
-          absWorkingDir: this.projectRoot,
+          absWorkingDir: path.dirname(configPath),
           entryPoints: normalizedEntryPoints,
           outdir: this.outdir,
           outbase: this.projectRoot,
