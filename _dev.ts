@@ -208,7 +208,8 @@ export class DevServer {
    * Determines if a file is a valid route file
    */
   private isValidRouteFile(relativePath: string): boolean {
-    return VALID_ROUTE_FILE_REGEX.test(relativePath);
+    const posixPath = relativePath.replace(/\\/g, "/");
+    return VALID_ROUTE_FILE_REGEX.test(posixPath);
   }
 
   /**
@@ -216,7 +217,8 @@ export class DevServer {
    * Default implementation excludes temporary, lock, log, and build files.
    */
   protected shouldTriggerRebuild(relativePath: string): boolean {
-    return !SHOULD_IGNORE_REGEX.test(relativePath);
+    const posixPath = relativePath.replace(/\\/g, "/");
+    return !SHOULD_IGNORE_REGEX.test(posixPath);
   }
 
   /**
@@ -227,7 +229,9 @@ export class DevServer {
       events
         .filter((e) => e.kind !== "access")
         .flatMap((e) =>
-          e.paths.map((p) => path.relative(this.builder.projectRoot, p))
+          e.paths.map((p) =>
+            path.relative(this.builder.projectRoot, p).replace(/\\/g, "/")
+          )
         )
         .filter((p) => this.shouldTriggerRebuild(p)),
     );
