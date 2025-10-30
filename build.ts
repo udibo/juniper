@@ -550,8 +550,8 @@ export class Builder implements AsyncDisposable {
   buildMainServerEntrypoint(): Promise<void> {
     return startActiveSpan("buildMainServerEntrypoint", async () => {
       const routesDirScanningRoot = this.routesPath;
-      const importPrefixForRoutes = "./" +
-        path.relative(this.projectRoot, this.routesPath);
+      const importPrefixForRoutes = ("./" +
+        path.relative(this.projectRoot, this.routesPath)).replace(/\\/g, "/");
 
       const rootDirProperties = await processDirectory(
         routesDirScanningRoot,
@@ -626,8 +626,8 @@ if (import.meta.main) {
   buildMainClientEntrypoint(): Promise<void> {
     return startActiveSpan("buildMainClientEntrypoint", async () => {
       const routesDirScanningRoot = this.routesPath;
-      const importPrefixForRoutes = "./" +
-        path.relative(this.projectRoot, this.routesPath);
+      const importPrefixForRoutes = ("./" +
+        path.relative(this.projectRoot, this.routesPath)).replace(/\\/g, "/");
 
       const rootDirProperties = await processClientDirectory(
         routesDirScanningRoot,
@@ -732,9 +732,7 @@ if (isBrowser()) {
           await this.buildMainClientEntrypoint();
         }
 
-        const normalizedEntryPoints = Deno.build.os === "windows"
-          ? this.entryPoints.map((p) => p.replace(/\\/g, "/"))
-          : this.entryPoints;
+        const normalizedEntryPoints = this.entryPoints;
 
         this.context = await esbuild.context({
           plugins: [
@@ -744,7 +742,7 @@ if (isBrowser()) {
             // deno-lint-ignore no-explicit-any
             denoLoaderPlugin({ configPath }) as any,
           ],
-          absWorkingDir: path.dirname(configPath),
+          absWorkingDir: this.projectRoot,
           entryPoints: normalizedEntryPoints,
           outdir: this.outdir,
           outbase: this.projectRoot,
