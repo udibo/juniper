@@ -1,3 +1,5 @@
+**Warning: This file is old and needs updated**
+
 # Configuration
 
 Juniper applications are configured through `deno.json` and environment
