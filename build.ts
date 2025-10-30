@@ -732,10 +732,9 @@ if (isBrowser()) {
           await this.buildMainClientEntrypoint();
         }
 
-        const normalizedEntryPoints =
-          Deno.build.os === "windows"
-            ? this.entryPoints.map((p) => p.replace(/\\/g, "/"))
-            : this.entryPoints;
+        const normalizedEntryPoints = Deno.build.os === "windows"
+          ? this.entryPoints.map((p) => p.replace(/\\/g, "/"))
+          : this.entryPoints;
 
         this.context = await esbuild.context({
           plugins: [
