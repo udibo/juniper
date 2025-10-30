@@ -310,37 +310,18 @@ describe("deserializeErrorDefault", () => {
 describe("getHydrationData", () => {
   describe("deserializes errors", () => {
     let browser: SimulatedBrowser;
-    beforeEach(() => {
-      browser = simulateBrowser({
-        __juniperHydrationData: {
-          json: {
-            errors: {
-              "0": {
-                __type: "Error",
-                message: "Oops",
-              },
-              "0-1": {
-                __type: "Error",
-                __subType: "TypeError",
-                message: "Wrong type",
-              },
-              "0-1-0": {
-                __type: "Error",
-                __subType: "HttpError",
-                status: 400,
-                detail: "Bad request",
-              },
-              "0-1-0-1": {
-                __type: "Error",
-                __subType: "CustomError",
-                message: "Custom error",
-                detail: "Custom detail",
-              },
-            },
-            loaderData: {},
-          },
+    beforeEach(async () => {
+      const hydrationData: HydrationData = {
+        matches: [],
+        errors: {
+          "0": new Error("Oops"),
+          "0-1": new TypeError("Wrong type"),
+          "0-1-0": new HttpError(400, "Bad request"),
+          "0-1-0-1": new CustomError("Custom error", "Custom detail"),
         },
-      });
+        loaderData: {},
+      };
+      browser = await simulateBrowser(hydrationData, { serializeError });
     });
 
     afterEach(() => {
@@ -392,28 +373,27 @@ describe("getHydrationData", () => {
 
   describe("deserializes loaderData and actionData", () => {
     it("should deserialize loaderData and actionData", async () => {
-      using _browser = simulateBrowser({
-        __juniperHydrationData: await serializeHydrationData({
-          matches: [],
-          errors: undefined,
-          loaderData: {
-            "0": {
-              user: { name: "John", age: 30 },
-              settings: { theme: "dark" },
-            },
-            "0-1": {
-              posts: [{ id: 1, title: "Hello" }],
-              asyncData: Promise.resolve("resolved data"),
-            },
+      const hydrationData: HydrationData = {
+        matches: [],
+        errors: undefined,
+        loaderData: {
+          "0": {
+            user: { name: "John", age: 30 },
+            settings: { theme: "dark" },
           },
-          actionData: {
-            "0": {
-              result: "success",
-              data: { id: 1 },
-            },
+          "0-1": {
+            posts: [{ id: 1, title: "Hello" }],
+            asyncData: Promise.resolve("resolved data"),
           },
-        }),
-      });
+        },
+        actionData: {
+          "0": {
+            result: "success",
+            data: { id: 1 },
+          },
+        },
+      };
+      using _browser = await simulateBrowser(hydrationData);
 
       const client = new Client(routes);
       const data = client.getHydrationData();
@@ -442,22 +422,21 @@ describe("getHydrationData", () => {
     });
 
     it("should handle rejected promises in loaderData and actionData", async () => {
-      using _browser = simulateBrowser({
-        __juniperHydrationData: await serializeHydrationData({
-          matches: [],
-          errors: undefined,
-          loaderData: {
-            "0-1-0": {
-              error: Promise.reject(new Error("Loader failed")),
-            },
+      const hydrationData: HydrationData = {
+        matches: [],
+        errors: undefined,
+        loaderData: {
+          "0-1-0": {
+            error: Promise.reject(new Error("Loader failed")),
           },
-          actionData: {
-            "0-1": {
-              error: Promise.reject(new HttpError(422, "Validation failed")),
-            },
+        },
+        actionData: {
+          "0-1": {
+            error: Promise.reject(new HttpError(422, "Validation failed")),
           },
-        }),
-      });
+        },
+      };
+      using _browser = await simulateBrowser(hydrationData);
 
       const client = new Client(routes);
       const data = client.getHydrationData();
@@ -477,11 +456,10 @@ describe("getHydrationData", () => {
     });
 
     it("should handle missing loaderData and actionData", async () => {
-      using _browser = simulateBrowser({
-        __juniperHydrationData: await serializeHydrationData({
-          matches: [],
-        }),
-      });
+      const hydrationData: HydrationData = {
+        matches: [],
+      };
+      using _browser = await simulateBrowser(hydrationData);
 
       const client = new Client(routes);
       const data = client.getHydrationData();
@@ -491,15 +469,14 @@ describe("getHydrationData", () => {
     });
 
     it("should handle null actionData", async () => {
-      using _browser = simulateBrowser({
-        __juniperHydrationData: await serializeHydrationData({
-          matches: [],
-          loaderData: {
-            "0": { data: "test" },
-          },
-          actionData: null,
-        }),
-      });
+      const hydrationData: HydrationData = {
+        matches: [],
+        loaderData: {
+          "0": { data: "test" },
+        },
+        actionData: null,
+      };
+      using _browser = await simulateBrowser(hydrationData);
 
       const client = new Client(routes);
       const data = client.getHydrationData();

@@ -22,7 +22,7 @@ import type {
   SerializedHydrationData,
 } from "./_client.tsx";
 
-export type { ClientGlobals, HydrationData, SerializedError };
+export type { HydrationData, SerializedError };
 
 /** The default router context provider. */
 export type DefaultContext = RouterContextProvider;

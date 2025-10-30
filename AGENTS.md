@@ -14,6 +14,10 @@
 
 ## Style
 
+### Types
+
+Try to avoid ever using the `any` type.
+
 ### Imports
 
 Imports should be split up into 4 groups as shown in the example below. The

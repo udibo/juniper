@@ -4,8 +4,8 @@
  * @module utils/testing
  */
 
-import type { ClientGlobals } from "@udibo/juniper/client";
-
+import type { ClientGlobals, HydrationData } from "../_client.tsx";
+import { serializeHydrationData } from "../_server.tsx";
 import { env } from "./_env.ts";
 
 /**
@@ -201,23 +201,30 @@ export interface SimulatedBrowser extends Disposable {
 /**
  * Simulates the globals until the simulated browser is restored or disposed.
  * The initial globals are the ones that were present in the current process.
- * They are overridden by the globals passed to the `simulateBrowser` function.
+ * They are overridden by the hydration data passed to the `simulateBrowser` function.
  *
  * In addition to the globals, the environment functions for determining if the application
  * is running in a server or browser environment are overridden.
  *
- * @param globals The initial globals for the simulated browser.
- * @returns A simulated browser that restores the globals when disposed.
+ * @param hydrationData The hydration data for the simulated browser.
+ * @param options Optional configuration for serialization.
+ * @returns A promise that resolves to a simulated browser that restores the globals when disposed.
  */
-export function simulateBrowser(globals: ClientGlobals): SimulatedBrowser {
+export async function simulateBrowser(
+  hydrationData: HydrationData,
+  options: {
+    serializeError?: (error: unknown) => unknown;
+  } = {},
+): Promise<SimulatedBrowser> {
+  const serializedHydrationData = await serializeHydrationData(
+    hydrationData,
+    options,
+  );
+
   const originalJuniperHydrationData =
     (globalThis as ClientGlobals).__juniperHydrationData;
-  if (globals.__juniperHydrationData) {
-    (globalThis as ClientGlobals).__juniperHydrationData =
-      globals.__juniperHydrationData;
-  } else {
-    delete (globalThis as ClientGlobals).__juniperHydrationData;
-  }
+  (globalThis as ClientGlobals).__juniperHydrationData =
+    serializedHydrationData;
 
   const originalIsServer = env.isServer;
   env.isServer = () => false;
