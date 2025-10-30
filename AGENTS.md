@@ -13,6 +13,12 @@
     refresh the page.
 - CI will reject a commit if it doesn't pass `deno task check`.
 - Formatting issues can be automatically fixed with `deno fmt`.
+- To get updated test coverage statistics, you can run
+  `deno task test --coverage`.
+- To see lines that are missing coverage, you can run
+  `deno coverage --detailed`.
+- For stubs and spys, prefer using explicit resource management over manually
+  adding try/finally with restore call.
 
 ## Style
 

@@ -106,6 +106,12 @@ describe("Environment Utilities", () => {
     });
   });
 
+  describe("internal env", () => {
+    it("env.isServer returns true in Deno runtime", () => {
+      assertEquals(env.isServer(), true);
+    });
+  });
+
   describe("isBrowser", () => {
     it("should return true when env.isServer returns false", () => {
       using _isServerStub = stub(env, "isServer", () => false);
