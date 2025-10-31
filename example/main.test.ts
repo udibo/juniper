@@ -41,10 +41,12 @@ describe("serves application when running main.ts", () => {
 
     for await (const line of stdout.values({ preventCancel: true })) {
       if (line.includes("Listening on")) {
-        const address = Deno.build.os === "windows" ? "localhost" : "0.0.0.0";
+        const address = Deno.build.os === "windows"
+          ? "http://localhost:8100/"
+          : "http://0.0.0.0:8100/ (http://localhost:8100/)";
         assertEquals(
           line,
-          `Listening on http://${address}:8100/ (http://localhost:8100/)`,
+          `Listening on ${address}`,
         );
         break;
       }
