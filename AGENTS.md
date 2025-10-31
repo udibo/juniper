@@ -7,16 +7,20 @@
   - Never call `deno test` directly.
   - The test task can take all the same arguments as `deno test`.
   - To run tests for a specific file, use `deno task test ./server.test.tsx`
+  - Prefer running tests more narrowly to reduce token usage. Output is large
+    when running all tests.
+  - Temporarily change `describe` or `it` to `describe.only` or `it.only` to
+    focus specific test groups or cases.
+  - To get updated test coverage statistics, you can run
+    `deno task test --coverage`.
+  - To see lines that are missing coverage, you can run
+    `deno coverage --detailed`.
 - For live reload of changes in the browser
   - start the dev server with `deno task dev`.
   - After any edits are made to the example, it will rebuild the application and
     refresh the page.
 - CI will reject a commit if it doesn't pass `deno task check`.
 - Formatting issues can be automatically fixed with `deno fmt`.
-- To get updated test coverage statistics, you can run
-  `deno task test --coverage`.
-- To see lines that are missing coverage, you can run
-  `deno coverage --detailed`.
 - For stubs and spys, prefer using explicit resource management over manually
   adding try/finally with restore call.
 
