@@ -1,9 +1,18 @@
 import { Outlet, useRouteError } from "react-router";
 
+import { Helmet } from "@udibo/juniper";
+
 import { CustomError, isSerializedCustomError } from "/utils/error.ts";
 
 export default function Main() {
-  return <Outlet />;
+  return (
+    <>
+      <Helmet>
+        <title>Juniper Example</title>
+      </Helmet>
+      <Outlet />
+    </>
+  );
 }
 
 export function ErrorBoundary(...args: unknown[]) {

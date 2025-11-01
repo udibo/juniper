@@ -2,6 +2,8 @@ import { delay } from "@std/async/delay";
 import { Suspense } from "react";
 import { Await, useAsyncError, useLoaderData } from "react-router";
 
+import { Helmet } from "@udibo/juniper";
+
 export function loader() {
   console.log("loader called");
   return {
@@ -28,6 +30,9 @@ export default function Defer() {
 
   return (
     <div>
+      <Helmet>
+        <title>Defer {message}</title>
+      </Helmet>
       <p>Message: {message}</p>
       <Suspense fallback={<p>Loading...</p>}>
         <Await resolve={delayedMessage} errorElement={<AwaitError />}>

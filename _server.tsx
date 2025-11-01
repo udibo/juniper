@@ -20,6 +20,7 @@ import type { HelmetServerState } from "react-helmet-async";
 import serialize from "serialize-javascript";
 import SuperJSON from "superjson";
 
+import { Helmet } from "@udibo/juniper";
 import type {
   ClientRoute,
   HydrationData,
@@ -299,7 +300,18 @@ export function createHandlers<
             <StrictMode>
               {/* @ts-ignore */}
               <HelmetProvider context={helmetContext}>
-                <StaticRouterProvider router={router} context={context} />
+                <Helmet htmlAttributes={{ lang: "en" }}>
+                  <meta charSet="utf-8" />
+                  <meta
+                    name="viewport"
+                    content="width=device-width,initial-scale=1.0"
+                  />
+                </Helmet>
+                <StaticRouterProvider
+                  router={router}
+                  context={context}
+                  hydrate={false}
+                />
               </HelmetProvider>
             </StrictMode>,
             {
@@ -314,7 +326,9 @@ export function createHandlers<
               },
             },
           );
-          await renderStream.allReady;
+          // Add way for determining if page should progressively render or fully rener
+          // see https://react.dev/reference/react-dom/server/renderToReadableStream#waiting-for-all-content-to-load-for-crawlers-and-static-generation
+          // await renderStream.allReady;
         } catch (error) {
           if (!context.errors) context.errors = {};
           if (
@@ -361,7 +375,24 @@ export function createHandlers<
           await stream.writeln(`    ${tag}`);
         }
 
-        const hydrationData: HydrationData = {
+        await stream.writeln(
+          `    <script type="module" src="/build/main.js"></script>`,
+        );
+        if (isDevelopment()) {
+          await stream.writeln(
+            `    <script src="/dev-client.js" defer></script>`,
+          );
+        }
+        await stream.writeln("  </head>");
+        const bodyAttributes = helmet.bodyAttributes.toString();
+        await stream.writeln(
+          `  <body${bodyAttributes ? ` ${bodyAttributes}` : ""}>`,
+        );
+        await stream.write(`    <div id="root">`);
+        await stream.pipe(renderStream);
+        await stream.writeln("</div>");
+
+        const hydrationData = {
           matches: context.matches.map((match) => ({
             id: match.route.id,
           })),
@@ -378,22 +409,8 @@ export function createHandlers<
             serialize(serializedHydrationData, {
               isJSON: true,
             })
-          }</script>`,
+          };</script>`,
         );
-
-        await stream.writeln(
-          `    <script type="module" src="/build/main.js"></script>`,
-        );
-        if (isDevelopment()) {
-          await stream.writeln(
-            `    <script src="/dev-client.js" defer></script>`,
-          );
-        }
-        await stream.writeln("  </head>");
-        await stream.writeln(`  <body ${helmet.bodyAttributes.toString()}>`);
-        await stream.write(`    <div id="root">`);
-        await stream.pipe(renderStream);
-        await stream.writeln("</div>");
         await stream.writeln("  </body>");
         await stream.writeln("</html>");
       });
