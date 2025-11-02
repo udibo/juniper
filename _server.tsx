@@ -355,6 +355,12 @@ export function createHandlers<
           // see https://react.dev/reference/react-dom/server/renderToReadableStream#waiting-for-all-content-to-load-for-crawlers-and-static-generation
           // await renderStream.allReady;
         } catch (error) {
+          if (
+            c.req.raw.signal.aborted ||
+            (error instanceof Error && error.name === "AbortError")
+          ) {
+            throw error;
+          }
           if (!context.errors) context.errors = {};
           if (
             context._deepestRenderedBoundaryId &&
