@@ -304,6 +304,14 @@ export class Client {
               <RouterProvider router={router} />
             </App>
           </StrictMode>,
+          {
+            onUncaughtError: (error: unknown) => {
+              console.error("hydrate onUncaughtError", error);
+            },
+            onCaughtError: (error: unknown) => {
+              console.error("hydrate onCaughtError", error);
+            },
+          },
         );
       });
     }
