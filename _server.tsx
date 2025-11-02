@@ -303,7 +303,9 @@ export function createHandlers<
       const router = createStaticRouter(dataRoutes, context);
 
       let renderStream: ReturnType<typeof renderToReadableStream>;
+      let aborted = false;
       async function render() {
+        console.log("render");
         try {
           const hydrationData = {
             appEnv: Deno.env.get("APP_ENV"),
@@ -347,7 +349,13 @@ export function createHandlers<
               bootstrapScripts,
               signal: c.req.raw.signal,
               onError: (error: unknown) => {
+                const abortError = error instanceof Error &&
+                  error.name === "AbortError";
+                if (aborted && abortError) return;
                 console.error("render onError", error);
+                if (abortError) {
+                  aborted = true;
+                }
               },
             },
           );
