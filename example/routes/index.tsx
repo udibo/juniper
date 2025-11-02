@@ -3,6 +3,7 @@ import { Link } from "react-router";
 export default function HomePage() {
   return (
     <div>
+      <title>Juniper Example</title>
       <h1>Welcome to Juniper</h1>
       <p>
         This is a modern web framework for building React applications with

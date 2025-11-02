@@ -7,7 +7,16 @@
  * @module utils/env
  */
 
+import type { ClientGlobals } from "../_client.tsx";
 import { env } from "./_env.ts";
+
+function getAppEnv(): string | undefined {
+  return isServer()
+    ? Deno.env.get("APP_ENV")
+    : ((globalThis as ClientGlobals).__juniperHydrationData?.json as {
+      appEnv?: string;
+    })?.appEnv;
+}
 
 /**
  * Determines if the application is running in development mode.
@@ -15,7 +24,7 @@ import { env } from "./_env.ts";
  * @returns `true` if the application is running in development mode, `false` otherwise.
  */
 export function isDevelopment(): boolean {
-  const appEnv = Deno.env.get("APP_ENV");
+  const appEnv = getAppEnv();
   return !appEnv || appEnv === "development";
 }
 
@@ -25,7 +34,7 @@ export function isDevelopment(): boolean {
  * @returns `true` if the application is running in production mode, `false` otherwise.
  */
 export function isProduction(): boolean {
-  return Deno.env.get("APP_ENV") === "production";
+  return getAppEnv() === "production";
 }
 
 /**
@@ -34,7 +43,7 @@ export function isProduction(): boolean {
  * @returns `true` if the application is running in test mode, `false` otherwise.
  */
 export function isTest(): boolean {
-  return Deno.env.get("APP_ENV") === "test";
+  return getAppEnv() === "test";
 }
 
 /**

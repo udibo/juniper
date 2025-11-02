@@ -2,6 +2,7 @@ import { HttpError } from "@udibo/http-error";
 import type { HydrationState } from "react-router";
 import SuperJSON from "superjson";
 import type { SuperJSONResult } from "superjson";
+import { isDevelopment } from "@udibo/juniper/utils/env";
 
 /** A serialized error. */
 export type SerializedError = {
@@ -61,6 +62,8 @@ export interface SerializedHydrationDataPromises {
  * to enable proper reconstruction of Promise states during deserialization.
  */
 export interface SerializedHydrationData extends SuperJSONResult {
+  /** The application environment */
+  appEnv?: string;
   /** Keys that were successfully resolved during serialization */
   resolved?: SerializedHydrationDataPromises;
   /** Keys that were rejected during serialization */
@@ -107,6 +110,8 @@ function reconstructPromiseStates(
  * errors, loader data, and action data that needs to be serialized for client-side hydration.
  */
 export interface HydrationData {
+  /** The application environment */
+  appEnv?: string;
   /** Array of route matches with their IDs */
   matches: {
     id: string;
@@ -170,3 +175,17 @@ export type ClientGlobals = {
   /** The Juniper application's hydration data. */
   __juniperHydrationData?: SerializedHydrationData;
 };
+
+export function App({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <head>
+        <script type="module" src="/build/main.js"></script>
+        {isDevelopment() && <script src="/dev-client.js" defer></script>}
+      </head>
+      <body>
+        {children}
+      </body>
+    </html>
+  );
+}

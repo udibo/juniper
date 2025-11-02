@@ -13,12 +13,8 @@ import type {
   RouteObject,
   RouterContextProvider,
 } from "react-router";
-import * as _reactHelmetAsync from "react-helmet-async";
-const __reactHelmetAsync = _reactHelmetAsync;
-const reactHelmetAsync = __reactHelmetAsync.default ?? __reactHelmetAsync;
-const { HelmetProvider } = reactHelmetAsync;
 
-import { deserializeHydrationData } from "./_client.tsx";
+import { App, deserializeHydrationData } from "./_client.tsx";
 import type {
   ClientGlobals,
   HydrationData,
@@ -302,11 +298,11 @@ export class Client {
     function hydrate() {
       startTransition(() => {
         hydrateRoot(
-          document.getElementById("root"),
+          document,
           <StrictMode>
-            <HelmetProvider>
+            <App>
               <RouterProvider router={router} />
-            </HelmetProvider>
+            </App>
           </StrictMode>,
         );
       });

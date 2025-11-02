@@ -1,15 +1,15 @@
 import { Outlet, useRouteError } from "react-router";
 
-import { Helmet } from "@udibo/juniper";
-
 import { CustomError, isSerializedCustomError } from "/utils/error.ts";
 
 export default function Main() {
   return (
     <>
-      <Helmet>
-        <title>Juniper Example</title>
-      </Helmet>
+      <meta charSet="utf-8" />
+      <meta
+        name="viewport"
+        content="width=device-width,initial-scale=1.0"
+      />
       <Outlet />
     </>
   );

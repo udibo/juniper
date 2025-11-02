@@ -217,7 +217,7 @@ export async function simulateBrowser(
   } = {},
 ): Promise<SimulatedBrowser> {
   const serializedHydrationData = await serializeHydrationData(
-    hydrationData,
+    { appEnv: Deno.env.get("APP_ENV"), ...hydrationData },
     options,
   );
 
