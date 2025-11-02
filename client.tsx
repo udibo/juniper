@@ -14,7 +14,7 @@ import type {
   RouterContextProvider,
 } from "react-router";
 
-import { deserializeHydrationData } from "./_client.tsx";
+import { App, deserializeHydrationData } from "./_client.tsx";
 import type {
   ClientGlobals,
   HydrationData,
@@ -298,9 +298,11 @@ export class Client {
     function hydrate() {
       startTransition(() => {
         hydrateRoot(
-          document.getElementById("root"),
+          document,
           <StrictMode>
-            <RouterProvider router={router} />
+            <App>
+              <RouterProvider router={router} />
+            </App>
           </StrictMode>,
         );
       });

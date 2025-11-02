@@ -1,7 +1,12 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 
-import { isBrowser, isServer } from "@udibo/juniper/utils/env";
+import {
+  isBrowser,
+  isProduction,
+  isServer,
+  isTest,
+} from "@udibo/juniper/utils/env";
 import {
   simulateBrowser,
   simulateEnvironment,
@@ -125,6 +130,7 @@ describe("simulateEnvironment", () => {
 describe("simulateBrowser", () => {
   it("should simulate browser globals with manual restore", async () => {
     const hydrationData: HydrationData = {
+      appEnv: "production",
       matches: [],
       errors: null,
       loaderData: {},
@@ -150,6 +156,7 @@ describe("simulateBrowser", () => {
 
   it("should simulate browser globals with automatic restore using 'using'", async () => {
     const hydrationData: HydrationData = {
+      appEnv: "production",
       matches: [],
       errors: null,
       loaderData: {},
@@ -175,6 +182,7 @@ describe("simulateBrowser", () => {
 
   it("should throw error when trying to restore browser multiple times", async () => {
     const hydrationData: HydrationData = {
+      appEnv: "production",
       matches: [],
       errors: null,
       loaderData: {},
@@ -188,6 +196,7 @@ describe("simulateBrowser", () => {
 
   it("should support nested simulated browsers", async () => {
     const outerHydrationData: HydrationData = {
+      appEnv: "production",
       matches: [],
       errors: {
         "0": new Error("outer error"),
@@ -198,12 +207,16 @@ describe("simulateBrowser", () => {
 
     assertEquals(isBrowser(), true);
     assertEquals(isServer(), false);
+    assertEquals(isTest(), false);
+    assertEquals(isProduction(), true);
+
     assertEquals(
       (globalThis as ClientGlobals).__juniperHydrationData,
       await serializeHydrationData(outerHydrationData),
     );
 
     const innerHydrationData: HydrationData = {
+      appEnv: "test",
       matches: [],
       errors: {
         "0": new Error("inner error"),
@@ -215,6 +228,8 @@ describe("simulateBrowser", () => {
 
       assertEquals(isBrowser(), true);
       assertEquals(isServer(), false);
+      assertEquals(isTest(), true);
+      assertEquals(isProduction(), false);
       assertEquals(
         (globalThis as ClientGlobals).__juniperHydrationData,
         await serializeHydrationData(innerHydrationData),
@@ -223,6 +238,8 @@ describe("simulateBrowser", () => {
 
     assertEquals(isBrowser(), true);
     assertEquals(isServer(), false);
+    assertEquals(isTest(), false);
+    assertEquals(isProduction(), true);
     assertEquals(
       (globalThis as ClientGlobals).__juniperHydrationData,
       await serializeHydrationData(outerHydrationData),
@@ -232,6 +249,8 @@ describe("simulateBrowser", () => {
 
     assertEquals(isBrowser(), false);
     assertEquals(isServer(), true);
+    assertEquals(isTest(), true);
+    assertEquals(isProduction(), false);
     assertEquals(
       (globalThis as ClientGlobals).__juniperHydrationData,
       undefined,

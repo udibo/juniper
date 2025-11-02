@@ -28,6 +28,7 @@ export default function Defer() {
 
   return (
     <div>
+      <title>{`Defer ${message}`}</title>
       <p>Message: {message}</p>
       <Suspense fallback={<p>Loading...</p>}>
         <Await resolve={delayedMessage} errorElement={<AwaitError />}>

@@ -130,7 +130,10 @@ describe("createServer", () => {
     const res = await server.request("http://localhost/");
     const html = await res.text();
     // server.tsx writes the dev client script only in development
-    assertStringIncludes(html, '<script src="/dev-client.js" defer></script>');
+    assertStringIncludes(
+      html,
+      '<script src="/dev-client.js" defer=""></script>',
+    );
     assertStringIncludes(html, "<div>Home</div>");
   });
 
