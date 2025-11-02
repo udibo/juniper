@@ -129,11 +129,8 @@ describe("createServer", () => {
     const server = createServer(import.meta.url, client, { path: "/" });
     const res = await server.request("http://localhost/");
     const html = await res.text();
-    // server.tsx writes the dev client script only in development
-    assertStringIncludes(
-      html,
-      '<script src="/dev-client.js" defer=""></script>',
-    );
+    // React injects bootstrap scripts with async attribute
+    assertStringIncludes(html, 'src="/dev-client.js"');
     assertStringIncludes(html, "<div>Home</div>");
   });
 

@@ -259,6 +259,7 @@ function HydrationScript(
   const hydrateScript = use(serializedHydrationData);
   return (
     <script
+      type="module"
       suppressHydrationWarning
       dangerouslySetInnerHTML={{ __html: hydrateScript }}
     />
@@ -317,10 +318,15 @@ export function createHandlers<
             hydrationData,
             { serializeError },
           ).then((data) =>
-            `window.__juniperHydrationData = ${
+            `import { client } from "/build/main.js"; window.__juniperHydrationData = ${
               serialize(data, { isJSON: true })
-            };`
+            }; await client.hydrate();`
           );
+          const bootstrapScripts: string[] = [];
+          if (isDevelopment()) {
+            bootstrapScripts.push("/dev-client.js");
+          }
+
           renderStream = await renderToReadableStream(
             <StrictMode>
               <App>
@@ -337,14 +343,11 @@ export function createHandlers<
               </App>
             </StrictMode>,
             {
-              onCaughtError: (error: unknown, errorInfo: unknown) => {
-                console.log("render onCaughtError", error, errorInfo);
-              },
-              onUnhandledRejection: (error: unknown) => {
-                console.log("render onUnhandledRejection", error);
-              },
+              bootstrapModules: ["/build/main.js"],
+              bootstrapScripts,
+              signal: c.req.raw.signal,
               onError: (error: unknown) => {
-                console.log("render onError", error);
+                console.error("render onError", error);
               },
             },
           );

@@ -2,7 +2,6 @@ import { HttpError } from "@udibo/http-error";
 import type { HydrationState } from "react-router";
 import SuperJSON from "superjson";
 import type { SuperJSONResult } from "superjson";
-import { isDevelopment } from "@udibo/juniper/utils/env";
 
 /** A serialized error. */
 export type SerializedError = {
@@ -180,8 +179,6 @@ export function App({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
-        <script type="module" src="/build/main.js"></script>
-        {isDevelopment() && <script src="/dev-client.js" defer></script>}
       </head>
       <body>
         {children}
