@@ -16,27 +16,27 @@
   "tasks": {
     "serve": {
       "description": "Runs the server in development mode.",
-      "command": "deno run -A --env-file ./example/main.ts"
+      "command": "deno run -P=serve --env-file ./example/main.ts"
     },
     "serve-prod": {
       "description": "Runs the server in production mode.",
-      "command": "deno run -A --env-file --env-file=.env.production ./example/main.ts"
+      "command": "deno run -P=serve --env-file --env-file=.env.production ./example/main.ts"
     },
     "build": {
       "description": "Builds the application for development.",
-      "command": "export OTEL_SERVICE_NAME=build && deno run -A --env-file ./example/build.ts"
+      "command": "export OTEL_SERVICE_NAME=build && deno run -P=build --env-file ./example/build.ts"
     },
     "build-prod": {
       "description": "Builds the application for production.",
-      "command": "export OTEL_SERVICE_NAME=build && deno run -A --env-file --env-file=.env.production ./example/build.ts"
+      "command": "export OTEL_SERVICE_NAME=build && deno run -P=build --env-file --env-file=.env.production ./example/build.ts"
     },
     "dev": {
       "description": "Runs the development server.",
-      "command": "export OTEL_SERVICE_NAME=dev && deno run -A --env-file ./dev.ts --project-root ./example"
+      "command": "export OTEL_SERVICE_NAME=dev && deno run -P=dev --env-file ./dev.ts --project-root ./example"
     },
     "test": {
       "description": "Runs the tests.",
-      "command": "deno test -A --env-file --env-file=.env.test"
+      "command": "deno test -P=test --env-file --env-file=.env.test"
     },
     "test-update": {
       "description": "Runs the tests and updates the snapshots.",
@@ -103,5 +103,41 @@
     "jsx": "react-jsx",
     "jsxImportSource": "react",
     "jsxImportSourceTypes": "@types/react"
+  },
+  "permissions": {
+    "serve": {
+      "net": true,
+      "env": true,
+      "read": true,
+      "write": ["./example/public/build"]
+    },
+    "dev": {
+      "net": true,
+      "env": true,
+      "read": true,
+      "write": [
+        "./example/public/build",
+        "./example/main.ts",
+        "./example/main.tsx"
+      ],
+      "run": true
+    },
+    "build": {
+      "env": true,
+      "read": true,
+      "write": [
+        "./example/public/build",
+        "./example/main.ts",
+        "./example/main.tsx"
+      ],
+      "run": true
+    },
+    "test": {
+      "net": true,
+      "env": true,
+      "read": true,
+      "write": true,
+      "run": true
+    }
   }
 }
