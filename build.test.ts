@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import * as path from "@std/path";
 import { describe, it } from "@std/testing/bdd";
 import { assertSpyCall, assertSpyCalls, spy, stub } from "@std/testing/mock";
@@ -348,19 +348,27 @@ describe("Builder", () => {
         const builtFiles = await Array.fromAsync(
           Deno.readDir(buildDir),
         );
-        const jsFile = builtFiles.find((f) => f.name.endsWith(".js"));
 
-        if (jsFile) {
+        let runtimeFound = false;
+
+        for (const file of builtFiles) {
+          if (!file.isFile || !file.name.endsWith(".js")) continue;
+
           const builtContent = await Deno.readTextFile(
-            path.resolve(buildDir, jsFile.name),
+            path.resolve(buildDir, file.name),
           );
 
-          assertStringIncludes(
-            builtContent,
-            "react/compiler-runtime",
-            "Built output should contain React Compiler runtime",
-          );
+          if (builtContent.includes("react/compiler-runtime")) {
+            runtimeFound = true;
+            break;
+          }
         }
+
+        assertEquals(
+          runtimeFound,
+          true,
+          "React Compiler runtime was not found in any generated bundle",
+        );
       } finally {
         await Deno.remove(tmp, { recursive: true });
       }
