@@ -17,6 +17,7 @@ import {
   processDirectory,
 } from "./_build.ts";
 import { deno } from "./deno.ts";
+import { reactCompilerPlugin } from "./utils/react-compiler-plugin.ts";
 import { startActiveSpan } from "./utils/_otel.ts";
 
 const fmtCommand = new Deno.Command(Deno.execPath(), {
@@ -382,6 +383,9 @@ export const client = new Client(${routesConfigString});
           plugins: [
             // deno-lint-ignore no-explicit-any
             denoResolverPlugin({ configPath }) as any,
+            reactCompilerPlugin({
+              sourceMaps: buildOptions.sourcemap !== false,
+            }),
             ...this.plugins,
             // deno-lint-ignore no-explicit-any
             denoLoaderPlugin({ configPath }) as any,

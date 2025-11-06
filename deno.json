@@ -62,6 +62,7 @@
   "imports": {
     "/": "./example/",
     "./": "./",
+    "@babel/core": "npm:@babel/core@^7.28.5",
     "@modelcontextprotocol/sdk": "npm:@modelcontextprotocol/sdk@^1.20.2",
     "@udibo/http-error": "jsr:@udibo/http-error@0.10",
     "@std/testing": "jsr:@std/testing@^1.0.16",
@@ -76,7 +77,9 @@
     "@std/uuid": "jsr:@std/uuid@^1.0.9",
     "@luca/esbuild-deno-loader": "jsr:@kylejune/esbuild-deno-loader@^0.12.1",
     "@opentelemetry/api": "npm:@opentelemetry/api@^1.9.0",
+    "babel-plugin-react-compiler": "npm:babel-plugin-react-compiler@^1.0.0",
     "esbuild": "npm:esbuild@^0.25.12",
+    "quick-lru": "npm:quick-lru@^7.3.0",
     "zod": "npm:zod@^3.25.76",
     "hono": "npm:hono@^4.10.4",
     "react": "npm:react@^19.2.0",

@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from "@std/assert";
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
 import * as path from "@std/path";
 import { describe, it } from "@std/testing/bdd";
 import { assertSpyCall, assertSpyCalls, spy, stub } from "@std/testing/mock";
@@ -289,6 +289,81 @@ describe("Builder", () => {
       const buildPromise = builder.build();
       await buildPromise;
       assertEquals(builder.isBuilding, false);
+    });
+  });
+
+  describe("React Compiler integration", () => {
+    it("should apply React Compiler to .tsx files during build", async () => {
+      const tmp = await Deno.makeTempDir();
+      const routesDir = path.resolve(tmp, "routes");
+      const publicDir = path.resolve(tmp, "public");
+      const buildDir = path.resolve(publicDir, "build");
+      await Deno.mkdir(routesDir, { recursive: true });
+      await Deno.mkdir(buildDir, { recursive: true });
+
+      const testComponent = `export default function TestComponent() {
+  const [count, setCount] = React.useState(0);
+  const doubled = count * 2;
+  return <div>Count: {count}, Doubled: {doubled}</div>;
+}`;
+
+      const testComponentPath = path.resolve(routesDir, "main.tsx");
+      await Deno.writeTextFile(testComponentPath, testComponent);
+
+      const denoConfigPath = path.resolve(tmp, "deno.json");
+      const projectRootDir = path.dirname(path.fromFileUrl(import.meta.url));
+      const actualDenoJsonPath = path.resolve(projectRootDir, "deno.json");
+      const actualDenoJson = JSON.parse(
+        await Deno.readTextFile(actualDenoJsonPath),
+      );
+
+      const clientSrcPath = path.resolve(projectRootDir, "client.tsx");
+      const clientInternalSrcPath = path.resolve(projectRootDir, "_client.tsx");
+      const clientDstPath = path.resolve(tmp, "client.tsx");
+      const clientInternalDstPath = path.resolve(tmp, "_client.tsx");
+
+      await Deno.copyFile(clientSrcPath, clientDstPath);
+      await Deno.copyFile(clientInternalSrcPath, clientInternalDstPath);
+
+      await Deno.writeTextFile(
+        denoConfigPath,
+        JSON.stringify({
+          imports: {
+            ...actualDenoJson.imports,
+            "@udibo/juniper/client": "./client.tsx",
+          },
+        }),
+      );
+
+      try {
+        await using builder = new Builder({
+          projectRoot: tmp,
+          configPath: denoConfigPath,
+          write: true,
+        });
+
+        const result = await builder.build();
+        assertEquals(result.errors.length, 0);
+
+        const builtFiles = await Array.fromAsync(
+          Deno.readDir(buildDir),
+        );
+        const jsFile = builtFiles.find((f) => f.name.endsWith(".js"));
+
+        if (jsFile) {
+          const builtContent = await Deno.readTextFile(
+            path.resolve(buildDir, jsFile.name),
+          );
+
+          assertStringIncludes(
+            builtContent,
+            "react/compiler-runtime",
+            "Built output should contain React Compiler runtime",
+          );
+        }
+      } finally {
+        await Deno.remove(tmp, { recursive: true });
+      }
     });
   });
 });
