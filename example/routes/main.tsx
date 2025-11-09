@@ -18,7 +18,7 @@ export default function Main() {
 export function ErrorBoundary(...args: unknown[]) {
   console.log("ErrorBoundary args", args);
   const error = useRouteError();
-  console.log("ErrorBoundary error", error);
+  console.error("ErrorBoundary error", error);
 
   if (error instanceof CustomError) {
     return (
