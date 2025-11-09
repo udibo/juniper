@@ -1,14 +1,12 @@
 import {
   assert,
   assertEquals,
-  assertInstanceOf,
   assertIsError,
   assertRejects,
 } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
 import { SpanStatusCode } from "@opentelemetry/api";
 import type { Context, Span, SpanOptions, Tracer } from "@opentelemetry/api";
-import { HttpError } from "@udibo/http-error";
 
 import { otelUtils } from "@udibo/juniper/utils/otel";
 
