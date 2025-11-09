@@ -1,13 +1,12 @@
 import {
   assert,
   assertEquals,
-  assertInstanceOf,
+  assertIsError,
   assertRejects,
 } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
 import { SpanStatusCode } from "@opentelemetry/api";
 import type { Context, Span, SpanOptions, Tracer } from "@opentelemetry/api";
-import { HttpError } from "@udibo/http-error";
 
 import { otelUtils } from "@udibo/juniper/utils/otel";
 
@@ -127,9 +126,8 @@ describe("otelUtils.startActiveSpan", () => {
     assert(observedSpan);
     assertEquals(observedSpan!.__state.ended, true);
     assertEquals(observedSpan!.__state.recordedExceptions.length, 1);
-    const recorded = observedSpan!.__state.recordedExceptions[0];
-    assertInstanceOf(recorded, HttpError);
-    assertEquals((recorded as HttpError).message, "boom");
+    const recordedException = observedSpan!.__state.recordedExceptions[0];
+    assertIsError(recordedException, Error, "boom");
     assertEquals(observedSpan!.__state.status.code, SpanStatusCode.ERROR);
   });
 
@@ -142,10 +140,8 @@ describe("otelUtils.startActiveSpan", () => {
         throw err;
       });
       assert(false);
-    } catch (e) {
-      const httpErr = e as HttpError;
-      assertInstanceOf(httpErr, HttpError);
-      assertEquals(httpErr.message, "nope");
+    } catch (error) {
+      assertIsError(error, TypeError, "nope");
     }
   });
 });

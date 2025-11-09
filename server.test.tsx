@@ -415,7 +415,7 @@ describe("createServer", () => {
     assertEquals(res.status, 500);
     assertEquals(res.headers.get("content-type"), "application/problem+json");
     const error = await res.json();
-    assertEquals(Object.keys(error), ["status", "title", "instance"]);
+    assertEquals(Object.keys(error), ["status", "title"]);
     assertObjectMatch(error, {
       status: 500,
       title: "InternalServerError",

@@ -142,12 +142,17 @@ export function otelUtils(tracer: Tracer): OtelUtils {
       ? arg3
       : arg4 as F;
     const fnWrapped = (span: Span) => {
-      function handleCause(cause: unknown): HttpError {
-        const error = HttpError.from(cause);
-        if (!error.instance) error.instance = getInstance();
+      function handleCause(cause: unknown): unknown {
+        const error = cause instanceof Error ? cause : String(cause);
+        if (error instanceof HttpError && !error.instance) {
+          error.instance = getInstance();
+        }
         span.recordException(error);
-        span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
-        return error;
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: error instanceof Error ? error.message : error,
+        });
+        return cause;
       }
       let isPromise = false;
       try {
@@ -164,8 +169,7 @@ export function otelUtils(tracer: Tracer): OtelUtils {
         }
         return result;
       } catch (cause) {
-        const error = handleCause(cause);
-        throw error;
+        throw handleCause(cause);
       } finally {
         if (!isPromise) span.end();
       }
