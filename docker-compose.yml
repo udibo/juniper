@@ -7,9 +7,9 @@ services:
       - "4317:4317"
       - "4318:4318"
     volumes:
-      - ./lgtm/grafana:/data/grafana
-      - ./lgtm/prometheus:/data/prometheus
-      - ./lgtm/loki:/data/loki
+      - ./docker/volumes/lgtm/grafana:/data/grafana
+      - ./docker/volumes/lgtm/prometheus:/data/prometheus
+      - ./docker/volumes/lgtm/loki:/data/loki
     environment:
       - GF_PATHS_DATA=/data/grafana
     restart: unless-stopped
