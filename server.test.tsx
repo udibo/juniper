@@ -1,4 +1,8 @@
-import { assertEquals, assertStringIncludes } from "@std/assert";
+import {
+  assertEquals,
+  assertObjectMatch,
+  assertStringIncludes,
+} from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
 import { Outlet, useLoaderData, useParams } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
@@ -410,7 +414,9 @@ describe("createServer", () => {
     const res = await server.request("http://localhost/");
     assertEquals(res.status, 500);
     assertEquals(res.headers.get("content-type"), "application/problem+json");
-    assertEquals(await res.json(), {
+    const error = await res.json();
+    assertEquals(Object.keys(error), ["status", "title", "instance"]);
+    assertObjectMatch(error, {
       status: 500,
       title: "InternalServerError",
     });
