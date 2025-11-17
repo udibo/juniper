@@ -1,9 +1,10 @@
 import { HttpError } from "@udibo/http-error";
 import type { LoaderFunctionArgs } from "react-router";
-import { Link, useLoaderData, useParams, useRouteError } from "react-router";
+import { Link } from "react-router";
 
 import type { Post } from "/services/post.ts";
 import { postService } from "/services/post.ts";
+import type { ErrorBoundaryProps, RouteProps } from "@udibo/juniper";
 
 interface BlogPostLoaderData {
   post: Post;
@@ -23,8 +24,10 @@ export async function loader(
   }
 }
 
-export default function BlogPost() {
-  const { post } = useLoaderData() as BlogPostLoaderData;
+export default function BlogPost({
+  loaderData,
+}: RouteProps<{ id: string }, BlogPostLoaderData>) {
+  const { post } = loaderData;
 
   return (
     <div>
@@ -118,11 +121,10 @@ export default function BlogPost() {
   );
 }
 
-export function ErrorBoundary(args: unknown) {
-  console.log("ErrorBoundary args", args);
-  const error = useRouteError();
+export function ErrorBoundary(
+  { error, params }: ErrorBoundaryProps<{ id: string }, BlogPostLoaderData>,
+) {
   console.log("ErrorBoundary error", error);
-  const params = useParams();
 
   return (
     <div style={{ textAlign: "center", padding: "2rem" }}>

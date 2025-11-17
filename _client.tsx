@@ -1,7 +1,27 @@
 import { HttpError } from "@udibo/http-error";
-import type { HydrationState } from "react-router";
+import {
+  type ActionFunctionArgs,
+  type HydrationState,
+  type LoaderFunctionArgs,
+  type RouterContextProvider,
+  useActionData,
+  useLoaderData,
+  useLocation,
+  useNavigate,
+  useParams,
+  useRouteError,
+} from "react-router";
 import SuperJSON from "superjson";
 import type { SuperJSONResult } from "superjson";
+import React from "react";
+import type { ComponentType } from "react";
+
+import type {
+  AnyParams,
+  ErrorBoundaryProps,
+  RouteModule,
+  RouteProps,
+} from "@udibo/juniper";
 
 /** A serialized error. */
 export type SerializedError = {
@@ -186,3 +206,140 @@ export function App({ children }: { children: React.ReactNode }) {
     </html>
   );
 }
+
+export type Route<
+  Context extends RouterContextProvider = RouterContextProvider,
+> = {
+  Component?: ComponentType;
+  ErrorBoundary?: ComponentType;
+  HydrateFallback?: ComponentType;
+  loader?: (
+    args: LoaderFunctionArgs<Context>,
+  ) => unknown | Promise<unknown>;
+  action?: (
+    args: ActionFunctionArgs<Context>,
+  ) => unknown | Promise<unknown>;
+};
+
+/**
+ * Converts a route module into a renderable route object.
+ *
+ * @template Context - The router context type.
+ * @returns A promise that resolves to the route object.
+ */
+export type LazyRoute<
+  Context extends RouterContextProvider = RouterContextProvider,
+> = () => Promise<Route<Context>>;
+
+/**
+ * Converts a `RouteModule` into the internal `Route` shape used by the client runtime.
+ *
+ * @template Context - The router context type.
+ * @param routeFile - The module exports for the route.
+ * @returns A concrete `Route` instance.
+ */
+export function createRoute<
+  Context extends RouterContextProvider = RouterContextProvider,
+>(
+  routeFile: RouteModule<AnyParams, unknown, unknown, Context>,
+): Route<Context> {
+  const {
+    ErrorBoundary: _ErrorBoundary,
+    default: _Component,
+    HydrateFallback: _HydrateFallback,
+  } = routeFile;
+
+  let Component: ComponentType | undefined;
+  if (_Component) {
+    Component = function Component() {
+      const params = useParams();
+      const loaderData = useLoaderData();
+      const actionData = useActionData();
+
+      return React.createElement(
+        _Component as ComponentType<RouteProps>,
+        {
+          params,
+          loaderData,
+          actionData,
+        },
+      );
+    };
+  }
+
+  let ErrorBoundary: ComponentType | undefined;
+  if (_ErrorBoundary) {
+    ErrorBoundary = function ErrorBoundary() {
+      const params = useParams();
+      const loaderData = useLoaderData();
+      const actionData = useActionData();
+      const error = useRouteError();
+      const navigate = useNavigate();
+      const location = useLocation();
+
+      function resetErrorBoundary() {
+        navigate(location.pathname, { replace: true });
+      }
+
+      return React.createElement(
+        _ErrorBoundary as ComponentType<ErrorBoundaryProps>,
+        {
+          error,
+          resetErrorBoundary,
+          params,
+          loaderData,
+          actionData,
+        },
+      );
+    };
+  }
+
+  let HydrateFallback: ComponentType | undefined;
+  if (_HydrateFallback) {
+    HydrateFallback = function HydrateFallback() {
+      const params = useParams();
+      const loaderData = useLoaderData();
+      const actionData = useActionData();
+
+      return React.createElement(
+        _HydrateFallback as ComponentType<RouteProps>,
+        {
+          params,
+          loaderData,
+          actionData,
+        },
+      );
+    };
+  }
+
+  return {
+    Component: Component,
+    ErrorBoundary: ErrorBoundary,
+    HydrateFallback: HydrateFallback,
+    loader: routeFile.loader,
+    action: routeFile.action,
+  };
+}
+
+/**
+ * Creates a lazy route object that loads a `RouteModule` and converts it to a route object.
+ *
+ * @template Context - The router context type.
+ * @param lazyRouteFile - The lazy route file to create a lazy route object from.
+ * @returns A lazy route object.
+ */
+export function createLazyRoute<
+  Context extends RouterContextProvider = RouterContextProvider,
+>(
+  lazyRouteFile: () => Promise<
+    RouteModule<AnyParams, unknown, unknown, Context>
+  >,
+): LazyRoute<Context> {
+  return async (): Promise<Route<Context>> => {
+    const routeFile = await lazyRouteFile();
+    return createRoute(routeFile);
+  };
+}
+
+/** The default router context provider. */
+export type DefaultContext = RouterContextProvider;

@@ -1,7 +1,8 @@
-import { Link, useLoaderData } from "react-router";
+import { Link } from "react-router";
 
 import { postService } from "/services/post.ts";
 import type { Post } from "/services/post.ts";
+import type { AnyParams, RouteProps } from "@udibo/juniper";
 
 interface BlogIndexLoaderData {
   posts: Post[];
@@ -13,8 +14,10 @@ export async function loader(): Promise<BlogIndexLoaderData> {
   return { posts, cursor: cursor || "" };
 }
 
-export default function BlogIndex() {
-  const { posts } = useLoaderData() as BlogIndexLoaderData;
+export default function BlogIndex({
+  loaderData,
+}: RouteProps<AnyParams, BlogIndexLoaderData>) {
+  const { posts } = loaderData;
 
   return (
     <div>
