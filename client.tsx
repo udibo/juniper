@@ -4,73 +4,72 @@
  * @module
  */
 import { startTransition, StrictMode } from "react";
-import type { ComponentType } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router";
-import type {
-  ActionFunctionArgs,
-  LoaderFunctionArgs,
-  RouteObject,
-  RouterContextProvider,
-} from "react-router";
+import type { RouteObject } from "react-router";
+import type { AnyParams, RootRouteModule, RouteModule } from "@udibo/juniper";
 
-import { App, deserializeHydrationData } from "./_client.tsx";
+import {
+  App,
+  createLazyRoute,
+  createRoute,
+  deserializeHydrationData,
+} from "./_client.tsx";
 import type {
   ClientGlobals,
+  DefaultContext,
   HydrationData,
+  LazyRoute,
   SerializedError,
   SerializedHydrationData,
 } from "./_client.tsx";
 
-export type { HydrationData, SerializedError };
-
-/** The default router context provider. */
-export type DefaultContext = RouterContextProvider;
+export type { DefaultContext, HydrationData, SerializedError };
 
 /**
- * A client route file.
+ * Loads a non-root route module on demand.
  *
  * @template Context - The router context type.
  */
-export interface ClientRouteFile<Context = DefaultContext> {
-  /** The route's component. */
-  default?: ComponentType;
-  /** The route's error boundary component. */
-  ErrorBoundary?: ComponentType;
-  /** The loader function. */
-  loader?: (args: LoaderFunctionArgs<Context>) => Promise<unknown>;
-  /** The action function. */
-  action?: (args: ActionFunctionArgs<Context>) => Promise<unknown>;
-}
+type RouteModuleLoader<Context extends DefaultContext = DefaultContext> = () =>
+  Promise<
+    RouteModule<AnyParams, unknown, unknown, Context>
+  >;
 
 /**
- * A root client route file. This is the top level main.tsx file in the routes directory.
+ * Loads the root route module on demand.
  *
  * @template Context - The router context type.
  */
-export interface RootClientRouteFile<Context = DefaultContext>
-  extends ClientRouteFile<Context> {
-  /**
-   * This function is used to extend the default error deserialization.
-   * It converts errors serialized by the server into errors in the client.
-   * If it doesn't exist or returns undefined, the default error deserialization will be used.
-   */
-  deserializeError?: (serializedError: unknown) => unknown;
-}
+type RootRouteModuleLoader<Context extends DefaultContext = DefaultContext> =
+  () => Promise<
+    RootRouteModule<AnyParams, unknown, unknown, Context>
+  >;
 
 /**
- * A client route.
+ * A client route definition used by the generated `main.tsx`.
  *
  * @template Context - The router context type.
  */
-export interface ClientRoute<Context = DefaultContext> {
+export interface ClientRoute<Context extends DefaultContext = DefaultContext> {
   path: string;
-  /** The route's main file. */
-  main?: ClientRouteFile<Context> | (() => Promise<ClientRouteFile<Context>>);
-  /** The route's index file. */
-  index?: () => Promise<ClientRouteFile<Context>>;
-  /** The route's catchall file. */
-  catchall?: () => Promise<ClientRouteFile<Context>>;
+  /**
+   * The route's module.
+   * Provide a `RouteModule` directly or a lazy loader that resolves to one.
+   */
+  main?:
+    | RouteModule<AnyParams, unknown, unknown, Context>
+    | RouteModuleLoader<Context>;
+  /**
+   * The route's index module.
+   * Must resolve to a `RouteModule`.
+   */
+  index?: RouteModuleLoader<Context>;
+  /**
+   * The route's catchall module.
+   * Must resolve to a `RouteModule`.
+   */
+  catchall?: RouteModuleLoader<Context>;
   /** The route's children. */
   children?: ClientRoute<Context>[];
 }
@@ -80,42 +79,16 @@ export interface ClientRoute<Context = DefaultContext> {
  *
  * @template Context - The router context type.
  */
-export interface RootClientRoute<Context = DefaultContext>
-  extends ClientRoute<Context> {
-  /** The root route's main file. */
-  main?: RootClientRouteFile<Context>;
-}
-
-/**
- * A function that lazy loads a route file and returns a route object.
- *
- * @returns A promise that resolves to the route object.
- */
-export type LazyRouteObject = () => Promise<{
-  Component?: ComponentType;
-  ErrorBoundary?: ComponentType;
-  loader?: (args: LoaderFunctionArgs) => Promise<unknown>;
-  action?: (args: ActionFunctionArgs) => Promise<unknown>;
-}>;
-
-/**
- * Creates a lazy route object that loads the route file and converts it to a route object.
- *
- * @param lazyRouteFile - The lazy route file to create a lazy route object from.
- * @returns A lazy route object.
- */
-export function createLazyRouteObject(
-  lazyRouteFile: () => Promise<ClientRouteFile>,
-): LazyRouteObject {
-  return async () => {
-    const routeFile = await lazyRouteFile();
-    return {
-      Component: routeFile.default,
-      ErrorBoundary: routeFile.ErrorBoundary,
-      loader: routeFile.loader,
-      action: routeFile.action,
-    };
-  };
+export interface RootClientRoute<
+  Context extends DefaultContext = DefaultContext,
+> extends ClientRoute<Context> {
+  /**
+   * The root route's module.
+   * Provide a `RootRouteModule` or lazy loader.
+   */
+  main?:
+    | RootRouteModule<AnyParams, unknown, unknown, Context>
+    | RootRouteModuleLoader<Context>;
 }
 
 /**
@@ -158,30 +131,32 @@ export function isSerializedError(
  * }
  * ```
  *
+ * @template Context - The router context type.
  * @param rootRoute - The root client route.
  * @returns A new client instance.
  */
-export class Client {
+export class Client<Context extends DefaultContext = DefaultContext> {
   /** The root client route. */
-  rootRoute: RootClientRoute;
+  rootRoute: RootClientRoute<Context>;
   /** A map of route ids to client routes. */
   routeFileMap: Map<
     string,
-    ClientRouteFile | (() => Promise<ClientRouteFile>)
+    | RouteModule<AnyParams, unknown, unknown, Context>
+    | RouteModuleLoader<Context>
   >;
   /** The route objects used by React Router. */
   routeObjects: RouteObject[];
   /** A map of route object ids to route objects used by React Router. */
   routeObjectMap: Map<string, RouteObject>;
 
-  constructor(rootRoute: RootClientRoute) {
+  constructor(rootRoute: RootClientRoute<Context>) {
     this.rootRoute = rootRoute;
     this.routeFileMap = new Map();
     this.routeObjects = [{ path: rootRoute.path }];
     this.routeObjectMap = new Map();
 
     const routeIdStack: string[] = ["0"];
-    const routeStack: ClientRoute[] = [rootRoute];
+    const routeStack: ClientRoute<Context>[] = [rootRoute];
     const routeObjectStack: RouteObject[] = [...this.routeObjects];
     while (routeIdStack.length > 0) {
       const routeId = routeIdStack.pop()!;
@@ -189,11 +164,20 @@ export class Client {
       const routeObject = routeObjectStack.pop()!;
 
       if (typeof route.main === "function") {
-        routeObject.lazy = createLazyRouteObject(route.main);
+        routeObject.lazy = createLazyRoute<Context>(route.main);
       } else if (route.main) {
-        routeObject.Component = route.main.default;
-        routeObject.ErrorBoundary = route.main.ErrorBoundary;
-        routeObject.loader = route.main.loader;
+        const {
+          Component,
+          ErrorBoundary,
+          HydrateFallback,
+          loader,
+          action,
+        } = createRoute(route.main);
+        routeObject.Component = Component;
+        routeObject.ErrorBoundary = ErrorBoundary;
+        routeObject.HydrateFallback = HydrateFallback;
+        routeObject.loader = loader;
+        routeObject.action = action;
       }
 
       const routeObjectChildren: RouteObject[] = [];
@@ -201,7 +185,7 @@ export class Client {
       if (route.index) {
         const indexRouteObject = {
           index: true,
-          lazy: createLazyRouteObject(route.index),
+          lazy: createLazyRoute<Context>(route.index),
         };
         routeObjectChildren.push(indexRouteObject);
 
@@ -226,7 +210,7 @@ export class Client {
       if (route.catchall) {
         const catchallRouteObject = {
           path: "*",
-          lazy: createLazyRouteObject(route.catchall),
+          lazy: createLazyRoute<Context>(route.catchall),
         };
         routeObjectChildren.push(catchallRouteObject);
 
@@ -254,7 +238,10 @@ export class Client {
   getHydrationData(): HydrationData {
     const serializedHydrationData: SerializedHydrationData =
       (globalThis as ClientGlobals).__juniperHydrationData ?? { json: {} };
-    const deserializeError = this.rootRoute.main?.deserializeError;
+    const rootMainModule = typeof this.rootRoute.main === "function"
+      ? undefined
+      : this.rootRoute.main;
+    const deserializeError = rootMainModule?.deserializeError;
 
     return deserializeHydrationData(serializedHydrationData, {
       deserializeError,
@@ -273,10 +260,16 @@ export class Client {
     for (const match of matches) {
       const route = this.routeObjectMap.get(match.id);
       if (route?.lazy) {
-        const { Component, ErrorBoundary, loader, action } =
-          await (route.lazy as LazyRouteObject)();
+        const {
+          Component,
+          ErrorBoundary,
+          HydrateFallback,
+          loader,
+          action,
+        } = await (route.lazy as LazyRoute<Context>)();
         if (Component) route.Component = Component;
         if (ErrorBoundary) route.ErrorBoundary = ErrorBoundary;
+        if (HydrateFallback) route.HydrateFallback = HydrateFallback;
         if (loader) route.loader = loader;
         if (action) route.action = action;
         delete route.lazy;

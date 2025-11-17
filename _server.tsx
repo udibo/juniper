@@ -69,6 +69,22 @@ import { SpanStatusCode } from "@opentelemetry/api";
  * }
  * ```
  */
+interface ServerRouteModule<
+  E extends Env = Env,
+  S extends Schema = Schema,
+  BasePath extends string = "/",
+> {
+  default?: Hono<E, S, BasePath>;
+}
+
+interface ServerMainRouteModule<
+  E extends Env = Env,
+  S extends Schema = Schema,
+  BasePath extends string = "/",
+> extends ServerRouteModule<E, S, BasePath> {
+  serializeError?: (error: unknown) => SerializedError | unknown;
+}
+
 export interface Route<
   E extends Env = Env,
   S extends Schema = Schema,
@@ -77,14 +93,11 @@ export interface Route<
   /** The URL path segment for this route */
   path: BasePath;
   /** Optional main route handler (typically used for middleware) */
-  main?: {
-    default?: Hono<E, S, BasePath>;
-    serializeError?: (error: unknown) => SerializedError | unknown;
-  };
+  main?: ServerMainRouteModule<E, S, BasePath>;
   /** Optional index route handler (handles exact path matches) */
-  index?: { default?: Hono<E, S, BasePath> };
+  index?: ServerRouteModule<E, S, BasePath>;
   /** Optional catch-all route handler (handles unmatched paths) */
-  catchall?: { default?: Hono<E, S, BasePath> };
+  catchall?: ServerRouteModule<E, S, BasePath>;
   /** Optional array of child routes */
   children?: Route<E, S, BasePath>[];
 }

@@ -1,8 +1,16 @@
 import { delay } from "@std/async/delay";
 import { Suspense } from "react";
-import { Await, useAsyncError, useLoaderData } from "react-router";
+import { Await, useAsyncError } from "react-router";
 
-export function loader() {
+import type { AnyParams, RouteProps } from "@udibo/juniper";
+
+interface DeferLoaderData {
+  message: string;
+  delayedMessage: Promise<string>;
+  oops: Promise<string>;
+}
+
+export function loader(): DeferLoaderData {
   console.log("loader called");
   return {
     message: "Hello",
@@ -22,8 +30,10 @@ function AwaitError() {
   );
 }
 
-export default function Defer() {
-  const { message, delayedMessage, oops } = useLoaderData();
+export default function Defer({
+  loaderData,
+}: RouteProps<AnyParams, DeferLoaderData>) {
+  const { message, delayedMessage, oops } = loaderData;
   console.log("Defer component rendered", message, delayedMessage, oops);
 
   return (

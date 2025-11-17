@@ -1,6 +1,7 @@
-import { Outlet, useRouteError } from "react-router";
+import { Outlet } from "react-router";
 
 import { CustomError, isSerializedCustomError } from "/utils/error.ts";
+import type { ErrorBoundaryProps } from "@udibo/juniper";
 
 export default function Main() {
   return (
@@ -15,11 +16,10 @@ export default function Main() {
   );
 }
 
-export function ErrorBoundary(...args: unknown[]) {
-  console.log("ErrorBoundary args", args);
-  const error = useRouteError();
-  console.error("ErrorBoundary error", error);
-
+export function ErrorBoundary(
+  { params, error, resetErrorBoundary }: ErrorBoundaryProps,
+) {
+  console.log("ErrorBoundary error", error, params);
   if (error instanceof CustomError) {
     return (
       <div>
@@ -27,6 +27,7 @@ export function ErrorBoundary(...args: unknown[]) {
         <p>Message: {error.message}</p>
         <p>Expose stack: {error.exposeStack ? "Yes" : "No"}</p>
         {error.exposeStack ? <pre>Stack: {error.stack}</pre> : null}
+        <button type="button" onClick={resetErrorBoundary}>Try again</button>
       </div>
     );
   }

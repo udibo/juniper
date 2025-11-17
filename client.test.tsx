@@ -17,21 +17,19 @@ import { HttpError } from "@udibo/http-error";
 import { Outlet } from "react-router";
 import serialize from "serialize-javascript";
 
-import {
-  Client,
-  createLazyRouteObject,
-  isSerializedError,
-} from "@udibo/juniper/client";
+import { Client, isSerializedError } from "@udibo/juniper/client";
 import type {
-  ClientRouteFile,
   HydrationData,
   RootClientRoute,
   SerializedError,
 } from "@udibo/juniper/client";
+import type { RouteModule } from "@udibo/juniper";
 import { simulateBrowser } from "@udibo/juniper/utils/testing";
 import type { SimulatedBrowser } from "@udibo/juniper/utils/testing";
 
 import {
+  createLazyRoute,
+  createRoute,
   deserializeErrorDefault,
   deserializeHydrationData,
 } from "./_client.tsx";
@@ -200,37 +198,90 @@ describe("Client", () => {
   });
 });
 
-describe("createLazyRouteObject", () => {
-  let routeFile: ClientRouteFile;
+describe("createRoute", () => {
+  let routeFile: RouteModule;
+  beforeEach(() => {
+    routeFile = {
+      default: () => <div>Route</div>,
+    } satisfies RouteModule;
+  });
+
+  it("from a file with only default export", () => {
+    const routeObject = createRoute(routeFile);
+    assertExists(routeObject.Component);
+    assertEquals(typeof routeObject.Component, "function");
+    assertEquals(routeObject.ErrorBoundary, undefined);
+    assertEquals(routeObject.loader, undefined);
+    assertEquals(routeObject.action, undefined);
+  });
+
+  it("from a file with ErrorBoundary export", () => {
+    routeFile.ErrorBoundary = () => <div>Error Boundary</div>;
+    const routeObject = createRoute(routeFile);
+    assertExists(routeObject.Component);
+    assertEquals(typeof routeObject.Component, "function");
+    assertExists(routeObject.ErrorBoundary);
+    assertEquals(typeof routeObject.ErrorBoundary, "function");
+    assertEquals(routeObject.loader, undefined);
+    assertEquals(routeObject.action, undefined);
+  });
+
+  it("from a file with loader export", () => {
+    routeFile.loader = () => Promise.resolve({});
+    const routeObject = createRoute(routeFile);
+    assertExists(routeObject.Component);
+    assertEquals(typeof routeObject.Component, "function");
+    assertEquals(routeObject.ErrorBoundary, undefined);
+    assertEquals(routeObject.loader, routeFile.loader);
+    assertEquals(routeObject.action, undefined);
+  });
+
+  it("from a file with action export", () => {
+    routeFile.action = () => Promise.resolve({});
+    const routeObject = createRoute(routeFile);
+    assertExists(routeObject.Component);
+    assertEquals(typeof routeObject.Component, "function");
+    assertEquals(routeObject.ErrorBoundary, undefined);
+    assertEquals(routeObject.loader, undefined);
+    assertEquals(routeObject.action, routeFile.action);
+  });
+});
+
+describe("createLazyRoute", () => {
+  let routeFile: RouteModule;
   const lazyRouteFile = () => Promise.resolve(routeFile);
   beforeEach(() => {
     routeFile = {
       default: () => <div>Lazy Route</div>,
-    } satisfies ClientRouteFile;
+    } satisfies RouteModule;
   });
 
   it("from a file with only default export", async () => {
-    const lazyRouteObject = createLazyRouteObject(lazyRouteFile);
+    const lazyRouteObject = createLazyRoute(lazyRouteFile);
     const { Component, ErrorBoundary, loader } = await lazyRouteObject();
-    assertEquals(Component, routeFile.default);
+    assertExists(Component);
+    assertEquals(typeof Component, "function");
     assertEquals(ErrorBoundary, undefined);
     assertEquals(loader, undefined);
   });
 
   it("from a file with ErrorBoundary export", async () => {
     routeFile.ErrorBoundary = () => <div>Error Boundary</div>;
-    const lazyRouteObject = createLazyRouteObject(lazyRouteFile);
+    const lazyRouteObject = createLazyRoute(lazyRouteFile);
     const { Component, ErrorBoundary, loader } = await lazyRouteObject();
-    assertEquals(Component, routeFile.default);
-    assertEquals(ErrorBoundary, ErrorBoundary);
+    assertExists(Component);
+    assertEquals(typeof Component, "function");
+    assertExists(ErrorBoundary);
+    assertEquals(typeof ErrorBoundary, "function");
     assertEquals(loader, undefined);
   });
 
   it("from a file with loader export", async () => {
     routeFile.loader = () => Promise.resolve({});
-    const lazyRouteObject = createLazyRouteObject(lazyRouteFile);
+    const lazyRouteObject = createLazyRoute(lazyRouteFile);
     const { Component, ErrorBoundary, loader } = await lazyRouteObject();
-    assertEquals(Component, routeFile.default);
+    assertExists(Component);
+    assertEquals(typeof Component, "function");
     assertEquals(ErrorBoundary, undefined);
     assertEquals(loader, routeFile.loader);
   });
