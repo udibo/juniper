@@ -1,453 +1,213 @@
-**Warning: This file is old and needs updated**
-
 # HTTP Middleware
 
-Juniper is built on Hono, which means you can use any Hono middleware in your
-applications. Middleware functions run before your route handlers and can modify
-requests, responses, or add functionality like logging, authentication, and
-CORS.
+Juniper inherits Hono's middleware model. Every route file exports a Hono
+application, and the builder automatically composes them into a single tree.
+This guide explains where middleware runs, how errors propagate, and how to
+layer observability across the stack.
 
-## Using Middleware
+## Layering model
 
-### Basic Middleware Usage
+Middleware executes in the following order for document requests:
 
-Apply middleware to your routes using the `.use()` method:
+1. **Framework wrapper** – `createServer` configures global behavior
+   (`HttpError` normalization, `trimTrailingSlash`, static file serving,
+   tracing).
+2. **Root `routes/main.ts`** – your first chance to add app-wide middleware
+   (logging, feature flags, serialization helpers).
+3. **Nested `main.ts` files** – server middleware scoped to a specific branch
+   (e.g., `routes/api/main.ts`, `routes/blog/main.ts`).
+4. **Nested `main.tsx` files** – client/layout middleware scoped to a specific
+   branch (e.g., `routes/blog/main.tsx`).
+5. **Leaf handlers** – individual `.ts` or `.tsx` files handle the request (REST
+   endpoints, loaders/actions, React components).
 
-```typescript
-import { Hono } from "hono";
-import { logger } from "hono/logger";
+Because each node returns a full Hono app, you can use any existing Hono
+middleware or author your own via `createMiddleware`.
 
-const app = new Hono();
+Whenever a path includes both server (`.ts`) and client (`.tsx`) files, the
+server middleware runs first. If none of the server handlers write a response,
+Juniper appends a final handler that renders the React application for that
+route. Only the root `routes/main.ts` can export `serializeError`, and only the
+root `routes/main.tsx` can export `deserializeError`, since those govern the
+global error-serialization pair.
 
-// Apply logger middleware to all routes
-app.use(logger());
+## Framework-provided middleware
 
-app.get("/", (c) => c.text("Hello, World!"));
+`server.tsx` ships with two important defaults:
 
-export default app;
-```
-
-### Route-Specific Middleware
-
-Apply middleware to specific routes:
-
-```typescript
-import { Hono } from "hono";
-import { basicAuth } from "hono/basic-auth";
-
-const app = new Hono();
-
-// Apply basic auth only to admin routes
-app.use(
-  "/admin/*",
-  basicAuth({
-    username: "admin",
-    password: Deno.env.get("ADMIN_PASSWORD"),
-  }),
-);
-
-app.get("/", (c) => c.text("Public route"));
-app.get("/admin/dashboard", (c) => c.text("Admin dashboard"));
-
-export default app;
-```
-
-## Built-in Hono Middleware
-
-Juniper automatically includes several useful middleware:
-
-### Error Handling
-
-Juniper automatically handles errors using `@udibo/http-error`:
-
-```typescript
+```ts
+// server.tsx
 import { HttpError } from "@udibo/http-error";
+import { trimTrailingSlash } from "hono/trailing-slash";
+import { getInstance } from "@udibo/juniper/utils/otel";
 
-app.get("/users/:id", async (c) => {
-  const id = c.req.param("id");
-  const user = await getUserById(id);
-
-  if (!user) {
-    throw new HttpError(404, "User not found");
-  }
-
-  return c.json(user);
+const appWrapper = new Hono({ strict: true });
+appWrapper.onError((cause) => {
+  const error = HttpError.from(cause);
+  error.instance ??= getInstance();
+  console.error(error);
+  return error.getResponse();
 });
+appWrapper.use(trimTrailingSlash());
 ```
 
-### Trailing Slash Handling
+- All thrown values become `HttpError` instances so your API responses stay
+  consistent.
+- `getInstance()` stamps the trace/span ID onto the error so logs can be
+  correlated with OpenTelemetry.
+- Trailing slashes are stripped before routing so `/blog/` and `/blog` behave
+  the same.
 
-Juniper automatically removes trailing slashes from URLs using Hono's
-`trimTrailingSlash` middleware.
+You do not need to add these manually; every generated server already includes
+them.
 
-## Common Hono Middleware
+## Root middleware (`routes/main.ts`)
 
-### Logger
+Use the root `main.ts` to install middleware that should run for every request.
+For instance, you can add request logging and feature-flag headers:
 
-Log HTTP requests:
-
-```typescript
+```ts
+// routes/main.ts
+import { Hono } from "hono";
 import { logger } from "hono/logger";
+import { isDevelopment } from "@udibo/juniper/utils/env";
 
+const app = new Hono();
 app.use(logger());
-```
 
-### CORS
-
-Enable Cross-Origin Resource Sharing:
-
-```typescript
-import { cors } from "hono/cors";
-
-// Basic CORS
-app.use(cors());
-
-// Custom CORS configuration
-app.use(cors({
-  origin: ["http://localhost:3000", "https://myapp.com"],
-  allowMethods: ["GET", "POST", "PUT", "DELETE"],
-  allowHeaders: ["Content-Type", "Authorization"],
-}));
-```
-
-### Basic Authentication
-
-Add basic HTTP authentication:
-
-```typescript
-import { basicAuth } from "hono/basic-auth";
-
-app.use(
-  "/api/*",
-  basicAuth({
-    username: "api-user",
-    password: "secret-key",
-  }),
-);
-```
-
-### Bearer Token Authentication
-
-Validate bearer tokens:
-
-```typescript
-import { bearerAuth } from "hono/bearer-auth";
-
-app.use(
-  "/api/*",
-  bearerAuth({
-    token: "your-secret-token",
-  }),
-);
-```
-
-### Rate Limiting
-
-Limit request rates (requires additional setup):
-
-```typescript
-import { rateLimiter } from "hono/rate-limiter";
-
-app.use(rateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 100, // limit each IP to 100 requests per windowMs
-  standardHeaders: "draft-6",
-  keyGenerator: (c) => c.env?.ip ?? "unknown",
-}));
-```
-
-### Request ID
-
-Add unique request IDs:
-
-```typescript
-import { requestId } from "hono/request-id";
-
-app.use(requestId());
-
-app.get("/", (c) => {
-  const id = c.get("requestId");
-  return c.json({ requestId: id });
-});
-```
-
-### Compression
-
-Compress responses:
-
-```typescript
-import { compress } from "hono/compress";
-
-app.use(compress());
-```
-
-### Security Headers
-
-Add security headers:
-
-```typescript
-import { secureHeaders } from "hono/secure-headers";
-
-app.use(secureHeaders());
-```
-
-## Custom Middleware
-
-Create your own middleware functions:
-
-### Simple Custom Middleware
-
-```typescript
-import { createMiddleware } from "hono/factory";
-
-const customLogger = createMiddleware(async (c, next) => {
-  console.log(`${c.req.method} ${c.req.url}`);
-  await next();
-  console.log(`Response: ${c.res.status}`);
-});
-
-app.use(customLogger);
-```
-
-### Middleware with Configuration
-
-```typescript
-import { createMiddleware } from "hono/factory";
-
-interface TimingOptions {
-  header?: string;
+if (isDevelopment()) {
+  app.use(async (c, next) => {
+    c.header("x-dev-mode", "true");
+    await next();
+  });
 }
 
-const timing = (options: TimingOptions = {}) => {
-  return createMiddleware(async (c, next) => {
-    const start = Date.now();
-    await next();
-    const duration = Date.now() - start;
-
-    const header = options.header || "X-Response-Time";
-    c.res.headers.set(header, `${duration}ms`);
-  });
-};
-
-app.use(timing({ header: "X-Duration" }));
+export default app;
 ```
 
-### Authentication Middleware
+Because this file executes before any nested route, it is the ideal place to set
+response headers, enforce CSP defaults, or expose helper objects on the context
+(`c.set("user", user)`).
 
-```typescript
-import { createMiddleware } from "hono/factory";
-import { HttpError } from "@udibo/http-error";
+## Area-specific middleware
 
-const authMiddleware = createMiddleware(async (c, next) => {
-  const token = c.req.header("Authorization")?.replace("Bearer ", "");
+Scope middleware at different depths by using `main.ts` files inside
+directories. For instance, `routes/api/main.ts` centralizes API error handling
+and instrumentation:
 
-  if (!token) {
-    throw new HttpError(401, "Missing authorization token");
-  }
-
-  try {
-    const user = await validateToken(token);
-    c.set("user", user);
-    await next();
-  } catch (error) {
-    throw new HttpError(401, "Invalid token");
-  }
-});
-
-app.use("/api/protected/*", authMiddleware);
-
-app.get("/api/protected/profile", (c) => {
-  const user = c.get("user");
-  return c.json({ user });
-});
-```
-
-## Middleware Order
-
-Middleware runs in the order it's defined. Place middleware that should run
-first at the top:
-
-```typescript
+```ts
 import { Hono } from "hono";
-import { logger } from "hono/logger";
-import { cors } from "hono/cors";
-import { compress } from "hono/compress";
+import { HttpError } from "@udibo/http-error";
+import { getInstance } from "@udibo/juniper/utils/otel";
 
 const app = new Hono();
-
-// Order matters!
-app.use(logger()); // 1. Log requests first
-app.use(cors()); // 2. Handle CORS
-app.use(compress()); // 3. Compress responses
-app.use(authMiddleware); // 4. Authenticate users
-
-app.get("/", (c) => c.text("Hello, World!"));
+app.onError((cause) => {
+  const error = HttpError.from(cause);
+  error.instance ??= getInstance();
+  console.error(error);
+  return error.getResponse();
+});
 
 export default app;
 ```
 
-## Environment-Specific Middleware
+This keeps API behavior isolated from the document pipeline, while still
+inheriting the root logger and framework defaults.
 
-Use environment utilities to conditionally apply middleware:
+## Route-level middleware
 
-```typescript
+Inside a leaf file you can still register middleware before defining handlers:
+
+```ts
+// routes/api/users.ts
+import { Hono } from "hono";
+import { userService } from "/services/user.ts";
+
+const app = new Hono();
+app.use("*", async (c, next) => {
+  c.header("x-service", "users");
+  await next();
+});
+
+app.get("/", async (c) => {
+  const options = userService.parseListQueryParams(c.req.query());
+  const { entries, cursor } = await userService.list(options);
+  return c.json({ users: entries, cursor });
+});
+
+export default app;
+```
+
+Hono mounts middleware in the order you call `app.use`, so add request IDs,
+caching headers, or body parsers before registering handlers.
+
+## Conditional middleware
+
+Use `@udibo/juniper/utils/env` to toggle middleware per environment:
+
+```ts
 import { isDevelopment, isProduction } from "@udibo/juniper/utils/env";
 import { logger } from "hono/logger";
 import { compress } from "hono/compress";
 
 const app = new Hono();
-
-// Only log in development
-if (isDevelopment()) {
-  app.use(logger());
-}
-
-// Only compress in production
-if (isProduction()) {
-  app.use(compress());
-}
-
-export default app;
+if (isDevelopment()) app.use(logger());
+if (isProduction()) app.use(compress());
 ```
 
-## Route-Level Middleware Organization
+This keeps local builds verbose while production traffic benefits from
+compression.
 
-Organize middleware at different route levels:
+## Custom middleware helpers
 
-```typescript
-// routes/main.ts - Global middleware
-import { Hono } from "hono";
-import { logger } from "hono/logger";
-import { cors } from "hono/cors";
+Author reusable helpers with `createMiddleware`:
 
-const app = new Hono();
-
-app.use(logger());
-app.use(cors());
-
-export default app;
-```
-
-```typescript
-// routes/api/main.ts - API-specific middleware
-import { Hono } from "hono";
-import { bearerAuth } from "hono/bearer-auth";
-
-const app = new Hono();
-
-app.use(bearerAuth({ token: "api-token" }));
-
-export default app;
-```
-
-```typescript
-// routes/api/admin/main.ts - Admin-specific middleware
-import { Hono } from "hono";
-import { basicAuth } from "hono/basic-auth";
-
-const app = new Hono();
-
-app.use(basicAuth({
-  username: "admin",
-  password: Deno.env.get("ADMIN_PASSWORD"),
-}));
-
-export default app;
-```
-
-## Error Handling in Middleware
-
-Handle errors properly in custom middleware:
-
-```typescript
+```ts
 import { createMiddleware } from "hono/factory";
 import { HttpError } from "@udibo/http-error";
 
-const databaseMiddleware = createMiddleware(async (c, next) => {
-  try {
-    const db = await connectToDatabase();
-    c.set("db", db);
-    await next();
-  } catch (error) {
-    console.error("Database connection failed:", error);
-    throw new HttpError(500, "Database unavailable");
+export const requireApiKey = createMiddleware(async (c, next) => {
+  const apiKey = c.req.header("x-api-key");
+  if (apiKey !== Deno.env.get("API_KEY")) {
+    throw new HttpError(401, "Invalid API key");
   }
-});
-```
-
-## Best Practices
-
-### 1. Keep Middleware Focused
-
-Each middleware should have a single responsibility:
-
-```typescript
-// Good: Focused middleware
-const authMiddleware = createMiddleware(async (c, next) => {
-  // Only handle authentication
-  const user = await authenticate(c);
-  c.set("user", user);
-  await next();
-});
-
-const loggingMiddleware = createMiddleware(async (c, next) => {
-  // Only handle logging
-  console.log(`${c.req.method} ${c.req.url}`);
   await next();
 });
 ```
 
-### 2. Use Appropriate Middleware Scope
+Then use it in any route file:
 
-Apply middleware at the right level:
-
-```typescript
-// Global middleware in routes/main.ts
-app.use(logger());
-app.use(cors());
-
-// API middleware in routes/api/main.ts
-app.use(rateLimiter());
-
-// Admin middleware in routes/api/admin/main.ts
-app.use(adminAuth());
+```ts
+const app = new Hono();
+app.use("/internal/*", requireApiKey);
 ```
 
-### 3. Handle Errors Gracefully
+## Error propagation and telemetry
 
-Always handle potential errors in middleware:
+- Throw `HttpError` (or subclasses) to control status codes and response bodies.
+- Any other error is converted via `HttpError.from(cause)` and logged with trace
+  metadata.
+- Add `app.onError` blocks at any level to attach context-specific logs or
+  metrics.
+- Use `otelUtils(trace.getTracer("service"))` when a middleware performs async
+  work that should appear in traces (e.g., database pooling or RPC calls).
 
-```typescript
-const safeMiddleware = createMiddleware(async (c, next) => {
-  try {
-    // Middleware logic
-    await next();
-  } catch (error) {
-    console.error("Middleware error:", error);
-    throw new HttpError(500, "Internal server error");
-  }
-});
-```
+## Ordering tips
 
-### 4. Document Custom Middleware
+1. **Log early.** Place logging/request ID middleware before authentication so
+   failed auth attempts are captured.
+2. **Authenticate before rate limiting sensitive routes.** Rate limiters often
+   rely on user identity; ensure `authMiddleware` runs before `rateLimiter`.
+3. **Mutate responses last.** Compression, caching headers, and security
+   policies should run after handlers set their specific headers.
+4. **Reuse context.** Store expensive resources (database handles, feature flag
+   snapshots) on the Hono context so downstream handlers do not reopen them.
 
-Add clear documentation for custom middleware:
+## Checklist
 
-```typescript
-/**
- * Validates API keys from the X-API-Key header
- * @param validKeys Array of valid API keys
- * @returns Middleware function
- */
-const apiKeyAuth = (validKeys: string[]) => {
-  return createMiddleware(async (c, next) => {
-    const apiKey = c.req.header("X-API-Key");
-
-    if (!apiKey || !validKeys.includes(apiKey)) {
-      throw new HttpError(401, "Invalid API key");
-    }
-
-    await next();
-  });
-};
-```
+- Install app-wide middleware in `routes/main.ts`.
+- Create dedicated `main.ts` files for each major area (API, admin, etc.).
+- Keep leaf middleware focused and ordered (log → auth → business logic).
+- Always convert thrown values to `HttpError` or let the framework do it for
+  you.
+- Capture trace IDs with `getInstance()` whenever you log or rethrow.
