@@ -1,33 +1,25 @@
-**Warning: This file is old and needs updated**
-
 # Configuration
 
-Juniper applications are configured through `deno.json` and environment
-variables. This guide covers all configuration options and best practices.
+This guide explains how Juniper projects are wired through `deno.json`,
+environment files, and the `Builder` runtime. Use it as the single source of
+truth when creating a new application or reviewing CI/CD pipelines.
 
-## deno.json Configuration
+## deno.json Anatomy
 
-The `deno.json` file is the main configuration file for your Juniper
-application.
-
-### Basic Configuration
+Every Juniper project should declare the following sections:
 
 ```json
 {
-  "name": "my-juniper-app",
-  "description": "My Juniper application",
-  "exports": {
-    ".": "./main.ts"
-  },
-  "tasks": {
-    "serve": "deno run -A --env-file main.ts",
-    "build": "deno run -A --env-file build.ts",
-    "test": "deno test -A --env-file"
-  },
   "imports": {
     "@udibo/juniper": "jsr:@udibo/juniper@^0.0.1",
     "@udibo/http-error": "jsr:@udibo/http-error@0.10",
-    "hono": "npm:hono@^4"
+    "@std/assert": "jsr:@std/assert@^1.0.15",
+    "@std/testing": "jsr:@std/testing@^1.0.16",
+    "@std/path": "jsr:@std/path@^1.1.2",
+    "hono": "npm:hono@^4.10.4",
+    "react": "npm:react@^19.2.0",
+    "react-dom": "npm:react-dom@^19.2.0",
+    "react-router": "npm:react-router@^7.9.5"
   },
   "compilerOptions": {
     "lib": [
@@ -41,266 +33,169 @@ application.
     "jsx": "react-jsx",
     "jsxImportSource": "react",
     "jsxImportSourceTypes": "@types/react"
-  }
-}
-```
-
-### Tasks
-
-Define common development tasks:
-
-```json
-{
-  "tasks": {
+  },
+  "nodeModulesDir": "auto",
+  "unstable": ["kv"],
+  "permissions": {
     "serve": {
-      "description": "Start the development server",
-      "command": "deno run -A --env-file main.ts"
+      "net": true,
+      "env": true,
+      "read": true,
+      "write": ["./public/build"]
     },
     "build": {
-      "description": "Build the application",
-      "command": "deno run -A --env-file build.ts"
+      "env": true,
+      "read": true,
+      "write": ["./public/build", "./main.ts", "./main.tsx"],
+      "run": true
+    },
+    "dev": {
+      "net": true,
+      "env": true,
+      "read": true,
+      "write": ["./public/build", "./main.ts", "./main.tsx"],
+      "run": true
     },
     "test": {
-      "description": "Run tests",
-      "command": "deno test -A --env-file"
-    },
-    "lint": {
-      "description": "Lint the code",
-      "command": "deno lint"
-    },
-    "fmt": {
-      "description": "Format the code",
-      "command": "deno fmt"
-    },
-    "check": {
-      "description": "Type check the code",
-      "command": "deno check **/*.ts"
+      "net": true,
+      "env": true,
+      "read": true,
+      "write": true,
+      "run": true
     }
   }
 }
 ```
 
-### Import Maps
+- **Imports** pull in Juniper and its peer dependencies via the import map.
+- **Compiler options** enable JSX via `react-jsx` output so both client and
+  server code share React components.
+- **Permissions** leverage Deno 2.5 permission profiles so each `deno task`
+  receives only the capabilities it needs.
+- **Unstable flags** currently opt into `Deno.Kv`, which powers the bundled KV
+  service helpers.
 
-Configure dependencies using import maps:
+## Task Definitions
 
-```json
-{
-  "imports": {
-    // Juniper module
-    "@udibo/juniper": "jsr:@udibo/juniper@^0.0.1",
-
-    // Core dependencies
-    "hono": "npm:hono@^4",
-    "react": "npm:react@^18",
-    "react-dom": "npm:react-dom@^18",
-
-    // Utilities
-    "@std/assert": "jsr:@std/assert@1",
-    "@std/testing": "jsr:@std/testing@1",
-    "@std/path": "jsr:@std/path@1",
-    "@std/fs": "jsr:@std/fs@1",
-
-    // Error handling
-    "@udibo/http-error": "jsr:@udibo/http-error@0.10"
-  }
-}
-```
-
-### Compiler Options
-
-Configure TypeScript compilation:
-
-```json
-{
-  "compilerOptions": {
-    "lib": [
-      "esnext",
-      "dom",
-      "dom.iterable",
-      "dom.asynciterable",
-      "deno.ns",
-      "deno.unstable"
-    ],
-    "jsx": "react-jsx",
-    "jsxImportSource": "react",
-    "jsxImportSourceTypes": "@types/react",
-    "strict": true,
-    "noImplicitAny": true,
-    "noImplicitReturns": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true
-  }
-}
-```
-
-### Node Modules
-
-Enable Node.js compatibility when needed:
-
-```json
-{
-  "nodeModulesDir": "auto"
-}
-```
-
-### Unstable Features
-
-Enable Deno unstable features:
-
-```json
-{
-  "unstable": ["kv", "ffi", "worker"]
-}
-```
-
-### Permissions
-
-Configure default permissions for tasks:
+Map repeatable workflows to tasks. The default repo ships with:
 
 ```json
 {
   "tasks": {
-    "serve": "deno run --allow-net --allow-read --allow-env main.ts",
-    "build": "deno run --allow-read --allow-write --allow-env build.ts"
+    "build": "export OTEL_SERVICE_NAME=build && deno run -P=build --env-file ./build.ts",
+    "build-prod": "export OTEL_SERVICE_NAME=build && deno run -P=build --env-file --env-file=.env.production ./build.ts",
+    "dev": "export OTEL_SERVICE_NAME=dev && deno run -P=dev --env-file ./dev.ts --project-root ./",
+    "serve": "deno run -P=serve --env-file ./main.ts",
+    "serve-prod": "deno run -P=serve --env-file --env-file=.env.production ./main.ts",
+    "test": "deno test -P=test --env-file --env-file=.env.test",
+    "test-update": "deno task test -- --update",
+    "check": "deno lint && deno fmt --check"
   }
 }
 ```
 
-## Environment Variables
+Key ideas:
 
-### Environment Files
+- `-P=name` selects the permission profile of the same name.
+- `--env-file` loads `.env` automatically; add a second flag to layer
+  `.env.production` or `.env.test`.
+- `test-update` simply forwards `--update` to `deno test`, so snapshot refreshes
+  reuse the same task.
 
-Juniper supports multiple environment files:
+Adopt these commands verbatim or adjust the paths to match your project root.
 
-- `.env` - Default environment variables
-- `.env.production` - Production-specific variables
-- `.env.test` - Test-specific variables
-- `.env.local` - Local overrides (should be gitignored)
+## Builder Options
 
-### Loading Environment Files
+Use the `Builder` class when you need custom build hooks. The constructor
+accepts:
 
-Environment files are loaded automatically when using the `--env-file` flag:
+| Option        | Description                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------------- |
+| `projectRoot` | Absolute path that contains `routes/`, `public/`, and `main.tsx`. Defaults to `Deno.cwd()`. |
+| `configPath`  | Path to `deno.json` or `deno.jsonc`. Used by the esbuild loader.                            |
+| `entryPoints` | Additional files (CSS, workers) that should be bundled into `public/build`.                 |
+| `watchPaths`  | Glob(s) watched by the dev server. Defaults to the project root.                            |
+| `plugins`     | Extra esbuild plugins inserted between the resolver and loader.                             |
+| `write`       | Set to `false` in tests to avoid touching the filesystem.                                   |
 
-```bash
-# Loads .env by default
-deno run --env-file main.ts
+The builder exposes:
 
-# Load specific environment file
-deno run --env-file=.env.production main.ts
+- `build()` – generates entrypoints, creates an esbuild context, writes bundles
+  to `public/build`, and stores the context for incremental rebuilds.
+- `dispose()` – tears down esbuild and removes the builder from the active set
+  so repeated builds do not leak resources.
 
-# Load multiple environment files
-deno run --env-file --env-file=.env.production main.ts
+## Environment Management
+
+Juniper uses `APP_ENV` to determine whether it is running in development,
+production, or test (`utils/env.ts`). All server renders capture the current
+`APP_ENV` and embed it in the hydration payload so `isDevelopment()`,
+`isProduction()`, and `isTest()` behave consistently in the browser.
+
+Recommended file layout:
+
+```
+.env              # Shared defaults (development)
+.env.production   # Production overrides
+.env.test         # Test-only overrides
+.env.local        # Ignored secrets per developer
 ```
 
-### Environment Variables
-
-#### Application Environment
+The tasks above load `.env` plus one extra file using repeated `--env-file`
+flags:
 
 ```bash
-# .env
-APP_ENV=development
-
-# .env.production
-APP_ENV=production
-
-# .env.test
-APP_ENV=test
+deno run --env-file --env-file=.env.production ./main.ts
 ```
 
-### Using Environment Variables
+When you need environment conditionals in code, import the helpers:
 
-Access environment variables in your code:
-
-```typescript
+```ts
 import { isDevelopment, isProduction, isTest } from "@udibo/juniper/utils/env";
 
-// Environment detection
 if (isDevelopment()) {
   console.log("Development mode");
 }
-
-// Direct access
-const port = parseInt(Deno.env.get("PORT") || "8000");
-const host = Deno.env.get("HOST") || "localhost";
-
-// With defaults
-const dbUrl = Deno.env.get("DATABASE_URL") || "sqlite:./dev.db";
-const jwtSecret = Deno.env.get("JWT_SECRET") || "dev-secret";
-
-// Boolean values
-const enableAnalytics = Deno.env.get("ENABLE_ANALYTICS") === "true";
 ```
 
-## OpenTelemetry Configuration
+For tests, `@udibo/juniper/utils/testing` exposes `simulateEnvironment` so each
+spec can temporarily override variables without polluting the process.
 
-Configure observability with OpenTelemetry:
+## Telemetry and Logging
 
-### Environment Variables
+The repository enables OpenTelemetry end to end:
 
-```bash
-# OpenTelemetry settings
-OTEL_DENO=true
-OTEL_SERVICE_NAME=my-juniper-app
-```
+- `utils/otel.ts` exposes `getInstance()` to correlate errors with the active
+  span and `otelUtils()` to wrap spans with automatic HttpError propagation.
+- Tasks set `OTEL_SERVICE_NAME` so Grafana/Tempo receives a distinct service for
+  build, dev, and runtime.
+- `server.tsx` sets `error.instance = getInstance()` before logging, which
+  surfaces trace IDs in responses.
 
-### Task Configuration
+Set `OTEL_DENO=true` (or rely on your agent's defaults) before running
+serve/build commands if you want spans to flow into an external collector.
 
-```json
-{
-  "tasks": {
-    "serve": "export OTEL_DENO=true OTEL_SERVICE_NAME=MyApp && deno run -A --env-file --unstable-otel main.ts"
-  }
-}
-```
+## Generated Files and Assets
 
-## Best Practices
+During `deno task build`:
 
-### 1. Use Environment-Specific Files
+- `main.ts` is regenerated. Commit this file so production servers do not need
+  the builder.
+- `main.tsx` is regenerated for the client.
+- `public/build/main.js` and related chunks are written with React Compiler,
+  code splitting, and sourcemaps (in development). Additional entrypoints from
+  `entryPoints` are bundled alongside the router bundle.
 
-Organize environment variables by environment:
+Static assets placed anywhere under `public/` are served verbatim.
 
-```
-.env                # Default values
-.env.production     # Production values
-.env.test           # Test values
-.env.local          # Local overrides (gitignored)
-```
+## Checklist
 
-### 2. Validate Environment Variables
-
-Always validate critical environment variables:
-
-```typescript
-const requiredEnvVars = ["DATABASE_URL", "JWT_SECRET"];
-
-for (const envVar of requiredEnvVars) {
-  if (!Deno.env.get(envVar)) {
-    throw new Error(`Missing required environment variable: ${envVar}`);
-  }
-}
-```
-
-### 3. Use Sensible Defaults
-
-Provide defaults for non-critical configuration:
-
-```typescript
-const config = {
-  port: parseInt(Deno.env.get("PORT") || "8000"),
-  host: Deno.env.get("HOST") || "localhost",
-  logLevel: Deno.env.get("LOG_LEVEL") || "info",
-};
-```
-
-### 4. Keep Secrets Secure
-
-Never commit secrets to version control:
-
-```gitignore
-# .gitignore
-.env.local
-.env.production
-*.key
-*.pem
-```
+1. Configure `deno.json` with exports/imports, permission profiles, and tasks.
+2. Create a `build.ts` that instantiates a `Builder` with the correct
+   `projectRoot`.
+3. Define `.env*` files plus `APP_ENV` so `utils/env` behaves correctly on both
+   server and client.
+4. Decide whether to opt into OpenTelemetry by exporting
+   `OTEL_SERVICE_NAME`/`OTEL_DENO` in tasks.
+5. Commit the generated `main.ts`, `main.tsx`, and `public/build` outputs that
+   your deploy target needs.

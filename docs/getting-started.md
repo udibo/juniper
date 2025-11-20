@@ -1,17 +1,18 @@
-**Warning: This file is old and needs updated**
-
 # Getting Started
 
-Juniper is a web framework for building React applications with Deno. It
-combines the power of Hono for server routing with React Router for UI routing,
-making it easy to understand your application as a tree.
+Juniper is a full-stack React framework for Deno that pairs Hono-based server
+routing with React Router on the client. The `@udibo/juniper/build` pipeline
+generates the entrypoints that stitch the two halves together so you can focus
+on routes, loaders, and middleware instead of glue code.
 
 ## Prerequisites
 
-- [Deno](https://deno.land/) 1.40 or later
-- Basic knowledge of TypeScript and React
+- Deno 2.5 or later (`deno --version`)
+- Basic familiarity with React Router and Hono
+- A project workspace that can run Deno with the permissions listed in your
+  `deno.json`
 
-## Installation
+## 1. Add Juniper to the import map
 
 Juniper is available on JSR. To use it in your project, add it to your
 `deno.json` import map:
@@ -21,194 +22,149 @@ Juniper is available on JSR. To use it in your project, add it to your
   "imports": {
     "@udibo/juniper": "jsr:@udibo/juniper@^0.0.1",
     "@udibo/http-error": "jsr:@udibo/http-error@0.10",
-    "hono": "npm:hono@^4"
+    "@std/assert": "jsr:@std/assert@^1.0.15",
+    "@std/testing": "jsr:@std/testing@^1.0.16",
+    "@std/path": "jsr:@std/path@^1.1.2",
+    "hono": "npm:hono@^4.10.4",
+    "react": "npm:react@^19.2.0",
+    "react-dom": "npm:react-dom@^19.2.0",
+    "react-router": "npm:react-router@^7.9.5"
   }
 }
 ```
 
-## Project Setup
+The compiler options in the same file should enable JSX and the DOM libs,
+matching the defaults used in this repository.
 
-### 1. Create Project Structure
+## 2. Shape the project
 
-Create a new directory for your project and set up the basic structure:
+Juniper projects expect a minimal layout:
 
 ```
 my-app/
+├── build.ts
 ├── deno.json
-├── main.ts
+├── public/
+│   ├── build/            # Bundled assets written by the builder
+│   └── images/
 ├── routes/
-│   └── main.ts
-└── public/
+│   ├── main.ts           # Global server middleware
+│   └── main.tsx          # Root React layout
+└── utils/
 ```
 
-### 2. Configure deno.json
+Everything inside `routes/` participates in file-based routing. Keep shared
+helpers in directories prefixed with `_` or outside the routes tree so they are
+not registered as URLs.
 
-Create a `deno.json` file with the necessary configuration:
+## 3. Create a builder
+
+Each project needs a thin wrapper around the `Builder` class. A typical
+`build.ts` looks like this:
+
+```ts
+import * as path from "@std/path";
+import { Builder } from "@udibo/juniper/build";
+
+const projectRoot = path.dirname(path.fromFileUrl(import.meta.url));
+export const builder = new Builder({
+  projectRoot,
+  configPath: "./deno.json",
+});
+
+if (import.meta.main) {
+  await builder.build();
+  await builder.dispose();
+}
+```
+
+`projectRoot` tells the builder where to look for `routes/`, `public/`, and
+`main.tsx`. When invoked it:
+
+1. Scans the routes directory on the server side and writes `main.ts` that calls
+   `createServer`.
+2. Scans client `.tsx` routes and writes `main.tsx` that creates a `Client`.
+3. Bundles client code (and any extra entrypoints) into `public/build`.
+
+## 4. Add developer tasks
+
+Wire the builder and dev server into `deno.json` tasks. The repo uses the
+following commands:
 
 ```json
 {
-  "name": "my-app",
-  "version": "0.1.0",
   "tasks": {
-    "serve": "deno run -A --env-file main.ts",
-    "build": "deno run -A --env-file build.ts"
-  },
-  "imports": {
-    "@udibo/juniper": "jsr:@udibo/juniper@^0.0.1",
-    "@udibo/http-error": "jsr:@udibo/http-error@0.10",
-    "hono": "npm:hono@^4"
-  },
-  "compilerOptions": {
-    "lib": [
-      "esnext",
-      "dom",
-      "dom.iterable",
-      "dom.asynciterable",
-      "deno.ns",
-      "deno.unstable"
-    ],
-    "jsx": "react-jsx",
-    "jsxImportSource": "react",
-    "jsxImportSourceTypes": "@types/react"
+    "build": "export OTEL_SERVICE_NAME=build && deno run -P=build --env-file ./build.ts",
+    "build-prod": "export OTEL_SERVICE_NAME=build && deno run -P=build --env-file --env-file=.env.production ./build.ts",
+    "dev": "export OTEL_SERVICE_NAME=dev && deno run -P=dev --env-file ./dev.ts --project-root ./",
+    "serve": "deno run -P=serve --env-file ./main.ts",
+    "serve-prod": "deno run -P=serve --env-file --env-file=.env.production ./main.ts",
+    "test": "deno test -P=test --env-file --env-file=.env.test",
+    "check": "deno lint && deno fmt --check"
   }
 }
 ```
 
-### 3. Create Your First Route
+The permission profiles defined under `"permissions"` in `deno.json` ensure each
+task only receives the capabilities it needs.
 
-Create a `routes/main.ts` file:
+## 5. Generate entrypoints
 
-```typescript
-import { Hono } from "hono";
-
-const app = new Hono();
-
-app.get("/", (c) => c.text("Hello, World!"));
-
-export default app;
-```
-
-### 4. Create Build Script
-
-Create a `build.ts` file to generate your main application file:
-
-```typescript
-import { buildMainFile } from "@udibo/juniper/build";
-
-const projectRoot = new URL(".", import.meta.url).pathname;
-const mainFileContent = await buildMainFile(projectRoot);
-
-await Deno.writeTextFile("main.ts", mainFileContent);
-console.log("✅ Generated main.ts");
-```
-
-### 5. Generate and Run Your Application
-
-First, generate your main application file:
+Run the builder once any time the routes tree changes:
 
 ```bash
 deno task build
 ```
 
-This will create a `main.ts` file that imports and configures all your routes.
+This produces two generated files:
 
-Then start your server:
+- `main.ts` – wraps your Hono route tree using `createServer` and automatically
+  mounts client rendering for document requests.
+- `main.tsx` – exports a `Client` configured with React Router route objects and
+  lazy loaders.
+
+Check both files into source control so deployments do not need to run the
+builder.
+
+## 6. Start the dev server
+
+`deno task dev` launches `@udibo/juniper/dev`, which:
+
+- Watches your project for file changes.
+- Rebuilds `public/build` and regenerates entrypoints as needed.
+- Provides live reload via `public/dev-client.js`.
+
+By default it serves the generated server on port `8000`. Pass `--port` to
+override:
 
 ```bash
-deno task serve
+deno task dev --port 4000
 ```
 
-Your application will be available at `http://localhost:8000`.
+## 7. Serve the application
 
-## File-Based Routing
+Use the generated `main.ts` to serve the app in any environment:
 
-Juniper uses a file-based routing system where the structure of your `routes/`
-directory determines your application's URL structure.
-
-### Route Types
-
-- **`main.ts`** - Main route handler for a path segment
-- **`index.ts`** - Index route (handles the exact path)
-- **`[...].ts`** - Catch-all route (handles any unmatched paths)
-- **`[param].ts`** - Dynamic route with parameter
-- **Regular files** - Create routes based on filename
-
-### Examples
-
-```
-routes/
-├── main.ts              # Handles /
-├── hello.ts             # Handles /hello
-├── api/
-│   ├── main.ts          # Handles /api
-│   ├── users.ts         # Handles /api/users
-│   └── hello/
-│       ├── index.ts     # Handles /api/hello
-│       └── [name].ts    # Handles /api/hello/:name
-└── blog/
-    └── [slug]/
-        └── main.ts      # Handles /blog/:slug
+```bash
+deno task serve          # development env vars
+deno task serve-prod     # loads .env.production and removes dev tooling
 ```
 
-### Route File Structure
+Both tasks call `Deno.serve(server.fetch)` inside the generated entrypoint, so
+no additional HTTP wiring is required.
 
-Each server route file should export a Hono app as the default export:
+## 8. Verify client hydration
 
-```typescript
-import { Hono } from "hono";
+Client bundles import the generated `Client` instance from `/build/main.js`. The
+server embeds a hydration script that calls `client.hydrate()` once the bundle
+loads. If you need to customize error serialization, export `serializeError`
+from `routes/main.ts` and `deserializeError` from `routes/main.tsx`.
 
-const app = new Hono();
+## Next steps
 
-app.get("/", (c) => c.text("Hello from this route!"));
-app.post("/", async (c) => {
-  const body = await c.req.json();
-  return c.json({ received: body });
-});
-
-export default app;
-```
-
-## Static Files
-
-Juniper automatically serves static files from a `public/` directory in your
-project root. Any files placed in this directory will be served at the root of
-your application.
-
-```
-public/
-├── favicon.ico
-├── styles.css
-└── images/
-    └── logo.png
-```
-
-These files will be available at `/favicon.ico`, `/styles.css`, and
-`/images/logo.png` respectively.
-
-## Environment Utilities
-
-Juniper provides utilities for working with environment variables:
-
-```typescript
-import { isDevelopment, isProduction, isTest } from "@udibo/juniper/utils/env";
-
-if (isDevelopment()) {
-  console.log("Running in development mode");
-}
-
-if (isProduction()) {
-  console.log("Running in production mode");
-}
-```
-
-The environment is determined by the `APP_ENV` environment variable:
-
-- `development` (default)
-- `production`
-- `test`
-
-## Next Steps
-
-- Learn about [API route creation](routing.md)
-- Explore [middleware usage](http-middleware.md)
-- Set up [development tools](development-tools.md)
+- Deep dive into [Configuration](configuration.md) to understand tasks,
+  permissions, and environment files.
+- Learn how [Routing](routing.md) stitches server and client files together.
+- See how to extend behavior with [HTTP Middleware](http-middleware.md).
+- Continue with [Development Tools](development-tools.md) for day-to-day
+  workflows.
