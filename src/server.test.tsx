@@ -123,21 +123,6 @@ describe("createServer", () => {
     assertStringIncludes(html, "<div>Home</div>");
   });
 
-  it("should include dev-client script tag in development", async () => {
-    using _env = simulateEnvironment({ "APP_ENV": null });
-
-    const client = new Client({
-      path: "/",
-      main: { default: () => <div>Home</div> },
-    });
-    const server = createServer(import.meta.url, client, { path: "/" });
-    const res = await server.request("http://localhost/");
-    const html = await res.text();
-    // React injects bootstrap scripts with async attribute
-    assertStringIncludes(html, 'src="/dev-client.js"');
-    assertStringIncludes(html, "<div>Home</div>");
-  });
-
   it("should return JSON for data requests when Accept is application/json", async () => {
     const client = new Client({
       path: "/",

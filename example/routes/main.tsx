@@ -1,7 +1,7 @@
 import { Outlet } from "react-router";
-
-import { CustomError, isSerializedCustomError } from "/utils/error.ts";
 import type { ErrorBoundaryProps } from "@udibo/juniper";
+
+import { CustomError, isSerializedCustomError } from "@/utils/error.ts";
 
 export default function Main() {
   return (

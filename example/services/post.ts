@@ -1,4 +1,5 @@
 import { z } from "zod";
+
 import { Service } from "./service.ts";
 
 export const PostSchema = z.object({

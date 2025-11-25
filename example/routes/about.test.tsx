@@ -1,7 +1,7 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
 
-import { server } from "/main.ts";
+import { server } from "@/main.ts";
 
 describe("GET /about", () => {
   it("should return HTML from converted client route", async () => {

@@ -1,10 +1,9 @@
 import { encodeHex } from "@std/encoding/hex";
 import { HttpError } from "@udibo/http-error";
 import { z } from "zod";
-
 import { isDevelopment } from "@udibo/juniper/utils/env";
 
-import { startActiveSpan } from "/utils/otel.ts";
+import { startActiveSpan } from "@/utils/otel.ts";
 
 import { Service } from "./service.ts";
 

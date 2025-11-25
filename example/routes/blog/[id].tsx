@@ -1,10 +1,10 @@
+import type { ErrorBoundaryProps, RouteProps } from "@udibo/juniper";
 import { HttpError } from "@udibo/http-error";
 import type { LoaderFunctionArgs } from "react-router";
 import { Link } from "react-router";
 
-import type { Post } from "/services/post.ts";
-import { postService } from "/services/post.ts";
-import type { ErrorBoundaryProps, RouteProps } from "@udibo/juniper";
+import type { Post } from "@/services/post.ts";
+import { postService } from "@/services/post.ts";
 
 interface BlogPostLoaderData {
   post: Post;
