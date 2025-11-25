@@ -57,7 +57,7 @@
     },
     "test:example": {
       "description": "Runs all of the example tests.",
-      "command": "deno task --cwd=templates/minimal test"
+      "command": "deno task --cwd=example test"
     },
     "test:minimal": {
       "description": "Runs all of the minimal template tests.",
