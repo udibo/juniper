@@ -6,5 +6,3 @@ coverage:
     project:
       default:
         informational: true
-ignore:
-  - "example/public/build/**/*"
