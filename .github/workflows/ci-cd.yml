@@ -86,7 +86,8 @@ jobs:
   publish:
     name: Publish to JSR
     needs: [test]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: false # Disabled until ready to publish
     runs-on: ubuntu-latest
     permissions:
       id-token: write
