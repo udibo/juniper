@@ -560,7 +560,7 @@ describe("DevServer", () => {
 
         assertSpyCall(commandStub, 0, {
           args: [Deno.execPath(), {
-            args: ["task", "serve"],
+            args: ["task", "serve", "--hot-reload"],
             stdout: "piped",
             stderr: "piped",
           }],

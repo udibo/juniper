@@ -7,13 +7,13 @@ on:
     branches:
       - main
 jobs:
-  formatAndLint:
+  format-and-lint:
     name: Check formatting and lint
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
-      - name: Setup deno
+      - name: Setup Deno
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
@@ -24,7 +24,7 @@ jobs:
         run: deno lint
   test:
     name: Test on ${{ matrix.os }}
-    needs: [formatAndLint]
+    needs: [format-and-lint]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -32,25 +32,37 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
-      - name: Setup deno
+      - name: Setup Deno
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
           cache: true
-      - name: Run tests and collect coverage
-        run: deno task test --coverage
-      - name: View coverage report
+      - name: Run src tests with coverage (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: deno task test:juniper --coverage
+      - name: View coverage report (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: src
         run: deno coverage --detailed
-      - name: Upload coverage
+      - name: Upload coverage (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@v5
-        if: ${{ matrix.os == 'ubuntu-latest' }}
         with:
           fail_ci_if_error: true
-          files: coverage/lcov.info
+          files: src/coverage/lcov.info
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      - name: Run example tests (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: deno task test:example
+      - name: Run minimal template tests (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: deno task test:minimal
+      - name: Run all tests (macOS/Windows)
+        if: matrix.os != 'ubuntu-latest'
+        run: deno task test
   deploy:
-    name: Deploy
+    name: Deploy to Deno Deploy
     needs: [test]
     runs-on: ubuntu-latest
     permissions:
@@ -59,7 +71,7 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
-      - name: Setup deno
+      - name: Setup Deno
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
@@ -71,3 +83,28 @@ jobs:
         with:
           project: juniper
           entrypoint: ./example/main.ts
+  publish:
+    name: Publish to JSR
+    needs: [test]
+    # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: false # Disabled until ready to publish
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+          cache: true
+      - name: Copy README, LICENSE, and docs to src
+        run: |
+          cp README.md src/
+          cp LICENSE src/
+          cp -r docs src/
+      - name: Publish to JSR
+        working-directory: src
+        run: deno publish

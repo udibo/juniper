@@ -1,4 +1,4 @@
-import { CustomError } from "/utils/error.ts";
+import { CustomError } from "@/utils/error.ts";
 
 export default function CustomErrorPage() {
   console.log("CustomErrorPage render");

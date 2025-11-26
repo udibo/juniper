@@ -2,9 +2,9 @@ import { assertEquals, assertStringIncludes } from "@std/assert";
 import { afterAll, beforeAll, describe, it } from "@std/testing/bdd";
 import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
 
-import { server } from "/main.ts";
-import { postService } from "/services/post.ts";
-import type { NewPost } from "/services/post.ts";
+import { server } from "@/main.ts";
+import { postService } from "@/services/post.ts";
+import type { NewPost } from "@/services/post.ts";
 
 describe("GET /blog (index)", () => {
   let testAuthorId: string;

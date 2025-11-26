@@ -1,8 +1,8 @@
 import { Link } from "react-router";
-
-import { postService } from "/services/post.ts";
-import type { Post } from "/services/post.ts";
 import type { AnyParams, RouteProps } from "@udibo/juniper";
+
+import { postService } from "@/services/post.ts";
+import type { Post } from "@/services/post.ts";
 
 interface BlogIndexLoaderData {
   posts: Post[];

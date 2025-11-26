@@ -1,7 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
 
-import { server } from "/main.ts";
+import { server } from "@/main.ts";
 
 describe("dynamic api route", () => {
   it("should throw 404 error for non-existent API", async () => {

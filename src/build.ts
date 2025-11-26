@@ -1,7 +1,4 @@
-import {
-  denoLoaderPlugin,
-  denoResolverPlugin,
-} from "@luca/esbuild-deno-loader";
+import { denoPlugin } from "@deno/esbuild-plugin";
 import { delay } from "@std/async/delay";
 import { ensureDir, exists } from "@std/fs";
 import * as path from "@std/path";
@@ -381,14 +378,11 @@ export const client = new Client(${routesConfigString});
 
         this.context = await esbuild.context({
           plugins: [
-            // deno-lint-ignore no-explicit-any
-            denoResolverPlugin({ configPath }) as any,
+            denoPlugin({ configPath }),
             reactCompilerPlugin({
               sourceMaps: buildOptions.sourcemap !== false,
             }),
             ...this.plugins,
-            // deno-lint-ignore no-explicit-any
-            denoLoaderPlugin({ configPath }) as any,
           ],
           absWorkingDir: path.dirname(configPath),
           entryPoints: normalizedEntryPoints,

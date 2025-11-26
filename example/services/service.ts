@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { isTest } from "@udibo/juniper/utils/env";
 
-import { startActiveSpan } from "/utils/otel.ts";
+import { startActiveSpan } from "@/utils/otel.ts";
 
 export interface Entity {
   id: string;

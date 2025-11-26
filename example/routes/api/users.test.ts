@@ -4,10 +4,9 @@ import { afterAll, afterEach, beforeAll, describe, it } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
 
-import { userService } from "/services/user.ts";
-import type { NewUser, User } from "/services/user.ts";
-
-import { server } from "/main.ts";
+import { userService } from "@/services/user.ts";
+import type { NewUser, User } from "@/services/user.ts";
+import { server } from "@/main.ts";
 
 describe("/api/users", () => {
   let time: FakeTime;

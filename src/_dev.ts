@@ -281,7 +281,7 @@ export class DevServer {
     console.log("🚀 Starting app...");
 
     const command = deno.command(Deno.execPath(), {
-      args: ["task", "serve"],
+      args: ["task", "serve", "--hot-reload"],
       stdout: "piped",
       stderr: "piped",
     });

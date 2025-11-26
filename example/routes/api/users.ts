@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 
-import { userService } from "/services/user.ts";
-import type { NewUser, User, UserPatch } from "/services/user.ts";
+import { userService } from "@/services/user.ts";
+import type { NewUser, User, UserPatch } from "@/services/user.ts";
 
 const app = new Hono();
 

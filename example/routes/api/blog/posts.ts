@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 
-import { postService } from "/services/post.ts";
-import type { NewPost, Post, PostPatch } from "/services/post.ts";
+import { postService } from "@/services/post.ts";
+import type { NewPost, Post, PostPatch } from "@/services/post.ts";
 
 const app = new Hono();
 

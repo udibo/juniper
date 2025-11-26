@@ -1,7 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
 
-import { server } from "/main.ts";
+import { server } from "@/main.ts";
 
 describe("example route", () => {
   it("should return example message", async () => {
