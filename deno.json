@@ -80,6 +80,23 @@
       "command": "docker compose down lgtm"
     }
   },
+  "imports": {
+    "react": "npm:react@^19.2.0",
+    "@types/react": "npm:@types/react@^19.2.2"
+  },
+  "compilerOptions": {
+    "lib": [
+      "esnext",
+      "dom",
+      "dom.iterable",
+      "dom.asynciterable",
+      "deno.ns",
+      "deno.unstable"
+    ],
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "jsxImportSourceTypes": "@types/react"
+  },
   "permissions": {
     "test": {
       "env": true,
