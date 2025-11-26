@@ -1404,6 +1404,10 @@
     }
   },
   "workspace": {
+    "dependencies": [
+      "npm:@types/react@^19.2.2",
+      "npm:react@^19.2.0"
+    ],
     "members": {
       "example": {
         "dependencies": [
