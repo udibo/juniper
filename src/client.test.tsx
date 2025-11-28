@@ -665,7 +665,7 @@ describe("HydrationData serialization and deserialization", () => {
 
   beforeAll(async () => {
     hydrationData = {
-      appEnv: "test",
+      publicEnv: { APP_ENV: "test", APP_NAME: "TestApp" },
       matches: [{ id: "0" }, { id: "0-4" }, { id: "0-4-0" }],
       errors: {
         "0": new Error("Oops"),

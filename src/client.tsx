@@ -16,13 +16,13 @@ import {
   deserializeHydrationData,
 } from "./_client.tsx";
 import type {
-  ClientGlobals,
   DefaultContext,
   HydrationData,
   LazyRoute,
   SerializedError,
   SerializedHydrationData,
 } from "./_client.tsx";
+import { env } from "./utils/_env.ts";
 
 export type { DefaultContext, HydrationData, SerializedError };
 
@@ -237,7 +237,7 @@ export class Client<Context extends DefaultContext = DefaultContext> {
    */
   getHydrationData(): HydrationData {
     const serializedHydrationData: SerializedHydrationData =
-      (globalThis as ClientGlobals).__juniperHydrationData ?? { json: {} };
+      env.getHydrationData() ?? { json: {} };
     const rootMainModule = typeof this.rootRoute.main === "function"
       ? undefined
       : this.rootRoute.main;

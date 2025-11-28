@@ -81,8 +81,8 @@ export interface SerializedHydrationDataPromises {
  * to enable proper reconstruction of Promise states during deserialization.
  */
 export interface SerializedHydrationData extends SuperJSONResult {
-  /** The application environment */
-  appEnv?: string;
+  /** Public environment variables shared with the client */
+  publicEnv?: Record<string, string>;
   /** Keys that were successfully resolved during serialization */
   resolved?: SerializedHydrationDataPromises;
   /** Keys that were rejected during serialization */
@@ -129,8 +129,8 @@ function reconstructPromiseStates(
  * errors, loader data, and action data that needs to be serialized for client-side hydration.
  */
 export interface HydrationData {
-  /** The application environment */
-  appEnv?: string;
+  /** Public environment variables shared with the client */
+  publicEnv?: Record<string, string>;
   /** Array of route matches with their IDs */
   matches: {
     id: string;

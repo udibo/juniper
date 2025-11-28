@@ -2,6 +2,7 @@ import { assertEquals, assertThrows } from "@std/assert";
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 
 import {
+  getEnv,
   isBrowser,
   isProduction,
   isServer,
@@ -12,8 +13,9 @@ import {
   simulateEnvironment,
 } from "@udibo/juniper/utils/testing";
 
-import type { ClientGlobals, HydrationData } from "../_client.tsx";
+import type { HydrationData } from "../_client.tsx";
 import { serializeHydrationData } from "../_server.tsx";
+import { env } from "./_env.ts";
 
 describe("simulateEnvironment", () => {
   const originalEnv = Deno.env.toObject();
@@ -128,9 +130,14 @@ describe("simulateEnvironment", () => {
 });
 
 describe("simulateBrowser", () => {
+  const publicEnv = {
+    APP_ENV: "test",
+    APP_NAME: "Example",
+    NODE_ENV: "development",
+  };
+
   it("should simulate browser globals with manual restore", async () => {
     const hydrationData: HydrationData = {
-      appEnv: "production",
       matches: [],
       errors: null,
       loaderData: {},
@@ -139,24 +146,26 @@ describe("simulateBrowser", () => {
 
     assertEquals(isBrowser(), true);
     assertEquals(isServer(), false);
+    assertEquals(getEnv("APP_ENV"), "test");
+    assertEquals(getEnv("APP_NAME"), "Example");
+    assertEquals(getEnv("NODE_ENV"), "development");
     assertEquals(
-      (globalThis as ClientGlobals).__juniperHydrationData,
-      await serializeHydrationData(hydrationData),
+      env.getHydrationData(),
+      await serializeHydrationData({
+        ...hydrationData,
+        publicEnv,
+      }),
     );
 
     browser.restore();
 
     assertEquals(isBrowser(), false);
     assertEquals(isServer(), true);
-    assertEquals(
-      (globalThis as ClientGlobals).__juniperHydrationData,
-      undefined,
-    );
+    assertEquals(env.getHydrationData(), undefined);
   });
 
   it("should simulate browser globals with automatic restore using 'using'", async () => {
     const hydrationData: HydrationData = {
-      appEnv: "production",
       matches: [],
       errors: null,
       loaderData: {},
@@ -167,22 +176,21 @@ describe("simulateBrowser", () => {
       assertEquals(isBrowser(), true);
       assertEquals(isServer(), false);
       assertEquals(
-        (globalThis as ClientGlobals).__juniperHydrationData,
-        await serializeHydrationData(hydrationData),
+        env.getHydrationData(),
+        await serializeHydrationData({
+          ...hydrationData,
+          publicEnv,
+        }),
       );
     }
 
     assertEquals(isBrowser(), false);
     assertEquals(isServer(), true);
-    assertEquals(
-      (globalThis as ClientGlobals).__juniperHydrationData,
-      undefined,
-    );
+    assertEquals(env.getHydrationData(), undefined);
   });
 
   it("should throw error when trying to restore browser multiple times", async () => {
     const hydrationData: HydrationData = {
-      appEnv: "production",
       matches: [],
       errors: null,
       loaderData: {},
@@ -196,7 +204,7 @@ describe("simulateBrowser", () => {
 
   it("should support nested simulated browsers", async () => {
     const outerHydrationData: HydrationData = {
-      appEnv: "production",
+      publicEnv: { APP_ENV: "production" },
       matches: [],
       errors: {
         "0": new Error("outer error"),
@@ -209,14 +217,18 @@ describe("simulateBrowser", () => {
     assertEquals(isServer(), false);
     assertEquals(isTest(), false);
     assertEquals(isProduction(), true);
+    assertEquals(getEnv("APP_ENV"), "production");
 
     assertEquals(
-      (globalThis as ClientGlobals).__juniperHydrationData,
-      await serializeHydrationData(outerHydrationData),
+      env.getHydrationData(),
+      await serializeHydrationData({
+        ...outerHydrationData,
+        publicEnv: { ...publicEnv, ...outerHydrationData.publicEnv },
+      }),
     );
 
     const innerHydrationData: HydrationData = {
-      appEnv: "test",
+      publicEnv: { APP_ENV: "test" },
       matches: [],
       errors: {
         "0": new Error("inner error"),
@@ -231,8 +243,11 @@ describe("simulateBrowser", () => {
       assertEquals(isTest(), true);
       assertEquals(isProduction(), false);
       assertEquals(
-        (globalThis as ClientGlobals).__juniperHydrationData,
-        await serializeHydrationData(innerHydrationData),
+        env.getHydrationData(),
+        await serializeHydrationData({
+          ...innerHydrationData,
+          publicEnv: { ...publicEnv, ...innerHydrationData.publicEnv },
+        }),
       );
     }
 
@@ -241,8 +256,11 @@ describe("simulateBrowser", () => {
     assertEquals(isTest(), false);
     assertEquals(isProduction(), true);
     assertEquals(
-      (globalThis as ClientGlobals).__juniperHydrationData,
-      await serializeHydrationData(outerHydrationData),
+      env.getHydrationData(),
+      await serializeHydrationData({
+        ...outerHydrationData,
+        publicEnv: { ...publicEnv, ...outerHydrationData.publicEnv },
+      }),
     );
 
     outerBrowser.restore();
@@ -251,9 +269,45 @@ describe("simulateBrowser", () => {
     assertEquals(isServer(), true);
     assertEquals(isTest(), true);
     assertEquals(isProduction(), false);
-    assertEquals(
-      (globalThis as ClientGlobals).__juniperHydrationData,
-      undefined,
-    );
+    assertEquals(env.getHydrationData(), undefined);
+  });
+
+  it("should include default public env keys from Deno.env", async () => {
+    const hydrationData: HydrationData = {
+      matches: [],
+    };
+    using _browser = await simulateBrowser(hydrationData);
+
+    assertEquals(getEnv("APP_ENV"), "test");
+    assertEquals(getEnv("APP_NAME"), "Example");
+    assertEquals(getEnv("NODE_ENV"), "development");
+  });
+
+  it("should allow overriding publicEnv via hydrationData", async () => {
+    const hydrationData: HydrationData = {
+      matches: [],
+      publicEnv: { APP_ENV: "production", NODE_ENV: "production" },
+    };
+    using _browser = await simulateBrowser(hydrationData);
+
+    assertEquals(getEnv("APP_ENV"), "production");
+    assertEquals(getEnv("APP_NAME"), "Example");
+    assertEquals(getEnv("NODE_ENV"), "production");
+  });
+
+  it("should include custom publicEnvKeys when specified", async () => {
+    Deno.env.set("CUSTOM_VAR", "custom-value");
+    Deno.env.set("OTHER_VAR", "other-value");
+
+    const hydrationData: HydrationData = {
+      matches: [],
+    };
+    using _browser = await simulateBrowser(hydrationData, {
+      publicEnvKeys: ["CUSTOM_VAR"],
+    });
+
+    assertEquals(getEnv("APP_ENV"), "test");
+    assertEquals(getEnv("CUSTOM_VAR"), "custom-value");
+    assertEquals(getEnv("OTHER_VAR"), undefined);
   });
 });

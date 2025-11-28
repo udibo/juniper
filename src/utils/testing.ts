@@ -4,8 +4,11 @@
  * @module utils/testing
  */
 
-import type { ClientGlobals, HydrationData } from "../_client.tsx";
-import { serializeHydrationData } from "../_server.tsx";
+import type { HydrationData } from "../_client.tsx";
+import {
+  DEFAULT_PUBLIC_ENV_KEYS,
+  serializeHydrationData,
+} from "../_server.tsx";
 import { env } from "./_env.ts";
 
 /**
@@ -214,17 +217,32 @@ export async function simulateBrowser(
   hydrationData: HydrationData,
   options: {
     serializeError?: (error: unknown) => unknown;
+    publicEnvKeys?: string[];
   } = {},
 ): Promise<SimulatedBrowser> {
+  const allPublicEnvKeys = [
+    ...new Set([
+      ...DEFAULT_PUBLIC_ENV_KEYS,
+      ...(options.publicEnvKeys ?? []),
+    ]),
+  ];
+  const publicEnv: Record<string, string> = {};
+  for (const key of allPublicEnvKeys) {
+    const value = Deno.env.get(key);
+    if (value !== undefined) {
+      publicEnv[key] = value;
+    }
+  }
   const serializedHydrationData = await serializeHydrationData(
-    { appEnv: Deno.env.get("APP_ENV"), ...hydrationData },
-    options,
+    {
+      ...hydrationData,
+      publicEnv: { ...publicEnv, ...hydrationData.publicEnv },
+    },
+    { serializeError: options.serializeError },
   );
 
-  const originalJuniperHydrationData =
-    (globalThis as ClientGlobals).__juniperHydrationData;
-  (globalThis as ClientGlobals).__juniperHydrationData =
-    serializedHydrationData;
+  const originalJuniperHydrationData = env.getHydrationData();
+  env.setHydrationData(serializedHydrationData);
 
   const originalIsServer = env.isServer;
   env.isServer = () => false;
@@ -233,13 +251,7 @@ export async function simulateBrowser(
   function restore() {
     if (restored) throw new Error("Browser already restored");
     restored = true;
-    if (originalJuniperHydrationData) {
-      (globalThis as ClientGlobals).__juniperHydrationData =
-        originalJuniperHydrationData;
-    } else {
-      delete (globalThis as ClientGlobals).__juniperHydrationData;
-    }
-
+    env.setHydrationData(originalJuniperHydrationData);
     env.isServer = originalIsServer;
   }
 

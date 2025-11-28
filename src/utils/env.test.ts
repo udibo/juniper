@@ -1,19 +1,86 @@
 import { assertEquals } from "@std/assert";
-import { describe, it } from "@std/testing/bdd";
+import { afterAll, beforeAll, describe, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 
 import {
+  getEnv,
   isBrowser,
   isDevelopment,
   isProduction,
   isServer,
   isTest,
 } from "@udibo/juniper/utils/env";
-import { simulateEnvironment } from "@udibo/juniper/utils/testing";
+import {
+  simulateBrowser,
+  simulateEnvironment,
+} from "@udibo/juniper/utils/testing";
+import type { SimulatedEnvironment } from "@udibo/juniper/utils/testing";
 
 import { env } from "./_env.ts";
 
 describe("Environment Utilities", () => {
+  describe("getEnv", () => {
+    describe("on server", () => {
+      it("should return the value from Deno.env", () => {
+        using _env = simulateEnvironment({ "MY_VAR": "my-value" });
+        assertEquals(getEnv("MY_VAR"), "my-value");
+      });
+
+      it("should return undefined for unset variables", () => {
+        using _env = simulateEnvironment({ "MY_VAR": null });
+        assertEquals(getEnv("MY_VAR"), undefined);
+      });
+    });
+
+    describe("on client", () => {
+      let simulatedEnv: SimulatedEnvironment;
+      beforeAll(() => {
+        simulatedEnv = simulateEnvironment({
+          "APP_ENV": "production",
+          "APP_NAME": "TestApp",
+          "NODE_ENV": "production",
+          "PUBLIC_VAR": "public-value",
+          "SECRET_VAR": "secret-value",
+        });
+      });
+      afterAll(() => {
+        simulatedEnv.restore();
+      });
+
+      it("should only expose public environment variables", async () => {
+        using _browser = await simulateBrowser({ matches: [] });
+
+        assertEquals(getEnv("APP_ENV"), "production");
+        assertEquals(getEnv("APP_NAME"), "TestApp");
+        assertEquals(getEnv("NODE_ENV"), "production");
+        assertEquals(getEnv("PUBLIC_VAR"), undefined);
+        assertEquals(getEnv("SECRET_VAR"), undefined);
+      });
+
+      it("should include custom publicEnvKeys when specified", async () => {
+        using _browser = await simulateBrowser(
+          { matches: [] },
+          { publicEnvKeys: ["PUBLIC_VAR"] },
+        );
+
+        assertEquals(getEnv("APP_ENV"), "production");
+        assertEquals(getEnv("PUBLIC_VAR"), "public-value");
+        assertEquals(getEnv("SECRET_VAR"), undefined);
+      });
+
+      it("should allow overriding publicEnv via hydrationData", async () => {
+        using _browser = await simulateBrowser({
+          matches: [],
+          publicEnv: { APP_ENV: "staging", CUSTOM_KEY: "custom-value" },
+        }, { publicEnvKeys: ["PUBLIC_VAR"] });
+
+        assertEquals(getEnv("APP_ENV"), "staging");
+        assertEquals(getEnv("PUBLIC_VAR"), "public-value");
+        assertEquals(getEnv("CUSTOM_KEY"), "custom-value");
+      });
+    });
+  });
+
   describe("isDevelopment", () => {
     it("should return true when APP_ENV is 'development'", () => {
       using _env = simulateEnvironment({ "APP_ENV": "development" });
