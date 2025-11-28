@@ -11,6 +11,12 @@ export const env = {
     const hasProcess = "process" in globalThis;
     return hasDeno || hasProcess;
   },
+  getEnv: (key: string) => {
+    if (env.isServer()) {
+      return Deno.env.get(key);
+    }
+    return env.getHydrationData()?.publicEnv?.[key];
+  },
   getHydrationData: () => {
     return (globalThis as ClientGlobals).__juniperHydrationData;
   },

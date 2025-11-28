@@ -34,12 +34,7 @@ import { env } from "./_env.ts";
  * @returns The value of the environment variable, or `undefined` if not set.
  */
 export function getEnv(key: string): string | undefined {
-  if (isServer()) {
-    return Deno.env.get(key);
-  }
-  return (env.getHydrationData()?.json as {
-    publicEnv?: Record<string, string>;
-  })?.publicEnv?.[key];
+  return env.getEnv(key);
 }
 
 /**
