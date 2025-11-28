@@ -1,4 +1,4 @@
-import { assertEquals, assertThrows } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 
 import {
@@ -36,91 +36,110 @@ describe("simulateEnvironment", () => {
     }
   });
 
-  it("should simulate environment variables with manual restore", () => {
-    const env = simulateEnvironment({
+  it(
+    "should simulate environment variables with callback",
+    simulateEnvironment({
       "FOO": "foo",
       "BAZ": null,
       "QUUX": "quux",
-    });
-
-    assertEquals(Deno.env.get("FOO"), "foo");
-    assertEquals(Deno.env.get("BAZ"), undefined);
-    assertEquals(Deno.env.get("QUUX"), "quux");
-    assertEquals(Deno.env.get("ABCD"), undefined);
-
-    Deno.env.set("ABCD", "abcd");
-    assertEquals(Deno.env.get("ABCD"), "abcd");
-
-    env.restore();
-
-    assertEquals(Deno.env.get("FOO"), "bar");
-    assertEquals(Deno.env.get("BAZ"), "qux");
-    assertEquals(Deno.env.get("QUUX"), undefined);
-    assertEquals(Deno.env.get("ABCD"), undefined);
-  });
-
-  it("should simulate environment variables with automatic restore using 'using'", () => {
-    {
-      using _env = simulateEnvironment({
-        "FOO": "foo",
-        "BAZ": null,
-        "QUUX": "quux",
-      });
-
+    }, () => {
       assertEquals(Deno.env.get("FOO"), "foo");
       assertEquals(Deno.env.get("BAZ"), undefined);
       assertEquals(Deno.env.get("QUUX"), "quux");
+      assertEquals(Deno.env.get("ABCD"), undefined);
 
       Deno.env.set("ABCD", "abcd");
       assertEquals(Deno.env.get("ABCD"), "abcd");
-    }
+    }),
+  );
+
+  it("should restore environment after callback completes", () => {
+    simulateEnvironment({
+      "FOO": "foo",
+      "BAZ": null,
+      "QUUX": "quux",
+    }, () => {
+      assertEquals(Deno.env.get("FOO"), "foo");
+    })();
 
     assertEquals(Deno.env.get("FOO"), "bar");
     assertEquals(Deno.env.get("BAZ"), "qux");
     assertEquals(Deno.env.get("QUUX"), undefined);
-    assertEquals(Deno.env.get("ABCD"), undefined);
   });
 
-  it("should throw error when trying to restore environment multiple times", () => {
-    const env = simulateEnvironment({
+  it("should restore environment after callback throws", () => {
+    const wrapper = simulateEnvironment({
       "FOO": "foo",
+    }, () => {
+      throw new Error("Test error");
     });
 
-    env.restore();
+    try {
+      wrapper();
+    } catch {
+      // Expected
+    }
 
-    assertThrows(() => env.restore(), Error, "Environment already restored");
+    assertEquals(Deno.env.get("FOO"), "bar");
+  });
+
+  it(
+    "should restore environment after async callback completes",
+    async () => {
+      await simulateEnvironment({
+        "FOO": "foo",
+        "BAZ": null,
+        "QUUX": "quux",
+      }, async () => {
+        assertEquals(Deno.env.get("FOO"), "foo");
+        await Promise.resolve();
+      })();
+
+      assertEquals(Deno.env.get("FOO"), "bar");
+      assertEquals(Deno.env.get("BAZ"), "qux");
+      assertEquals(Deno.env.get("QUUX"), undefined);
+    },
+  );
+
+  it("should restore environment after async callback rejects", async () => {
+    const wrapper = simulateEnvironment({
+      "FOO": "foo",
+    }, async () => {
+      await Promise.resolve();
+      throw new Error("Async test error");
+    });
+
+    await assertRejects(() => wrapper());
+
+    assertEquals(Deno.env.get("FOO"), "bar");
   });
 
   it("should support nested simulated environments", () => {
-    const outerEnv = simulateEnvironment({
+    simulateEnvironment({
       "FOO": "outer-foo",
       "BAZ": "outer-baz",
       "QUUX": "outer-quux",
-    });
+    }, () => {
+      assertEquals(Deno.env.get("FOO"), "outer-foo");
+      assertEquals(Deno.env.get("BAZ"), "outer-baz");
+      assertEquals(Deno.env.get("QUUX"), "outer-quux");
 
-    assertEquals(Deno.env.get("FOO"), "outer-foo");
-    assertEquals(Deno.env.get("BAZ"), "outer-baz");
-    assertEquals(Deno.env.get("QUUX"), "outer-quux");
-
-    {
-      using _innerEnv = simulateEnvironment({
+      simulateEnvironment({
         "FOO": "inner-foo",
         "BAZ": null,
         "EXTRA": "inner-extra",
-      });
+      }, () => {
+        assertEquals(Deno.env.get("FOO"), "inner-foo");
+        assertEquals(Deno.env.get("BAZ"), undefined);
+        assertEquals(Deno.env.get("QUUX"), "outer-quux");
+        assertEquals(Deno.env.get("EXTRA"), "inner-extra");
+      })();
 
-      assertEquals(Deno.env.get("FOO"), "inner-foo");
-      assertEquals(Deno.env.get("BAZ"), undefined);
+      assertEquals(Deno.env.get("FOO"), "outer-foo");
+      assertEquals(Deno.env.get("BAZ"), "outer-baz");
       assertEquals(Deno.env.get("QUUX"), "outer-quux");
-      assertEquals(Deno.env.get("EXTRA"), "inner-extra");
-    }
-
-    assertEquals(Deno.env.get("FOO"), "outer-foo");
-    assertEquals(Deno.env.get("BAZ"), "outer-baz");
-    assertEquals(Deno.env.get("QUUX"), "outer-quux");
-    assertEquals(Deno.env.get("EXTRA"), undefined);
-
-    outerEnv.restore();
+      assertEquals(Deno.env.get("EXTRA"), undefined);
+    })();
 
     assertEquals(Deno.env.get("FOO"), "bar");
     assertEquals(Deno.env.get("BAZ"), "qux");
@@ -136,71 +155,83 @@ describe("simulateBrowser", () => {
     NODE_ENV: "development",
   };
 
-  it("should simulate browser globals with manual restore", async () => {
-    const hydrationData: HydrationData = {
+  it(
+    "should simulate browser globals with callback",
+    simulateBrowser({
       matches: [],
       errors: null,
       loaderData: {},
-    };
-    const browser = await simulateBrowser(hydrationData);
-
-    assertEquals(isBrowser(), true);
-    assertEquals(isServer(), false);
-    assertEquals(getEnv("APP_ENV"), "test");
-    assertEquals(getEnv("APP_NAME"), "Example");
-    assertEquals(getEnv("NODE_ENV"), "development");
-    assertEquals(
-      env.getHydrationData(),
-      await serializeHydrationData({
-        ...hydrationData,
-        publicEnv,
-      }),
-    );
-
-    browser.restore();
-
-    assertEquals(isBrowser(), false);
-    assertEquals(isServer(), true);
-    assertEquals(env.getHydrationData(), undefined);
-  });
-
-  it("should simulate browser globals with automatic restore using 'using'", async () => {
-    const hydrationData: HydrationData = {
-      matches: [],
-      errors: null,
-      loaderData: {},
-    };
-    {
-      using _browser = await simulateBrowser(hydrationData);
-
+    }, async () => {
       assertEquals(isBrowser(), true);
       assertEquals(isServer(), false);
+      assertEquals(getEnv("APP_ENV"), "test");
+      assertEquals(getEnv("APP_NAME"), "Example");
+      assertEquals(getEnv("NODE_ENV"), "development");
       assertEquals(
         env.getHydrationData(),
         await serializeHydrationData({
-          ...hydrationData,
+          matches: [],
+          errors: null,
+          loaderData: {},
           publicEnv,
         }),
       );
-    }
+    }),
+  );
+
+  it("should restore browser globals after callback completes", async () => {
+    const hydrationData: HydrationData = {
+      matches: [],
+      errors: null,
+      loaderData: {},
+    };
+    await simulateBrowser(hydrationData, () => {
+      assertEquals(isBrowser(), true);
+      assertEquals(isServer(), false);
+    })();
 
     assertEquals(isBrowser(), false);
     assertEquals(isServer(), true);
     assertEquals(env.getHydrationData(), undefined);
   });
 
-  it("should throw error when trying to restore browser multiple times", async () => {
+  it("should restore browser globals after callback throws", async () => {
     const hydrationData: HydrationData = {
       matches: [],
       errors: null,
       loaderData: {},
     };
-    const browser = await simulateBrowser(hydrationData);
+    const wrapper = simulateBrowser(hydrationData, () => {
+      throw new Error("Test error");
+    });
 
-    browser.restore();
+    await assertRejects(() => wrapper());
 
-    assertThrows(() => browser.restore(), Error, "Browser already restored");
+    assertEquals(isBrowser(), false);
+    assertEquals(isServer(), true);
+    assertEquals(env.getHydrationData(), undefined);
   });
+
+  it(
+    "should restore browser globals after async callback rejects",
+    async () => {
+      const hydrationData: HydrationData = {
+        matches: [],
+        errors: null,
+        loaderData: {},
+      };
+      const wrapper = simulateBrowser(hydrationData, async () => {
+        await Promise.resolve();
+        throw new Error("Async test error");
+      });
+
+      await assertRejects(() => wrapper());
+
+      assertEquals(isBrowser(), false);
+      assertEquals(isServer(), true);
+      assertEquals(env.getHydrationData(), undefined);
+    },
+  );
 
   it("should support nested simulated browsers", async () => {
     const outerHydrationData: HydrationData = {
@@ -211,59 +242,56 @@ describe("simulateBrowser", () => {
       },
       loaderData: {},
     };
-    const outerBrowser = await simulateBrowser(outerHydrationData);
 
-    assertEquals(isBrowser(), true);
-    assertEquals(isServer(), false);
-    assertEquals(isTest(), false);
-    assertEquals(isProduction(), true);
-    assertEquals(getEnv("APP_ENV"), "production");
-
-    assertEquals(
-      env.getHydrationData(),
-      await serializeHydrationData({
-        ...outerHydrationData,
-        publicEnv: { ...publicEnv, ...outerHydrationData.publicEnv },
-      }),
-    );
-
-    const innerHydrationData: HydrationData = {
-      publicEnv: { APP_ENV: "test" },
-      matches: [],
-      errors: {
-        "0": new Error("inner error"),
-      },
-      loaderData: {},
-    };
-    {
-      using _innerBrowser = await simulateBrowser(innerHydrationData);
-
+    await simulateBrowser(outerHydrationData, async () => {
       assertEquals(isBrowser(), true);
       assertEquals(isServer(), false);
-      assertEquals(isTest(), true);
-      assertEquals(isProduction(), false);
+      assertEquals(isTest(), false);
+      assertEquals(isProduction(), true);
+      assertEquals(getEnv("APP_ENV"), "production");
       assertEquals(
         env.getHydrationData(),
         await serializeHydrationData({
-          ...innerHydrationData,
-          publicEnv: { ...publicEnv, ...innerHydrationData.publicEnv },
+          ...outerHydrationData,
+          publicEnv: { ...publicEnv, ...outerHydrationData.publicEnv },
         }),
       );
-    }
 
-    assertEquals(isBrowser(), true);
-    assertEquals(isServer(), false);
-    assertEquals(isTest(), false);
-    assertEquals(isProduction(), true);
-    assertEquals(
-      env.getHydrationData(),
-      await serializeHydrationData({
-        ...outerHydrationData,
-        publicEnv: { ...publicEnv, ...outerHydrationData.publicEnv },
-      }),
-    );
+      const innerHydrationData: HydrationData = {
+        publicEnv: { APP_ENV: "test" },
+        matches: [],
+        errors: {
+          "0": new Error("inner error"),
+        },
+        loaderData: {},
+      };
 
-    outerBrowser.restore();
+      await simulateBrowser(innerHydrationData, async () => {
+        assertEquals(isBrowser(), true);
+        assertEquals(isServer(), false);
+        assertEquals(isTest(), true);
+        assertEquals(isProduction(), false);
+        assertEquals(
+          env.getHydrationData(),
+          await serializeHydrationData({
+            ...innerHydrationData,
+            publicEnv: { ...publicEnv, ...innerHydrationData.publicEnv },
+          }),
+        );
+      })();
+
+      assertEquals(isBrowser(), true);
+      assertEquals(isServer(), false);
+      assertEquals(isTest(), false);
+      assertEquals(isProduction(), true);
+      assertEquals(
+        env.getHydrationData(),
+        await serializeHydrationData({
+          ...outerHydrationData,
+          publicEnv: { ...publicEnv, ...outerHydrationData.publicEnv },
+        }),
+      );
+    })();
 
     assertEquals(isBrowser(), false);
     assertEquals(isServer(), true);
@@ -272,42 +300,41 @@ describe("simulateBrowser", () => {
     assertEquals(env.getHydrationData(), undefined);
   });
 
-  it("should include default public env keys from Deno.env", async () => {
-    const hydrationData: HydrationData = {
+  it(
+    "should include default public env keys from Deno.env",
+    simulateBrowser({
       matches: [],
-    };
-    using _browser = await simulateBrowser(hydrationData);
+    }, () => {
+      assertEquals(getEnv("APP_ENV"), "test");
+      assertEquals(getEnv("APP_NAME"), "Example");
+      assertEquals(getEnv("NODE_ENV"), "development");
+    }),
+  );
 
-    assertEquals(getEnv("APP_ENV"), "test");
-    assertEquals(getEnv("APP_NAME"), "Example");
-    assertEquals(getEnv("NODE_ENV"), "development");
-  });
-
-  it("should allow overriding publicEnv via hydrationData", async () => {
-    const hydrationData: HydrationData = {
+  it(
+    "should allow overriding publicEnv via hydrationData",
+    simulateBrowser({
       matches: [],
       publicEnv: { APP_ENV: "production", NODE_ENV: "production" },
-    };
-    using _browser = await simulateBrowser(hydrationData);
-
-    assertEquals(getEnv("APP_ENV"), "production");
-    assertEquals(getEnv("APP_NAME"), "Example");
-    assertEquals(getEnv("NODE_ENV"), "production");
-  });
+    }, () => {
+      assertEquals(getEnv("APP_ENV"), "production");
+      assertEquals(getEnv("APP_NAME"), "Example");
+      assertEquals(getEnv("NODE_ENV"), "production");
+    }),
+  );
 
   it("should include custom publicEnvKeys when specified", async () => {
     Deno.env.set("CUSTOM_VAR", "custom-value");
     Deno.env.set("OTHER_VAR", "other-value");
 
-    const hydrationData: HydrationData = {
-      matches: [],
-    };
-    using _browser = await simulateBrowser(hydrationData, {
-      publicEnvKeys: ["CUSTOM_VAR"],
-    });
-
-    assertEquals(getEnv("APP_ENV"), "test");
-    assertEquals(getEnv("CUSTOM_VAR"), "custom-value");
-    assertEquals(getEnv("OTHER_VAR"), undefined);
+    await simulateBrowser(
+      { matches: [] },
+      { publicEnvKeys: ["CUSTOM_VAR"] },
+      () => {
+        assertEquals(getEnv("APP_ENV"), "test");
+        assertEquals(getEnv("CUSTOM_VAR"), "custom-value");
+        assertEquals(getEnv("OTHER_VAR"), undefined);
+      },
+    )();
   });
 });

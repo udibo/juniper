@@ -261,7 +261,6 @@ export async function serializeHydrationData(
   }
 
   const { json, meta } = SuperJSON.serialize({
-    publicEnv,
     matches,
     errors,
     loaderData,
@@ -271,6 +270,7 @@ export async function serializeHydrationData(
   return {
     json,
     meta,
+    publicEnv,
     resolved,
     rejected,
   };

@@ -21,11 +21,11 @@ control:
 
 - `isSnapshotMode()` – returns `true` when `--update` or `-u` was passed. Use it
   to write custom snapshot files.
-- `simulateEnvironment()` – temporarily overrides `Deno.env` values. Great for
-  tests that change `APP_ENV` or secrets.
+- `simulateEnvironment()` – temporarily overrides environment values for the
+  duration of a callback. Great for tests that change `APP_ENV` or secrets.
 - `simulateBrowser()` – serializes hydration data and injects it into
-  `globalThis`, allowing you to run client-side hooks in a simulated browser
-  context (without JSDOM).
+  `globalThis` for the duration of a callback, allowing you to run client-side
+  hooks in a simulated browser context (without JSDOM).
 
 Example:
 
@@ -33,10 +33,12 @@ Example:
 import { simulateEnvironment } from "@udibo/juniper/utils/testing";
 
 describe("feature flags", () => {
-  it("enables preview in test env", () => {
-    using _env = simulateEnvironment({ APP_ENV: "test" });
-    assertTrue(isTest());
-  });
+  it(
+    "enables preview in test env",
+    simulateEnvironment({ APP_ENV: "test" }, () => {
+      assertTrue(isTest());
+    }),
+  );
 });
 ```
 

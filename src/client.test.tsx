@@ -6,13 +6,7 @@ import {
   assertObjectMatch,
   assertRejects,
 } from "@std/assert";
-import {
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  it,
-} from "@std/testing/bdd";
+import { beforeAll, beforeEach, describe, it } from "@std/testing/bdd";
 import { HttpError } from "@udibo/http-error";
 import { Outlet } from "react-router";
 import serialize from "serialize-javascript";
@@ -25,7 +19,6 @@ import type {
 } from "@udibo/juniper/client";
 import type { RouteModule } from "@udibo/juniper";
 import { simulateBrowser } from "@udibo/juniper/utils/testing";
-import type { SimulatedBrowser } from "@udibo/juniper/utils/testing";
 
 import {
   createLazyRoute,
@@ -359,72 +352,71 @@ describe("deserializeErrorDefault", () => {
 });
 
 describe("getHydrationData", () => {
+  const errorHydrationData: HydrationData = {
+    matches: [],
+    errors: {
+      "0": new Error("Oops"),
+      "0-1": new TypeError("Wrong type"),
+      "0-1-0": new HttpError(400, "Bad request"),
+      "0-1-0-1": new CustomError("Custom error", "Custom detail"),
+    },
+    loaderData: {},
+  };
+
   describe("deserializes errors", () => {
-    let browser: SimulatedBrowser;
-    beforeEach(async () => {
-      const hydrationData: HydrationData = {
-        matches: [],
-        errors: {
-          "0": new Error("Oops"),
-          "0-1": new TypeError("Wrong type"),
-          "0-1-0": new HttpError(400, "Bad request"),
-          "0-1-0-1": new CustomError("Custom error", "Custom detail"),
-        },
-        loaderData: {},
-      };
-      browser = await simulateBrowser(hydrationData, { serializeError });
-    });
+    it(
+      "with default deserializeError function",
+      simulateBrowser(errorHydrationData, { serializeError }, () => {
+        const client = new Client(routes);
+        const data = client.getHydrationData();
+        assertObjectMatch(data, {
+          loaderData: {},
+        });
+        assertExists(data.errors);
+        assertIsError(data.errors["0"], Error, "Oops");
+        assertIsError(data.errors["0-1"], TypeError, "Wrong type");
 
-    afterEach(() => {
-      browser.restore();
-    });
+        assertIsError(data.errors["0-1-0"], HttpError, "Bad request");
+        assertEquals(data.errors["0-1-0"].name, "BadRequestError");
+        assertEquals(data.errors["0-1-0"].status, 400);
 
-    it("with default deserializeError function", () => {
-      const client = new Client(routes);
-      const data = client.getHydrationData();
-      assertObjectMatch(data, {
-        loaderData: {},
-      });
-      assertExists(data.errors);
-      assertIsError(data.errors["0"], Error, "Oops");
-      assertIsError(data.errors["0-1"], TypeError, "Wrong type");
+        assertIsError(data.errors["0-1-0-1"], Error, "Custom error");
+        assertEquals(data.errors["0-1-0-1"] instanceof CustomError, false);
+      }),
+    );
 
-      assertIsError(data.errors["0-1-0"], HttpError, "Bad request");
-      assertEquals(data.errors["0-1-0"].name, "BadRequestError");
-      assertEquals(data.errors["0-1-0"].status, 400);
+    it(
+      "with custom deserializeError function",
+      simulateBrowser(errorHydrationData, { serializeError }, () => {
+        const client = new Client({
+          ...routes,
+          main: {
+            ...routes.main,
+            deserializeError,
+          },
+        });
+        const data = client.getHydrationData();
+        assertObjectMatch(data, {
+          loaderData: {},
+        });
+        assertExists(data.errors);
+        assertIsError(data.errors["0"], Error, "Oops");
+        assertIsError(data.errors["0-1"], TypeError, "Wrong type");
 
-      assertIsError(data.errors["0-1-0-1"], Error, "Custom error");
-      assertEquals(data.errors["0-1-0-1"] instanceof CustomError, false);
-    });
+        assertIsError(data.errors["0-1-0"], HttpError, "Bad request");
+        assertEquals(data.errors["0-1-0"].name, "BadRequestError");
+        assertEquals(data.errors["0-1-0"].status, 400);
 
-    it("with custom deserializeError function", () => {
-      const client = new Client({
-        ...routes,
-        main: {
-          ...routes.main,
-          deserializeError,
-        },
-      });
-      const data = client.getHydrationData();
-      assertObjectMatch(data, {
-        loaderData: {},
-      });
-      assertExists(data.errors);
-      assertIsError(data.errors["0"], Error, "Oops");
-      assertIsError(data.errors["0-1"], TypeError, "Wrong type");
-
-      assertIsError(data.errors["0-1-0"], HttpError, "Bad request");
-      assertEquals(data.errors["0-1-0"].name, "BadRequestError");
-      assertEquals(data.errors["0-1-0"].status, 400);
-
-      assertIsError(data.errors["0-1-0-1"], CustomError, "Custom error");
-      assertEquals(data.errors["0-1-0-1"].detail, "Custom detail");
-    });
+        assertIsError(data.errors["0-1-0-1"], CustomError, "Custom error");
+        assertEquals(data.errors["0-1-0-1"].detail, "Custom detail");
+      }),
+    );
   });
 
   describe("deserializes loaderData and actionData", () => {
-    it("should deserialize loaderData and actionData", async () => {
-      const hydrationData: HydrationData = {
+    it(
+      "should deserialize loaderData and actionData",
+      simulateBrowser({
         matches: [],
         errors: undefined,
         loaderData: {
@@ -443,34 +435,33 @@ describe("getHydrationData", () => {
             data: { id: 1 },
           },
         },
-      };
-      using _browser = await simulateBrowser(hydrationData);
+      }, async () => {
+        const client = new Client(routes);
+        const data = client.getHydrationData();
 
-      const client = new Client(routes);
-      const data = client.getHydrationData();
+        assertExists(data.loaderData);
+        assertExists(data.actionData);
 
-      assertExists(data.loaderData);
-      assertExists(data.actionData);
+        assertEquals(data.loaderData["0"], {
+          user: { name: "John", age: 30 },
+          settings: { theme: "dark" },
+        });
 
-      assertEquals(data.loaderData["0"], {
-        user: { name: "John", age: 30 },
-        settings: { theme: "dark" },
-      });
+        assertExists(data.loaderData["0-1"]);
 
-      assertExists(data.loaderData["0-1"]);
+        const loaderData = data.loaderData["0-1"];
+        assertExists(loaderData);
+        assertExists(loaderData.posts);
+        assertExists(loaderData.asyncData);
+        assert(loaderData.asyncData instanceof Promise);
+        assertEquals(await loaderData.asyncData, "resolved data");
 
-      const loaderData = data.loaderData["0-1"];
-      assertExists(loaderData);
-      assertExists(loaderData.posts);
-      assertExists(loaderData.asyncData);
-      assert(loaderData.asyncData instanceof Promise);
-      assertEquals(await loaderData.asyncData, "resolved data");
-
-      assertEquals(data.actionData["0"], {
-        result: "success",
-        data: { id: 1 },
-      });
-    });
+        assertEquals(data.actionData["0"], {
+          result: "success",
+          data: { id: 1 },
+        });
+      }),
+    );
 
     it("should handle rejected promises in loaderData and actionData", async () => {
       const hydrationData: HydrationData = {
@@ -487,54 +478,54 @@ describe("getHydrationData", () => {
           },
         },
       };
-      using _browser = await simulateBrowser(hydrationData);
+      await simulateBrowser(hydrationData, async () => {
+        const client = new Client(routes);
+        const data = client.getHydrationData();
 
-      const client = new Client(routes);
-      const data = client.getHydrationData();
+        await assertRejects(
+          () => data.loaderData!["0-1-0"].error,
+          Error,
+          "Loader failed",
+        );
 
-      await assertRejects(
-        () => data.loaderData!["0-1-0"].error,
-        Error,
-        "Loader failed",
-      );
-
-      const error = await assertRejects(
-        () => data.actionData!["0-1"].error,
-        HttpError,
-        "Validation failed",
-      );
-      assertEquals(error.status, 422);
+        const error = await assertRejects(
+          () => data.actionData!["0-1"].error,
+          HttpError,
+          "Validation failed",
+        );
+        assertEquals(error.status, 422);
+      })();
     });
 
-    it("should handle missing loaderData and actionData", async () => {
-      const hydrationData: HydrationData = {
+    it(
+      "should handle missing loaderData and actionData",
+      simulateBrowser({
         matches: [],
-      };
-      using _browser = await simulateBrowser(hydrationData);
+      }, () => {
+        const client = new Client(routes);
+        const data = client.getHydrationData();
 
-      const client = new Client(routes);
-      const data = client.getHydrationData();
+        assertEquals(data.loaderData, undefined);
+        assertEquals(data.actionData, undefined);
+      }),
+    );
 
-      assertEquals(data.loaderData, undefined);
-      assertEquals(data.actionData, undefined);
-    });
-
-    it("should handle null actionData", async () => {
-      const hydrationData: HydrationData = {
+    it(
+      "should handle null actionData",
+      simulateBrowser({
         matches: [],
         loaderData: {
           "0": { data: "test" },
         },
         actionData: null,
-      };
-      using _browser = await simulateBrowser(hydrationData);
+      }, () => {
+        const client = new Client(routes);
+        const data = client.getHydrationData();
 
-      const client = new Client(routes);
-      const data = client.getHydrationData();
-
-      assertExists(data.loaderData);
-      assertEquals(data.actionData, undefined);
-    });
+        assertExists(data.loaderData);
+        assertEquals(data.actionData, undefined);
+      }),
+    );
   });
 
   describe("loadLazyMatches", () => {
@@ -736,7 +727,7 @@ describe("HydrationData serialization and deserialization", () => {
   it("hydrationData keys are the same", () => {
     assertEquals(
       Object.keys(deserializedHydrationData),
-      Object.keys(hydrationData),
+      ["matches", "errors", "loaderData", "actionData"],
     );
   });
 

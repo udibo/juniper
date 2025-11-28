@@ -55,110 +55,23 @@ export function isSnapshotMode(): boolean {
   return Deno.args.some((arg) => arg === "--update" || arg === "-u");
 }
 
-/**
- * A simulated environment that restores the environment variables when disposed.
- */
-export interface SimulatedEnvironment extends Disposable {
-  /**
-   * Restores the environment variables to their original values.
-   * It will delete the environment variables that were not present in the original environment.
-   * This method can only be called once.
-   */
-  restore: () => void;
+function restoreEnvironment(originalEnvironment: Record<string, string>): void {
+  const keys = new Set(Object.keys(Deno.env.toObject())).union(
+    new Set(Object.keys(originalEnvironment)),
+  );
+  for (const key of keys) {
+    const value = originalEnvironment[key] ?? null;
+    if (value === null) {
+      Deno.env.delete(key);
+    } else {
+      Deno.env.set(key, value);
+    }
+  }
 }
 
-/**
- * Simulates the environment variables until the simulated environment is restored or disposed.
- * The initial environment variables are the ones that were present in the current process.
- * They are overridden by the environment variables passed to the `simulateEnvironment` function.
- * If an environment variable is set to `null`, it will be deleted from the environment.
- * Simulated environments can be created within other simulated environments.
- *
- * @example Manually restoring the environment variables
- * ```ts
- * import { simulateEnvironment } from "@udibo/juniper/utils/testing";
- * import { assertEquals } from "@std/assert";
- *
- * // Set environment variables
- * Deno.env.set("FOO", "bar");
- * Deno.env.set("BAZ", "qux");
- *
- * // The real environment variables
- * assertEquals(Deno.env.get("FOO"), "bar");
- * assertEquals(Deno.env.get("BAZ"), "qux");
- * assertEquals(Deno.env.get("QUUX"), undefined);
- * assertEquals(Deno.env.get("ABCD"), undefined);
- *
- * const env = simulateEnvironment({
- *   "FOO": "foo",
- *   "BAZ": null,
- *   "QUUX": "quux",
- * });
- *
- * // The environment variables are simulated
- * assertEquals(Deno.env.get("FOO"), "foo");
- * assertEquals(Deno.env.get("BAZ"), undefined);
- * assertEquals(Deno.env.get("QUUX"), "quux");
- * assertEquals(Deno.env.get("ABCD"), undefined);
- *
- * // Set variable in the simulated environment
- * Deno.env.set("ABCD", "abcd");
- * assertEquals(Deno.env.get("ABCD"), "abcd");
- *
- * // Restore the environment variables
- * env.restore();
- *
- * // The environment variables are restored
- * assertEquals(Deno.env.get("FOO"), "bar");
- * assertEquals(Deno.env.get("BAZ"), "qux");
- * assertEquals(Deno.env.get("QUUX"), undefined);
- * assertEquals(Deno.env.get("ABCD"), undefined);
- * ```
- *
- * @example Automatically restoring the environment variables
- * ```ts
- * import { simulateEnvironment } from "@udibo/juniper/utils/testing";
- * import { assertEquals } from "@std/assert";
- *
- * // Set environment variables
- * Deno.env.set("FOO", "bar");
- * Deno.env.set("BAZ", "qux");
- *
- * // The real environment variables
- * assertEquals(Deno.env.get("FOO"), "bar");
- * assertEquals(Deno.env.get("BAZ"), "qux");
- * assertEquals(Deno.env.get("QUUX"), undefined);
- *
- * {
- *   using _env = simulateEnvironment({
- *     "FOO": "foo",
- *     "BAZ": null,
- *     "QUUX": "quux",
- *   });
- *
- *   // The environment variables are simulated
- *   assertEquals(Deno.env.get("FOO"), "foo");
- *   assertEquals(Deno.env.get("BAZ"), undefined);
- *   assertEquals(Deno.env.get("QUUX"), "quux");
- *
- *   // Set variable in the simulated environment
- *   Deno.env.set("ABCD", "abcd");
- *   assertEquals(Deno.env.get("ABCD"), "abcd");
- * }
- *
- * // The environment variables are restored
- * assertEquals(Deno.env.get("FOO"), "bar");
- * assertEquals(Deno.env.get("BAZ"), "qux");
- * assertEquals(Deno.env.get("QUUX"), undefined);
- * assertEquals(Deno.env.get("ABCD"), undefined);
- * ```
- *
- * @param environment The initial environment variables for the simulated environment.
- * @returns A simulated environment that restores the environment variables when disposed.
- */
-export function simulateEnvironment(
-  environment: Record<string, string | null> = {},
-): SimulatedEnvironment {
+function applyEnvironment(
+  environment: Record<string, string | null>,
+): Record<string, string> {
   const originalEnvironment = Deno.env.toObject();
   for (const [key, value] of Object.entries(environment)) {
     if (value === null) {
@@ -167,98 +80,158 @@ export function simulateEnvironment(
       Deno.env.set(key, value);
     }
   }
-
-  let restored = false;
-  function restore() {
-    if (restored) throw new Error("Environment already restored");
-    restored = true;
-    const keys = new Set(Object.keys(Deno.env.toObject())).union(
-      new Set(Object.keys(originalEnvironment)),
-    );
-    for (const key of keys) {
-      const value = originalEnvironment[key] ?? null;
-      if (value === null) {
-        Deno.env.delete(key);
-      } else {
-        Deno.env.set(key, value);
-      }
-    }
-  }
-
-  return {
-    restore,
-    [Symbol.dispose]: () => {
-      restore();
-    },
-  };
+  return originalEnvironment;
 }
 
 /**
- * A simulated browser environment that restores the globals when disposed.
- */
-export interface SimulatedBrowser extends Disposable {
-  /** Restores the globals to their original values. */
-  restore: () => void;
-}
-
-/**
- * Simulates the globals until the simulated browser is restored or disposed.
- * The initial globals are the ones that were present in the current process.
- * They are overridden by the hydration data passed to the `simulateBrowser` function.
+ * Simulates environment variables for the duration of a callback.
+ * The environment variables are automatically restored after the callback completes,
+ * whether it returns normally, throws an error, or returns a rejected promise.
  *
- * In addition to the globals, the environment functions for determining if the application
- * is running in a server or browser environment are overridden.
+ * If an environment variable is set to `null`, it will be deleted from the environment.
+ * Simulated environments can be nested within other simulated environments.
+ *
+ * @example Using with a test case
+ * ```ts
+ * import { simulateEnvironment } from "@udibo/juniper/utils/testing";
+ * import { assertEquals } from "@std/assert";
+ * import { describe, it } from "@std/testing/bdd";
+ *
+ * describe("Environment tests", () => {
+ *   it("should use simulated environment", simulateEnvironment({
+ *     "APP_ENV": "production",
+ *     "DEBUG": null,
+ *   }, () => {
+ *     assertEquals(Deno.env.get("APP_ENV"), "production");
+ *     assertEquals(Deno.env.get("DEBUG"), undefined);
+ *   }));
+ *
+ *   it("should support async callbacks", simulateEnvironment({
+ *     "APP_ENV": "test",
+ *   }, async () => {
+ *     assertEquals(Deno.env.get("APP_ENV"), "test");
+ *     await Promise.resolve();
+ *   }));
+ * });
+ * ```
+ *
+ * @param environment The environment variables to set for the duration of the callback.
+ * @param callback The function to execute with the simulated environment.
+ * @returns A function that executes the callback with the simulated environment.
+ */
+export function simulateEnvironment<T extends void | Promise<void>>(
+  environment: Record<string, string | null>,
+  callback: () => T,
+): () => T {
+  return (() => {
+    const originalEnvironment = applyEnvironment(environment);
+    try {
+      const result = callback();
+      if (result instanceof Promise) {
+        return result.finally(() => {
+          restoreEnvironment(originalEnvironment);
+        }) as T;
+      }
+      restoreEnvironment(originalEnvironment);
+      return result;
+    } catch (error) {
+      restoreEnvironment(originalEnvironment);
+      throw error;
+    }
+  }) as () => T;
+}
+
+export interface SimulateBrowserOptions {
+  serializeError?: (error: unknown) => unknown;
+  publicEnvKeys?: string[];
+}
+
+/**
+ * Simulates a browser environment for the duration of a callback.
+ * The browser globals are automatically restored after the callback completes,
+ * whether it returns normally, throws an error, or returns a rejected promise.
+ *
+ * This function sets up the hydration data and overrides `env.isServer` to return `false`,
+ * simulating a browser environment for testing client-side code.
+ *
+ * @example Using with a test case
+ * ```ts
+ * import { simulateBrowser } from "@udibo/juniper/utils/testing";
+ * import { assertEquals } from "@std/assert";
+ * import { describe, it } from "@std/testing/bdd";
+ * import { isBrowser, isServer } from "@udibo/juniper/utils/env";
+ *
+ * describe("Browser tests", () => {
+ *   it("should simulate browser environment", simulateBrowser({
+ *     matches: [],
+ *     publicEnv: { APP_ENV: "production" },
+ *   }, () => {
+ *     assertEquals(isBrowser(), true);
+ *     assertEquals(isServer(), false);
+ *   }));
+ * });
+ * ```
  *
  * @param hydrationData The hydration data for the simulated browser.
- * @param options Optional configuration for serialization.
- * @returns A promise that resolves to a simulated browser that restores the globals when disposed.
+ * @param callback The function to execute with the simulated browser environment.
+ * @returns A function that returns a promise which executes the callback with the simulated browser environment.
  */
-export async function simulateBrowser(
+export function simulateBrowser<T extends void | Promise<void>>(
   hydrationData: HydrationData,
-  options: {
-    serializeError?: (error: unknown) => unknown;
-    publicEnvKeys?: string[];
-  } = {},
-): Promise<SimulatedBrowser> {
-  const allPublicEnvKeys = [
-    ...new Set([
-      ...DEFAULT_PUBLIC_ENV_KEYS,
-      ...(options.publicEnvKeys ?? []),
-    ]),
-  ];
-  const publicEnv: Record<string, string> = {};
-  for (const key of allPublicEnvKeys) {
-    const value = Deno.env.get(key);
-    if (value !== undefined) {
-      publicEnv[key] = value;
+  callback: () => T,
+): () => Promise<void>;
+export function simulateBrowser<T extends void | Promise<void>>(
+  hydrationData: HydrationData,
+  options: SimulateBrowserOptions,
+  callback: () => T,
+): () => Promise<void>;
+export function simulateBrowser<T extends void | Promise<void>>(
+  hydrationData: HydrationData,
+  optionsOrCallback: SimulateBrowserOptions | (() => T),
+  maybeCallback?: () => T,
+): () => Promise<void> {
+  const options: SimulateBrowserOptions =
+    typeof optionsOrCallback === "function" ? {} : optionsOrCallback;
+  const callback: () => T = typeof optionsOrCallback === "function"
+    ? optionsOrCallback
+    : maybeCallback!;
+
+  return async () => {
+    const allPublicEnvKeys = [
+      ...new Set([
+        ...DEFAULT_PUBLIC_ENV_KEYS,
+        ...(options.publicEnvKeys ?? []),
+      ]),
+    ];
+    const publicEnv: Record<string, string> = {};
+    for (const key of allPublicEnvKeys) {
+      const value = Deno.env.get(key);
+      if (value !== undefined) {
+        publicEnv[key] = value;
+      }
     }
-  }
-  const serializedHydrationData = await serializeHydrationData(
-    {
-      ...hydrationData,
-      publicEnv: { ...publicEnv, ...hydrationData.publicEnv },
-    },
-    { serializeError: options.serializeError },
-  );
+    const serializedHydrationData = await serializeHydrationData(
+      {
+        ...hydrationData,
+        publicEnv: { ...publicEnv, ...hydrationData.publicEnv },
+      },
+      { serializeError: options.serializeError },
+    );
 
-  const originalJuniperHydrationData = env.getHydrationData();
-  env.setHydrationData(serializedHydrationData);
+    const originalJuniperHydrationData = env.getHydrationData();
+    env.setHydrationData(serializedHydrationData);
 
-  const originalIsServer = env.isServer;
-  env.isServer = () => false;
+    const originalIsServer = env.isServer;
+    env.isServer = () => false;
 
-  let restored = false;
-  function restore() {
-    if (restored) throw new Error("Browser already restored");
-    restored = true;
-    env.setHydrationData(originalJuniperHydrationData);
-    env.isServer = originalIsServer;
-  }
-
-  return {
-    restore,
-    [Symbol.dispose]: () => {
-      restore();
-    },
+    try {
+      const result = callback();
+      if (result instanceof Promise) {
+        await result;
+      }
+    } finally {
+      env.setHydrationData(originalJuniperHydrationData);
+      env.isServer = originalIsServer;
+    }
   };
 }
