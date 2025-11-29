@@ -162,7 +162,12 @@ export interface SimulateBrowserOptions {
  * import { isBrowser, isServer } from "@udibo/juniper/utils/env";
  *
  * describe("Browser tests", () => {
- *   it("should simulate browser environment", simulateBrowser({
+ *   it("should simulate browser environment", simulateBrowser(() => {
+ *     assertEquals(isBrowser(), true);
+ *     assertEquals(isServer(), false);
+ *   }));
+ *
+ *   it("should simulate browser environment with hydration data", simulateBrowser({
  *     matches: [],
  *     publicEnv: { APP_ENV: "production" },
  *   }, () => {
@@ -172,10 +177,18 @@ export interface SimulateBrowserOptions {
  * });
  * ```
  *
- * @param hydrationData The hydration data for the simulated browser.
+ * @param hydrationData The hydration data for the simulated browser. Defaults to `{ matches: [] }`.
+ * @param options Options for the simulated browser.
  * @param callback The function to execute with the simulated browser environment.
  * @returns A function that returns a promise which executes the callback with the simulated browser environment.
  */
+export function simulateBrowser<T extends void | Promise<void>>(
+  callback: () => T,
+): () => Promise<void>;
+export function simulateBrowser<T extends void | Promise<void>>(
+  options: SimulateBrowserOptions,
+  callback: () => T,
+): () => Promise<void>;
 export function simulateBrowser<T extends void | Promise<void>>(
   hydrationData: HydrationData,
   callback: () => T,
@@ -186,15 +199,35 @@ export function simulateBrowser<T extends void | Promise<void>>(
   callback: () => T,
 ): () => Promise<void>;
 export function simulateBrowser<T extends void | Promise<void>>(
-  hydrationData: HydrationData,
-  optionsOrCallback: SimulateBrowserOptions | (() => T),
+  hydrationDataOrOptionsOrCallback:
+    | HydrationData
+    | SimulateBrowserOptions
+    | (() => T),
+  optionsOrCallback?: SimulateBrowserOptions | (() => T),
   maybeCallback?: () => T,
 ): () => Promise<void> {
-  const options: SimulateBrowserOptions =
-    typeof optionsOrCallback === "function" ? {} : optionsOrCallback;
-  const callback: () => T = typeof optionsOrCallback === "function"
-    ? optionsOrCallback
-    : maybeCallback!;
+  let hydrationData: HydrationData;
+  let options: SimulateBrowserOptions;
+  let callback: () => T;
+
+  if (typeof hydrationDataOrOptionsOrCallback === "function") {
+    hydrationData = { matches: [] };
+    options = {};
+    callback = hydrationDataOrOptionsOrCallback;
+  } else if (typeof optionsOrCallback === "function") {
+    if ("matches" in hydrationDataOrOptionsOrCallback) {
+      hydrationData = hydrationDataOrOptionsOrCallback;
+      options = {};
+    } else {
+      hydrationData = { matches: [] };
+      options = hydrationDataOrOptionsOrCallback;
+    }
+    callback = optionsOrCallback;
+  } else {
+    hydrationData = hydrationDataOrOptionsOrCallback as HydrationData;
+    options = optionsOrCallback as SimulateBrowserOptions;
+    callback = maybeCallback!;
+  }
 
   return async () => {
     const allPublicEnvKeys = [

@@ -179,6 +179,40 @@ describe("simulateBrowser", () => {
     }),
   );
 
+  it(
+    "should simulate browser globals with callback only",
+    simulateBrowser(async () => {
+      assertEquals(isBrowser(), true);
+      assertEquals(isServer(), false);
+      assertEquals(getEnv("APP_ENV"), "test");
+      assertEquals(getEnv("APP_NAME"), "Example");
+      assertEquals(getEnv("NODE_ENV"), "development");
+      assertEquals(
+        env.getHydrationData(),
+        await serializeHydrationData({
+          matches: [],
+          publicEnv,
+        }),
+      );
+    }),
+  );
+
+  it(
+    "should simulate browser globals with options and callback",
+    simulateBrowser({ publicEnvKeys: ["CUSTOM_KEY"] }, async () => {
+      assertEquals(isBrowser(), true);
+      assertEquals(isServer(), false);
+      assertEquals(getEnv("APP_ENV"), "test");
+      assertEquals(
+        env.getHydrationData(),
+        await serializeHydrationData({
+          matches: [],
+          publicEnv,
+        }),
+      );
+    }),
+  );
+
   it("should restore browser globals after callback completes", async () => {
     const hydrationData: HydrationData = {
       matches: [],
