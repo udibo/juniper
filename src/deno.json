@@ -16,7 +16,7 @@
   "tasks": {
     "test": {
       "description": "Runs the tests.",
-      "command": "deno test -P=test --env-file=../example/.env --env-file=../example/.env.test"
+      "command": "deno test -P=test --env-file=../example/.env --env-file=../example/.env.test --parallel"
     },
     "test-update": {
       "description": "Runs the tests and updates the snapshots.",

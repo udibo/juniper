@@ -1,5 +1,6 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
+import { delay } from "@std/async/delay";
 
 import {
   getEnv,
@@ -43,31 +44,43 @@ describe("simulateEnvironment", () => {
       "BAZ": null,
       "QUUX": "quux",
     }, () => {
-      assertEquals(Deno.env.get("FOO"), "foo");
-      assertEquals(Deno.env.get("BAZ"), undefined);
-      assertEquals(Deno.env.get("QUUX"), "quux");
-      assertEquals(Deno.env.get("ABCD"), undefined);
-
-      Deno.env.set("ABCD", "abcd");
-      assertEquals(Deno.env.get("ABCD"), "abcd");
+      assertEquals(getEnv("FOO"), "foo");
+      assertEquals(getEnv("BAZ"), undefined);
+      assertEquals(getEnv("QUUX"), "quux");
+      assertEquals(getEnv("ABCD"), undefined);
     }),
   );
 
-  it("should restore environment after callback completes", () => {
+  it("should not modify Deno.env", () => {
     simulateEnvironment({
       "FOO": "foo",
       "BAZ": null,
       "QUUX": "quux",
     }, () => {
-      assertEquals(Deno.env.get("FOO"), "foo");
+      assertEquals(getEnv("FOO"), "foo");
+      assertEquals(Deno.env.get("FOO"), "bar");
+      assertEquals(Deno.env.get("BAZ"), "qux");
+      assertEquals(Deno.env.get("QUUX"), undefined);
     })();
-
-    assertEquals(Deno.env.get("FOO"), "bar");
-    assertEquals(Deno.env.get("BAZ"), "qux");
-    assertEquals(Deno.env.get("QUUX"), undefined);
   });
 
-  it("should restore environment after callback throws", () => {
+  it("should restore getEnv after callback completes", () => {
+    simulateEnvironment({
+      "FOO": "foo",
+      "BAZ": null,
+      "QUUX": "quux",
+    }, () => {
+      assertEquals(getEnv("FOO"), "foo");
+      assertEquals(getEnv("BAZ"), undefined);
+      assertEquals(getEnv("QUUX"), "quux");
+    })();
+
+    assertEquals(getEnv("FOO"), "bar");
+    assertEquals(getEnv("BAZ"), "qux");
+    assertEquals(getEnv("QUUX"), undefined);
+  });
+
+  it("should restore getEnv after callback throws", () => {
     const wrapper = simulateEnvironment({
       "FOO": "foo",
     }, () => {
@@ -80,28 +93,36 @@ describe("simulateEnvironment", () => {
       // Expected
     }
 
-    assertEquals(Deno.env.get("FOO"), "bar");
+    assertEquals(getEnv("FOO"), "bar");
   });
 
   it(
-    "should restore environment after async callback completes",
+    "should restore getEnv after async callback completes",
     async () => {
+      async function external() {
+        await delay(0);
+        assertEquals(getEnv("FOO"), "foo");
+        assertEquals(getEnv("BAZ"), undefined);
+        assertEquals(getEnv("QUUX"), "quux");
+      }
       await simulateEnvironment({
         "FOO": "foo",
         "BAZ": null,
         "QUUX": "quux",
       }, async () => {
-        assertEquals(Deno.env.get("FOO"), "foo");
-        await Promise.resolve();
+        assertEquals(getEnv("FOO"), "foo");
+        assertEquals(getEnv("BAZ"), undefined);
+        assertEquals(getEnv("QUUX"), "quux");
+        await delay(0).then(external);
       })();
 
-      assertEquals(Deno.env.get("FOO"), "bar");
-      assertEquals(Deno.env.get("BAZ"), "qux");
-      assertEquals(Deno.env.get("QUUX"), undefined);
+      assertEquals(getEnv("FOO"), "bar");
+      assertEquals(getEnv("BAZ"), "qux");
+      assertEquals(getEnv("QUUX"), undefined);
     },
   );
 
-  it("should restore environment after async callback rejects", async () => {
+  it("should restore getEnv after async callback rejects", async () => {
     const wrapper = simulateEnvironment({
       "FOO": "foo",
     }, async () => {
@@ -111,7 +132,7 @@ describe("simulateEnvironment", () => {
 
     await assertRejects(() => wrapper());
 
-    assertEquals(Deno.env.get("FOO"), "bar");
+    assertEquals(getEnv("FOO"), "bar");
   });
 
   it("should support nested simulated environments", () => {
@@ -120,31 +141,57 @@ describe("simulateEnvironment", () => {
       "BAZ": "outer-baz",
       "QUUX": "outer-quux",
     }, () => {
-      assertEquals(Deno.env.get("FOO"), "outer-foo");
-      assertEquals(Deno.env.get("BAZ"), "outer-baz");
-      assertEquals(Deno.env.get("QUUX"), "outer-quux");
+      assertEquals(getEnv("FOO"), "outer-foo");
+      assertEquals(getEnv("BAZ"), "outer-baz");
+      assertEquals(getEnv("QUUX"), "outer-quux");
 
       simulateEnvironment({
         "FOO": "inner-foo",
         "BAZ": null,
         "EXTRA": "inner-extra",
       }, () => {
-        assertEquals(Deno.env.get("FOO"), "inner-foo");
-        assertEquals(Deno.env.get("BAZ"), undefined);
-        assertEquals(Deno.env.get("QUUX"), "outer-quux");
-        assertEquals(Deno.env.get("EXTRA"), "inner-extra");
+        assertEquals(getEnv("FOO"), "inner-foo");
+        assertEquals(getEnv("BAZ"), undefined);
+        assertEquals(getEnv("QUUX"), "outer-quux");
+        assertEquals(getEnv("EXTRA"), "inner-extra");
       })();
 
-      assertEquals(Deno.env.get("FOO"), "outer-foo");
-      assertEquals(Deno.env.get("BAZ"), "outer-baz");
-      assertEquals(Deno.env.get("QUUX"), "outer-quux");
-      assertEquals(Deno.env.get("EXTRA"), undefined);
+      assertEquals(getEnv("FOO"), "outer-foo");
+      assertEquals(getEnv("BAZ"), "outer-baz");
+      assertEquals(getEnv("QUUX"), "outer-quux");
+      assertEquals(getEnv("EXTRA"), undefined);
     })();
 
-    assertEquals(Deno.env.get("FOO"), "bar");
-    assertEquals(Deno.env.get("BAZ"), "qux");
-    assertEquals(Deno.env.get("QUUX"), undefined);
-    assertEquals(Deno.env.get("EXTRA"), undefined);
+    assertEquals(getEnv("FOO"), "bar");
+    assertEquals(getEnv("BAZ"), "qux");
+    assertEquals(getEnv("QUUX"), undefined);
+    assertEquals(getEnv("EXTRA"), undefined);
+  });
+
+  it("should isolate concurrent simulated environments", async () => {
+    const env1 = simulateEnvironment({
+      "FOO": "env1-value",
+    }, async () => {
+      assertEquals(getEnv("FOO"), "env1-value");
+      await delay(0);
+      assertEquals(getEnv("FOO"), "env1-value");
+      await delay(0);
+      assertEquals(getEnv("FOO"), "env1-value");
+    });
+
+    const env2 = simulateEnvironment({
+      "FOO": "env2-value",
+    }, async () => {
+      assertEquals(getEnv("FOO"), "env2-value");
+      await delay(0);
+      assertEquals(getEnv("FOO"), "env2-value");
+      await delay(0);
+      assertEquals(getEnv("FOO"), "env2-value");
+    });
+
+    await Promise.all([env1(), env2()]);
+
+    assertEquals(getEnv("FOO"), "bar");
   });
 });
 

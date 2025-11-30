@@ -48,10 +48,6 @@
       "command": "deno task --cwd=templates/minimal dev"
     },
     "test": {
-      "description": "Runs all of the tests.",
-      "command": "deno test -P=test --env-file=example/.env --env-file=example/.env.test"
-    },
-    "test:juniper": {
       "description": "Runs all of the Juniper tests.",
       "command": "deno task --cwd=src test"
     },

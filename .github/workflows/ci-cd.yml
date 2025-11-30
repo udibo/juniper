@@ -37,9 +37,12 @@ jobs:
         with:
           deno-version: v2.x
           cache: true
-      - name: Run src tests with coverage (Ubuntu)
+      - name: Run Juniper tests with coverage (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
-        run: deno task test:juniper --coverage
+        run: deno task test --coverage
+      - name: Run Juniper tests (macOS/Windows)
+        if: matrix.os != 'ubuntu-latest'
+        run: deno task test
       - name: View coverage report (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         working-directory: src
@@ -52,15 +55,10 @@ jobs:
           files: src/coverage/lcov.info
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-      - name: Run example tests (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Run example tests
         run: deno task test:example
-      - name: Run minimal template tests (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Run minimal template tests
         run: deno task test:minimal
-      - name: Run all tests (macOS/Windows)
-        if: matrix.os != 'ubuntu-latest'
-        run: deno task test
   deploy:
     name: Deploy to Deno Deploy
     needs: [test]

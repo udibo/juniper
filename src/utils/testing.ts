@@ -4,12 +4,60 @@
  * @module utils/testing
  */
 
-import type { HydrationData } from "../_client.tsx";
+import { AsyncLocalStorage } from "node:async_hooks";
+
+import type { HydrationData, SerializedHydrationData } from "../_client.tsx";
 import {
   DEFAULT_PUBLIC_ENV_KEYS,
   serializeHydrationData,
 } from "../_server.tsx";
 import { env } from "./_env.ts";
+
+interface EnvironmentStore {
+  overrides: Record<string, string | null>;
+}
+
+const environmentStorage = new AsyncLocalStorage<EnvironmentStore>();
+
+const originalGetEnv = env.getEnv;
+
+function patchedGetEnv(key: string): string | undefined {
+  if (env.isServer()) {
+    const store = environmentStorage.getStore();
+    if (store !== undefined) {
+      if (Object.hasOwn(store.overrides, key)) {
+        const value = store.overrides[key];
+        return value === null ? undefined : value;
+      }
+    }
+  }
+  return originalGetEnv(key);
+}
+
+interface HydrationDataStore {
+  hydrationData: SerializedHydrationData;
+}
+
+const hydrationDataStorage = new AsyncLocalStorage<HydrationDataStore>();
+
+const originalGetHydrationData = env.getHydrationData;
+const originalIsServer = env.isServer;
+
+function patchedGetHydrationData(): SerializedHydrationData | undefined {
+  const store = hydrationDataStorage.getStore();
+  if (store !== undefined) {
+    return store.hydrationData;
+  }
+  return originalGetHydrationData();
+}
+
+function patchedIsServer(): boolean {
+  const store = hydrationDataStorage.getStore();
+  if (store !== undefined) {
+    return false;
+  }
+  return originalIsServer();
+}
 
 /**
  * Determines if the current process is running in snapshot mode.
@@ -55,34 +103,6 @@ export function isSnapshotMode(): boolean {
   return Deno.args.some((arg) => arg === "--update" || arg === "-u");
 }
 
-function restoreEnvironment(originalEnvironment: Record<string, string>): void {
-  const keys = new Set(Object.keys(Deno.env.toObject())).union(
-    new Set(Object.keys(originalEnvironment)),
-  );
-  for (const key of keys) {
-    const value = originalEnvironment[key] ?? null;
-    if (value === null) {
-      Deno.env.delete(key);
-    } else {
-      Deno.env.set(key, value);
-    }
-  }
-}
-
-function applyEnvironment(
-  environment: Record<string, string | null>,
-): Record<string, string> {
-  const originalEnvironment = Deno.env.toObject();
-  for (const [key, value] of Object.entries(environment)) {
-    if (value === null) {
-      Deno.env.delete(key);
-    } else {
-      Deno.env.set(key, value);
-    }
-  }
-  return originalEnvironment;
-}
-
 /**
  * Simulates environment variables for the duration of a callback.
  * The environment variables are automatically restored after the callback completes,
@@ -94,6 +114,7 @@ function applyEnvironment(
  * @example Using with a test case
  * ```ts
  * import { simulateEnvironment } from "@udibo/juniper/utils/testing";
+ * import { getEnv } from "@udibo/juniper/utils/env";
  * import { assertEquals } from "@std/assert";
  * import { describe, it } from "@std/testing/bdd";
  *
@@ -102,14 +123,14 @@ function applyEnvironment(
  *     "APP_ENV": "production",
  *     "DEBUG": null,
  *   }, () => {
- *     assertEquals(Deno.env.get("APP_ENV"), "production");
- *     assertEquals(Deno.env.get("DEBUG"), undefined);
+ *     assertEquals(getEnv("APP_ENV"), "production");
+ *     assertEquals(getEnv("DEBUG"), undefined);
  *   }));
  *
  *   it("should support async callbacks", simulateEnvironment({
  *     "APP_ENV": "test",
  *   }, async () => {
- *     assertEquals(Deno.env.get("APP_ENV"), "test");
+ *     assertEquals(getEnv("APP_ENV"), "test");
  *     await Promise.resolve();
  *   }));
  * });
@@ -124,21 +145,23 @@ export function simulateEnvironment<T extends void | Promise<void>>(
   callback: () => T,
 ): () => T {
   return (() => {
-    const originalEnvironment = applyEnvironment(environment);
-    try {
-      const result = callback();
-      if (result instanceof Promise) {
-        return result.finally(() => {
-          restoreEnvironment(originalEnvironment);
-        }) as T;
-      }
-      restoreEnvironment(originalEnvironment);
-      return result;
-    } catch (error) {
-      restoreEnvironment(originalEnvironment);
-      throw error;
+    const parentStore = environmentStorage.getStore();
+    const parentOverrides = parentStore?.overrides ?? {};
+    const mergedOverrides: Record<string, string | null> = {
+      ...parentOverrides,
+    };
+    for (const [key, value] of Object.entries(environment)) {
+      mergedOverrides[key] = value;
     }
-  }) as () => T;
+
+    const store: EnvironmentStore = { overrides: mergedOverrides };
+
+    if (env.getEnv !== patchedGetEnv) {
+      env.getEnv = patchedGetEnv;
+    }
+
+    return environmentStorage.run(store, () => callback());
+  });
 }
 
 export interface SimulateBrowserOptions {
@@ -238,7 +261,7 @@ export function simulateBrowser<T extends void | Promise<void>>(
     ];
     const publicEnv: Record<string, string> = {};
     for (const key of allPublicEnvKeys) {
-      const value = Deno.env.get(key);
+      const value = env.getEnv(key);
       if (value !== undefined) {
         publicEnv[key] = value;
       }
@@ -251,20 +274,17 @@ export function simulateBrowser<T extends void | Promise<void>>(
       { serializeError: options.serializeError },
     );
 
-    const originalJuniperHydrationData = env.getHydrationData();
-    env.setHydrationData(serializedHydrationData);
+    const store: HydrationDataStore = {
+      hydrationData: serializedHydrationData,
+    };
 
-    const originalIsServer = env.isServer;
-    env.isServer = () => false;
-
-    try {
-      const result = callback();
-      if (result instanceof Promise) {
-        await result;
-      }
-    } finally {
-      env.setHydrationData(originalJuniperHydrationData);
-      env.isServer = originalIsServer;
+    if (env.getHydrationData !== patchedGetHydrationData) {
+      env.getHydrationData = patchedGetHydrationData;
     }
+    if (env.isServer !== patchedIsServer) {
+      env.isServer = patchedIsServer;
+    }
+
+    await hydrationDataStorage.run(store, () => callback());
   };
 }
