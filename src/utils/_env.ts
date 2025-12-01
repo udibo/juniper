@@ -1,4 +1,4 @@
-import type { ClientGlobals, SerializedHydrationData } from "../_client.tsx";
+import type { ClientGlobals } from "../_client.tsx";
 
 /**
  * Internal environment utilities that can be stubbed for testing.
