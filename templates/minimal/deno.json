@@ -22,7 +22,7 @@
     },
     "test": {
       "description": "Runs the tests.",
-      "command": "deno test -P=test --env-file --env-file=.env.test --parallel"
+      "command": "deno test -P=test --env-file --env-file=.env.test"
     },
     "check": {
       "description": "Checks the formatting and runs the linter.",
