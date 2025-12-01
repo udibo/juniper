@@ -211,7 +211,6 @@ describe("Builder", () => {
       });
 
       const result = await builder.build();
-      console.log(result);
       assertEquals(typeof result, "object");
       assertEquals(builder.isBuilding, false);
     });
