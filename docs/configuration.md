@@ -158,8 +158,9 @@ if (isDevelopment()) {
 }
 ```
 
-For tests, `@udibo/juniper/utils/testing` exposes `simulateEnvironment` so each
-spec can temporarily override variables without polluting the process.
+For tests, `@udibo/juniper/utils/testing` exposes `simulateEnvironment` which
+wraps test callbacks with temporary variable overrides without polluting the
+process.
 
 ## Telemetry and Logging
 

@@ -415,24 +415,28 @@ describe("serializeErrorDefault", () => {
     assertEquals(result, value);
   });
 
-  it("should serialize generic Error with message and stack in development", () => {
-    using _env = simulateEnvironment({ "APP_ENV": null });
-    const err = new Error("Oops");
-    const result = serializeErrorDefault(err) as Record<string, unknown>;
-    assertEquals(result.__type, "Error");
-    assertEquals(result.message, "Oops");
-    assertEquals(typeof result.stack, "string");
-    assertEquals(result.__subType, undefined);
-  });
+  it(
+    "should serialize generic Error with message and stack in development",
+    simulateEnvironment({ "APP_ENV": null }, () => {
+      const err = new Error("Oops");
+      const result = serializeErrorDefault(err) as Record<string, unknown>;
+      assertEquals(result.__type, "Error");
+      assertEquals(result.message, "Oops");
+      assertEquals(typeof result.stack, "string");
+      assertEquals(result.__subType, undefined);
+    }),
+  );
 
-  it("should omit stack outside development", () => {
-    using _env = simulateEnvironment({ "APP_ENV": "production" });
-    const err = new Error("No stack");
-    const result = serializeErrorDefault(err) as Record<string, unknown>;
-    assertEquals(result.__type, "Error");
-    assertEquals(result.message, "No stack");
-    assertEquals(result.stack, undefined);
-  });
+  it(
+    "should omit stack outside development",
+    simulateEnvironment({ "APP_ENV": "production" }, () => {
+      const err = new Error("No stack");
+      const result = serializeErrorDefault(err) as Record<string, unknown>;
+      assertEquals(result.__type, "Error");
+      assertEquals(result.message, "No stack");
+      assertEquals(result.stack, undefined);
+    }),
+  );
 
   it("should set __subType for Error subclasses", () => {
     const err = new TypeError("Wrong type");

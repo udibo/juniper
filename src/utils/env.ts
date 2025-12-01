@@ -7,15 +7,34 @@
  * @module utils/env
  */
 
-import type { ClientGlobals } from "../_client.tsx";
 import { env } from "./_env.ts";
 
-function getAppEnv(): string | undefined {
-  return isServer()
-    ? Deno.env.get("APP_ENV")
-    : ((globalThis as ClientGlobals).__juniperHydrationData?.json as {
-      appEnv?: string;
-    })?.appEnv;
+/**
+ * Gets the value of an environment variable.
+ *
+ * On the server, this function retrieves the value from `Deno.env`.
+ * On the client, this function retrieves the value from the `publicEnv` object
+ * that was serialized during server-side rendering.
+ *
+ * By default, only three environment variables are available on the client:
+ * - `APP_NAME` - The name of the application
+ * - `APP_ENV` - The application environment (e.g., "development", "production", "test")
+ * - `NODE_ENV` - The Node.js environment
+ *
+ * To make additional environment variables available to the client, export a
+ * `publicEnvKeys` array from your root server route (`routes/main.ts`):
+ *
+ * @example Making additional environment variables available to the client
+ * ```ts
+ * // routes/main.ts
+ * export const publicEnvKeys = ["MY_PUBLIC_API_URL", "FEATURE_FLAGS"];
+ * ```
+ *
+ * @param key - The name of the environment variable.
+ * @returns The value of the environment variable, or `undefined` if not set.
+ */
+export function getEnv(key: string): string | undefined {
+  return env.getEnv(key);
 }
 
 /**
@@ -24,7 +43,7 @@ function getAppEnv(): string | undefined {
  * @returns `true` if the application is running in development mode, `false` otherwise.
  */
 export function isDevelopment(): boolean {
-  const appEnv = getAppEnv();
+  const appEnv = getEnv("APP_ENV");
   return !appEnv || appEnv === "development";
 }
 
@@ -34,7 +53,7 @@ export function isDevelopment(): boolean {
  * @returns `true` if the application is running in production mode, `false` otherwise.
  */
 export function isProduction(): boolean {
-  return getAppEnv() === "production";
+  return getEnv("APP_ENV") === "production";
 }
 
 /**
@@ -43,7 +62,7 @@ export function isProduction(): boolean {
  * @returns `true` if the application is running in test mode, `false` otherwise.
  */
 export function isTest(): boolean {
-  return getAppEnv() === "test";
+  return getEnv("APP_ENV") === "test";
 }
 
 /**

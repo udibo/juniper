@@ -90,9 +90,10 @@ synchronized with loader states to avoid flicker.
 
 Use utilities from `@udibo/juniper/utils/testing`:
 
-- `simulateEnvironment()` sets env vars for tests manipulating feature flags.
-- `simulateBrowser()` injects hydration data and overrides `env.isServer` so you
-  can run client-only tests without a DOM.
+- `simulateEnvironment()` wraps a callback with temporary env var overrides for
+  tests manipulating feature flags.
+- `simulateBrowser()` wraps a callback with injected hydration data and
+  overrides `isServer` so you can run client-only tests without a DOM.
 - Snapshot serialized loader data to verify revalidation logic. Combine with
   `isSnapshotMode()` to update fixtures when needed.
 

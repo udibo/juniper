@@ -88,7 +88,10 @@ interface ServerMainRouteModule<
   BasePath extends string = "/",
 > extends ServerRouteModule<E, S, BasePath> {
   serializeError?: (error: unknown) => SerializedError | unknown;
+  publicEnvKeys?: string[];
 }
+
+export const DEFAULT_PUBLIC_ENV_KEYS = ["APP_NAME", "APP_ENV", "NODE_ENV"];
 
 export interface Route<
   E extends Env = Env,
@@ -197,7 +200,7 @@ export async function serializeHydrationData(
     actionData: {},
   };
 
-  const { appEnv, matches } = hydrationData;
+  const { publicEnv, matches } = hydrationData;
 
   // Serialize errors
   let errors: HydrationState["errors"];
@@ -258,7 +261,6 @@ export async function serializeHydrationData(
   }
 
   const { json, meta } = SuperJSON.serialize({
-    appEnv,
     matches,
     errors,
     loaderData,
@@ -268,6 +270,7 @@ export async function serializeHydrationData(
   return {
     json,
     meta,
+    publicEnv,
     resolved,
     rejected,
   };
@@ -287,6 +290,23 @@ function HydrationScript(
 }
 
 /**
+ * Gathers public environment variables to share with the client.
+ *
+ * @param allPublicEnvKeys - All environment variable keys to include
+ * @returns An object containing the public environment variables
+ */
+function getPublicEnv(allPublicEnvKeys: string[]): Record<string, string> {
+  const publicEnv: Record<string, string> = {};
+  for (const key of allPublicEnvKeys) {
+    const value = Deno.env.get(key);
+    if (value !== undefined) {
+      publicEnv[key] = value;
+    }
+  }
+  return publicEnv;
+}
+
+/**
  * Creates handlers for React Router.
  *
  * This function is used to create handlers for React Router.
@@ -302,6 +322,12 @@ export function createHandlers<
 >(route: Route<E, S, BasePath>, routes: RouteObject[]) {
   const factory = createFactory();
   const serializeError = route.main?.serializeError ?? (() => {});
+  const allPublicEnvKeys = [
+    ...new Set([
+      ...DEFAULT_PUBLIC_ENV_KEYS,
+      ...(route.main?.publicEnvKeys ?? []),
+    ]),
+  ];
   const { query, dataRoutes, queryRoute } = createStaticHandler(routes);
 
   return factory.createHandlers(
@@ -341,7 +367,7 @@ export function createHandlers<
             );
             try {
               const hydrationData = {
-                appEnv: Deno.env.get("APP_ENV"),
+                publicEnv: getPublicEnv(allPublicEnvKeys),
                 matches: context.matches.map((match) => ({
                   id: match.route.id,
                 })),
