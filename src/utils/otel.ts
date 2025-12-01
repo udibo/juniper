@@ -8,6 +8,8 @@ import { SpanStatusCode, trace } from "@opentelemetry/api";
 import type { Context, Span, SpanOptions, Tracer } from "@opentelemetry/api";
 import { HttpError } from "@udibo/http-error";
 
+import { getEnv } from "@udibo/juniper/utils/env";
+
 /**
  * Gets the current OpenTelemetry instance for error tracking and observability.
  *
@@ -76,21 +78,19 @@ export interface OtelUtils {
 }
 
 /**
- * Creates OpenTelemetry utilities for the given tracer.
+ * Creates OpenTelemetry utilities for tracing operations.
  *
  * This function provides a convenient wrapper around OpenTelemetry's tracing functionality
  * with automatic error handling, span lifecycle management, and HttpError integration.
  *
- * @param tracer - The OpenTelemetry tracer instance
+ * @param tracer - Optional OpenTelemetry tracer instance. If not provided, creates one using the APP_NAME environment variable.
  * @returns An object containing utility functions for tracing operations
  *
- * @example Using otelUtils for tracing
+ * @example Using otelUtils with default tracer
  * ```ts
- * import { trace } from "@opentelemetry/api";
  * import { otelUtils } from "@udibo/juniper/utils/otel";
  *
- * const tracer = trace.getTracer("my-service");
- * const { startActiveSpan } = otelUtils(tracer);
+ * const { startActiveSpan } = otelUtils();
  *
  * app.get("/api/users", async (c) => {
  *   return startActiveSpan("get-users", async (span) => {
@@ -99,6 +99,15 @@ export interface OtelUtils {
  *     return c.json(users);
  *   });
  * });
+ * ```
+ *
+ * @example Using with a custom tracer
+ * ```ts
+ * import { trace } from "@opentelemetry/api";
+ * import { otelUtils } from "@udibo/juniper/utils/otel";
+ *
+ * const tracer = trace.getTracer("my-service");
+ * const { startActiveSpan } = otelUtils(tracer);
  * ```
  *
  * @example Using with span options
@@ -112,7 +121,8 @@ export interface OtelUtils {
  * );
  * ```
  */
-export function otelUtils(tracer: Tracer): OtelUtils {
+export function otelUtils(tracer?: Tracer): OtelUtils {
+  const t = tracer ?? trace.getTracer(getEnv("APP_NAME") ?? "unknown");
   function startActiveSpan<F extends (span: Span) => ReturnType<F>>(
     name: string,
     fn: F,
@@ -176,9 +186,9 @@ export function otelUtils(tracer: Tracer): OtelUtils {
     };
     return opts
       ? ctx
-        ? tracer.startActiveSpan(name, opts, ctx, fnWrapped)
-        : tracer.startActiveSpan(name, opts, fnWrapped)
-      : tracer.startActiveSpan(name, fnWrapped);
+        ? t.startActiveSpan(name, opts, ctx, fnWrapped)
+        : t.startActiveSpan(name, opts, fnWrapped)
+      : t.startActiveSpan(name, fnWrapped);
   }
   return {
     startActiveSpan,
