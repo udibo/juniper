@@ -20,11 +20,4 @@ export const env = {
   getHydrationData: () => {
     return (globalThis as ClientGlobals).__juniperHydrationData;
   },
-  setHydrationData: (data: SerializedHydrationData | undefined) => {
-    if (data === undefined) {
-      delete (globalThis as ClientGlobals).__juniperHydrationData;
-    } else {
-      (globalThis as ClientGlobals).__juniperHydrationData = data;
-    }
-  },
 };
