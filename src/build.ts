@@ -378,11 +378,11 @@ export const client = new Client(${routesConfigString});
 
         this.context = await esbuild.context({
           plugins: [
-            denoPlugin({ configPath }),
             reactCompilerPlugin({
               sourceMaps: buildOptions.sourcemap !== false,
             }),
             ...this.plugins,
+            denoPlugin({ configPath }),
           ],
           absWorkingDir: path.dirname(configPath),
           entryPoints: normalizedEntryPoints,
