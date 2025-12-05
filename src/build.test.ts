@@ -291,7 +291,7 @@ describe("Builder", () => {
     });
   });
 
-  describe.skip("React Compiler integration", () => {
+  describe("React Compiler integration", () => {
     it("should apply React Compiler to .tsx files during build", async () => {
       const tmp = await Deno.makeTempDir();
       const routesDir = path.resolve(tmp, "routes");
@@ -299,6 +299,7 @@ describe("Builder", () => {
       const buildDir = path.resolve(publicDir, "build");
       await Deno.mkdir(routesDir, { recursive: true });
       await Deno.mkdir(buildDir, { recursive: true });
+      await Deno.mkdir(path.resolve(tmp, "utils"));
 
       const testComponent = `export default function TestComponent() {
   const [count, setCount] = React.useState(0);
@@ -318,11 +319,14 @@ describe("Builder", () => {
 
       const clientSrcPath = path.resolve(projectRootDir, "client.tsx");
       const clientInternalSrcPath = path.resolve(projectRootDir, "_client.tsx");
+      const envInternalSrcPath = path.resolve(projectRootDir, "utils/_env.ts");
       const clientDstPath = path.resolve(tmp, "client.tsx");
       const clientInternalDstPath = path.resolve(tmp, "_client.tsx");
+      const envInternalDstPath = path.resolve(tmp, "utils/_env.ts");
 
       await Deno.copyFile(clientSrcPath, clientDstPath);
       await Deno.copyFile(clientInternalSrcPath, clientInternalDstPath);
+      await Deno.copyFile(envInternalSrcPath, envInternalDstPath);
 
       await Deno.writeTextFile(
         denoConfigPath,
@@ -357,7 +361,7 @@ describe("Builder", () => {
             path.resolve(buildDir, file.name),
           );
 
-          if (builtContent.includes("react/compiler-runtime")) {
+          if (builtContent.includes("react-compiler-runtime")) {
             runtimeFound = true;
             break;
           }
@@ -366,7 +370,7 @@ describe("Builder", () => {
         assertEquals(
           runtimeFound,
           true,
-          "React Compiler runtime was not found in any generated bundle",
+          "React Compiler runtime was not found in any generated bundle (looking for 'react-compiler-runtime')",
         );
       } finally {
         await Deno.remove(tmp, { recursive: true });
