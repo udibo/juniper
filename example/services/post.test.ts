@@ -5,24 +5,15 @@ import {
   assertRejects,
 } from "@std/assert";
 import { sortBy } from "@std/collections/sort-by";
-import { afterAll, afterEach, beforeAll, describe, it } from "@std/testing/bdd";
+import { afterAll, beforeAll, describe, it } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
 import { HttpError } from "@udibo/http-error";
 
-import { type NewPost, type Post, postService } from "./post.ts";
+import { PostService } from "./post.ts";
+import type { NewPost, Post } from "./post.ts";
 
 describe("PostService", () => {
-  let time: FakeTime;
-
-  beforeAll(() => {
-    time = new FakeTime();
-  });
-
-  afterAll(() => {
-    time.restore();
-  });
-
   const createSamplePostInput = (
     override?: Partial<NewPost>,
   ): NewPost => ({
@@ -33,11 +24,10 @@ describe("PostService", () => {
   });
 
   describe("create", () => {
-    afterEach(() => postService.close());
-
     it("should create a new post and return it", async () => {
+      using service = new PostService({ keyspace: crypto.randomUUID() });
       const newPostData = createSamplePostInput();
-      const createdPost = await postService.create(newPostData);
+      const createdPost = await service.create(newPostData);
 
       assertExists(createdPost.id);
       assertEquals(createdPost.title, newPostData.title);
@@ -49,24 +39,26 @@ describe("PostService", () => {
     });
 
     it("should fail to create a post with invalid data (e.g., missing title)", async () => {
+      using service = new PostService({ keyspace: crypto.randomUUID() });
       const invalidPostData = {
         content: "Some content.",
         authorId: generateUUIDv7(),
       } as NewPost;
 
       await assertRejects(
-        () => postService.create(invalidPostData),
+        () => service.create(invalidPostData),
         HttpError,
         "Invalid post: Field 'title' is required.",
       );
     });
 
     it("should fail to create a post with invalid authorId", async () => {
+      using service = new PostService({ keyspace: crypto.randomUUID() });
       const invalidPostData = createSamplePostInput({
         authorId: "not-a-uuid",
       });
       await assertRejects(
-        () => postService.create(invalidPostData),
+        () => service.create(invalidPostData),
         HttpError,
         "Invalid post: Invalid author ID",
       );
@@ -74,20 +66,20 @@ describe("PostService", () => {
   });
 
   describe("get", () => {
-    afterEach(() => postService.close());
-
     it("should retrieve an existing post by its ID", async () => {
+      using service = new PostService({ keyspace: crypto.randomUUID() });
       const newPostData = createSamplePostInput();
-      const createdPost = await postService.create(newPostData);
-      const retrievedPost = await postService.get(createdPost.id);
+      const createdPost = await service.create(newPostData);
+      const retrievedPost = await service.get(createdPost.id);
 
       assertEquals(retrievedPost, createdPost);
     });
 
     it("should throw HttpError if post with given ID does not exist", async () => {
+      using service = new PostService({ keyspace: crypto.randomUUID() });
       const nonExistentId = generateUUIDv7();
       await assertRejects(
-        () => postService.get(nonExistentId),
+        () => service.get(nonExistentId),
         HttpError,
         "Failed to find post",
       );
@@ -95,11 +87,10 @@ describe("PostService", () => {
   });
 
   describe("getBy (unique indexes - PostService has none by default)", () => {
-    afterEach(() => postService.close());
-
     it("should throw error when trying to getBy a non-configured unique index", async () => {
+      using service = new PostService({ keyspace: crypto.randomUUID() });
       await assertRejects(
-        () => postService.getBy("title", "Some Title"),
+        () => service.getBy("title", "Some Title"),
         HttpError,
         `Index "title" is not a valid unique index for post. Valid unique indexes are: .`,
       );
@@ -107,11 +98,11 @@ describe("PostService", () => {
   });
 
   describe("update", () => {
-    afterEach(() => postService.close());
-
     it("should update an existing post and return the updated post", async () => {
+      using time = new FakeTime();
+      using service = new PostService({ keyspace: crypto.randomUUID() });
       const initialPostData = createSamplePostInput();
-      const createdPost = await postService.create(initialPostData);
+      const createdPost = await service.create(initialPostData);
 
       time.tick(1000);
 
@@ -122,7 +113,7 @@ describe("PostService", () => {
         authorId: createdPost.authorId,
       };
 
-      const updatedPost = await postService.update(updates);
+      const updatedPost = await service.update(updates);
 
       assertEquals(updatedPost.id, createdPost.id);
       assertEquals(updatedPost.title, updates.title);
@@ -135,11 +126,12 @@ describe("PostService", () => {
         1000,
       );
 
-      const retrievedPost = await postService.get(createdPost.id);
+      const retrievedPost = await service.get(createdPost.id);
       assertEquals(retrievedPost, updatedPost);
     });
 
     it("should fail to update a post that does not exist", async () => {
+      using service = new PostService({ keyspace: crypto.randomUUID() });
       const nonExistentPostUpdate: Omit<Post, "createdAt" | "updatedAt"> = {
         id: generateUUIDv7(),
         title: "Non Existent",
@@ -147,14 +139,15 @@ describe("PostService", () => {
         authorId: generateUUIDv7(),
       };
       await assertRejects(
-        () => postService.update(nonExistentPostUpdate),
+        () => service.update(nonExistentPostUpdate),
         HttpError,
         "Failed to find post to update",
       );
     });
 
     it("should fail to update with invalid data (e.g., empty title)", async () => {
-      const createdPost = await postService.create(createSamplePostInput());
+      using service = new PostService({ keyspace: crypto.randomUUID() });
+      const createdPost = await service.create(createSamplePostInput());
       const invalidUpdate = {
         id: createdPost.id,
         title: "",
@@ -162,7 +155,7 @@ describe("PostService", () => {
         authorId: createdPost.authorId,
       };
       await assertRejects(
-        () => postService.update(invalidUpdate),
+        () => service.update(invalidUpdate),
         HttpError,
         "Invalid post: Title is required",
       );
@@ -170,11 +163,11 @@ describe("PostService", () => {
   });
 
   describe("patch", () => {
-    afterEach(() => postService.close());
-
     it("should partially update an existing post", async () => {
+      using time = new FakeTime();
+      using service = new PostService({ keyspace: crypto.randomUUID() });
       const initialPostData = createSamplePostInput();
-      const createdPost = await postService.create(initialPostData);
+      const createdPost = await service.create(initialPostData);
 
       time.tick(1000);
 
@@ -182,7 +175,7 @@ describe("PostService", () => {
         id: createdPost.id,
         content: "Patched post content.",
       };
-      const patchedPost = await postService.patch(patchData);
+      const patchedPost = await service.patch(patchData);
 
       assertEquals(patchedPost.id, createdPost.id);
       assertEquals(patchedPost.title, createdPost.title);
@@ -195,30 +188,32 @@ describe("PostService", () => {
         1000,
       );
 
-      const retrievedPost = await postService.get(createdPost.id);
+      const retrievedPost = await service.get(createdPost.id);
       assertEquals(retrievedPost, patchedPost);
     });
 
     it("should fail to patch a post that does not exist", async () => {
+      using service = new PostService({ keyspace: crypto.randomUUID() });
       const nonExistentPostPatch = {
         id: generateUUIDv7(),
         title: "Trying to patch",
       };
       await assertRejects(
-        () => postService.patch(nonExistentPostPatch),
+        () => service.patch(nonExistentPostPatch),
         HttpError,
         "Failed to find post to patch",
       );
     });
 
     it("should fail to patch with invalid data (e.g., title too long)", async () => {
-      const createdPost = await postService.create(createSamplePostInput());
+      using service = new PostService({ keyspace: crypto.randomUUID() });
+      const createdPost = await service.create(createSamplePostInput());
       const invalidPatch = {
         id: createdPost.id,
         title: "a".repeat(256),
       };
       await assertRejects(
-        () => postService.patch(invalidPatch),
+        () => service.patch(invalidPatch),
         HttpError,
         "Invalid post: Title must be less than 255 characters",
       );
@@ -226,24 +221,24 @@ describe("PostService", () => {
   });
 
   describe("delete", () => {
-    afterEach(() => postService.close());
-
     it("should delete an existing post", async () => {
+      using service = new PostService({ keyspace: crypto.randomUUID() });
       const newPostData = createSamplePostInput();
-      const createdPost = await postService.create(newPostData);
+      const createdPost = await service.create(newPostData);
 
-      await postService.delete(createdPost.id);
+      await service.delete(createdPost.id);
 
       await assertRejects(
-        () => postService.get(createdPost.id),
+        () => service.get(createdPost.id),
         HttpError,
         "Failed to find post",
       );
     });
 
     it("should fail to delete a post that does not exist", async () => {
+      using service = new PostService({ keyspace: crypto.randomUUID() });
       await assertRejects(
-        () => postService.delete(generateUUIDv7()),
+        () => service.delete(generateUUIDv7()),
         HttpError,
         "Failed to find post to delete",
       );
@@ -251,9 +246,14 @@ describe("PostService", () => {
   });
 
   describe("list", () => {
-    const posts: Post[] = [];
+    let time: FakeTime;
+    let postService: PostService;
+    let posts: Post[] = [];
 
     beforeAll(async () => {
+      time = new FakeTime();
+      postService = new PostService({ keyspace: crypto.randomUUID() });
+
       const author1 = generateUUIDv7();
       const author2 = generateUUIDv7();
 
@@ -264,22 +264,28 @@ describe("PostService", () => {
         { title: "Post D", content: "Content D", authorId: author2 },
       ];
 
+      const createdPosts: Post[] = [];
       for (const data of postsData) {
         time.tick(500);
-        posts.push(await postService.create(data));
+        createdPosts.push(await postService.create(data));
       }
       time.tick(500);
-      posts[0] = await postService.patch({
-        id: posts[0].id,
+      createdPosts[0] = await postService.patch({
+        id: createdPosts[0].id,
         title: "Post A (updated)",
       });
       time.tick(500);
-      posts[1] = await postService.patch({
-        id: posts[1].id,
+      createdPosts[1] = await postService.patch({
+        id: createdPosts[1].id,
         title: "Post B (updated)",
       });
+      posts = sortBy(createdPosts, (post) => post.id);
     });
-    afterAll(() => postService.close());
+
+    afterAll(() => {
+      postService.close();
+      time.restore();
+    });
 
     it("should return all posts with default options (sorted by id)", async () => {
       const { entries, cursor } = await postService.list();

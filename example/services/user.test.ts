@@ -5,24 +5,15 @@ import {
   assertRejects,
 } from "@std/assert";
 import { sortBy } from "@std/collections/sort-by";
-import { afterAll, afterEach, beforeAll, describe, it } from "@std/testing/bdd";
+import { afterAll, beforeAll, describe, it } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
 import { HttpError } from "@udibo/http-error";
 
-import { type NewUser, type User, userService } from "./user.ts";
+import { UserService } from "./user.ts";
+import type { NewUser, User } from "./user.ts";
 
 describe("UserService", () => {
-  let time: FakeTime;
-
-  beforeAll(() => {
-    time = new FakeTime();
-  });
-
-  afterAll(() => {
-    time.restore();
-  });
-
   const createSampleUserInput = (
     override?: Partial<NewUser>,
   ): NewUser => ({
@@ -33,11 +24,10 @@ describe("UserService", () => {
   });
 
   describe("create", () => {
-    afterEach(() => userService.close());
-
     it("should create a new user and return it", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const newUserData = createSampleUserInput();
-      const createdUser = await userService.create(newUserData);
+      const createdUser = await service.create(newUserData);
 
       assertExists(createdUser.id);
       assertEquals(createdUser.username, newUserData.username);
@@ -49,10 +39,11 @@ describe("UserService", () => {
     });
 
     it("should create a new user with password and not expose password fields", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const newUserData = createSampleUserInput({
         password: "testpassword123",
       });
-      const createdUser = await userService.create(newUserData);
+      const createdUser = await service.create(newUserData);
 
       assertExists(createdUser.id);
       assertEquals(createdUser.username, newUserData.username);
@@ -62,53 +53,57 @@ describe("UserService", () => {
       assertExists(createdUser.createdAt);
       assertExists(createdUser.updatedAt);
       assertEquals(
-        await userService.checkPassword(createdUser.id, "testpassword123"),
+        await service.checkPassword(createdUser.id, "testpassword123"),
         true,
       );
       assertEquals(
-        await userService.checkPassword(createdUser.id, "wrongpassword123"),
+        await service.checkPassword(createdUser.id, "wrongpassword123"),
         false,
       );
     });
 
     it("should fail to create a user with invalid data (e.g., missing username)", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const invalidUserData = {
         displayName: "No Username",
         email: "nousername@example.com",
       } as NewUser;
 
       await assertRejects(
-        () => userService.create(invalidUserData),
+        () => service.create(invalidUserData),
         HttpError,
         "Invalid user: Field 'username' is required.",
       );
     });
 
     it("should fail to create a user with password that is too short", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const invalidUserData = createSampleUserInput({ password: "short" });
       await assertRejects(
-        () => userService.create(invalidUserData),
+        () => service.create(invalidUserData),
         HttpError,
         "Invalid user: Password must be at least 8 characters",
       );
     });
 
     it("should fail to create a user with duplicate username", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const userData = createSampleUserInput();
-      await userService.create(userData);
+      await service.create(userData);
       await assertRejects(
-        () => userService.create(userData),
+        () => service.create(userData),
         HttpError,
         "Failed to create user",
       );
     });
 
     it("should fail to create a user with duplicate email", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const email = "unique@example.com";
-      await userService.create(createSampleUserInput({ email }));
+      await service.create(createSampleUserInput({ email }));
       await assertRejects(
         () =>
-          userService.create(
+          service.create(
             createSampleUserInput({
               username: "anotheruser",
               email,
@@ -120,11 +115,12 @@ describe("UserService", () => {
     });
 
     it("should fail to create a user with invalid email format", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const invalidUserData = createSampleUserInput({
         email: "not-an-email",
       });
       await assertRejects(
-        () => userService.create(invalidUserData),
+        () => service.create(invalidUserData),
         HttpError,
         "Invalid user: Invalid email",
       );
@@ -132,22 +128,22 @@ describe("UserService", () => {
   });
 
   describe("get", () => {
-    afterEach(() => userService.close());
-
     it("should retrieve an existing user by its ID", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const newUserData = createSampleUserInput();
-      const createdUser = await userService.create(newUserData);
-      const retrievedUser = await userService.get(createdUser.id);
+      const createdUser = await service.create(newUserData);
+      const retrievedUser = await service.get(createdUser.id);
 
       assertEquals(retrievedUser, createdUser);
     });
 
     it("should not expose password, hashedPassword, or salt in get method", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const password = "secretpassword123";
       const newUserData = createSampleUserInput({ password });
-      const createdUser = await userService.create(newUserData);
+      const createdUser = await service.create(newUserData);
 
-      const retrievedUser = await userService.get(createdUser.id);
+      const retrievedUser = await service.get(createdUser.id);
       assertEquals(retrievedUser.password, undefined);
       assertEquals(
         (retrievedUser as Record<string, unknown>)["hashedPassword"],
@@ -160,9 +156,10 @@ describe("UserService", () => {
     });
 
     it("should throw HttpError if user with given ID does not exist", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const nonExistentId = generateUUIDv7();
       await assertRejects(
-        () => userService.get(nonExistentId),
+        () => service.get(nonExistentId),
         HttpError,
         "Failed to find user",
       );
@@ -170,12 +167,11 @@ describe("UserService", () => {
   });
 
   describe("getBy (unique indexes)", () => {
-    afterEach(() => userService.close());
-
     it("should retrieve an existing user by username", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const newUserData = createSampleUserInput();
-      const createdUser = await userService.create(newUserData);
-      const retrievedUser = await userService.getBy(
+      const createdUser = await service.create(newUserData);
+      const retrievedUser = await service.getBy(
         "username",
         newUserData.username,
       );
@@ -183,18 +179,20 @@ describe("UserService", () => {
     });
 
     it("should retrieve an existing user by email", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const newUserData = createSampleUserInput();
-      const createdUser = await userService.create(newUserData);
-      const retrievedUser = await userService.getBy("email", newUserData.email);
+      const createdUser = await service.create(newUserData);
+      const retrievedUser = await service.getBy("email", newUserData.email);
       assertEquals(retrievedUser, createdUser);
     });
 
     it("should not expose password, hashedPassword, or salt in getBy method", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const password = "secretpassword123";
       const newUserData = createSampleUserInput({ password });
-      await userService.create(newUserData);
+      await service.create(newUserData);
 
-      const retrievedUser = await userService.getBy(
+      const retrievedUser = await service.getBy(
         "username",
         newUserData.username,
       );
@@ -210,24 +208,27 @@ describe("UserService", () => {
     });
 
     it("should throw HttpError if user with given username does not exist", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       await assertRejects(
-        () => userService.getBy("username", "nonexistentuser"),
+        () => service.getBy("username", "nonexistentuser"),
         HttpError,
         "Failed to find user by username",
       );
     });
 
     it("should throw HttpError if user with given email does not exist", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       await assertRejects(
-        () => userService.getBy("email", "nonexistent@example.com"),
+        () => service.getBy("email", "nonexistent@example.com"),
         HttpError,
         "Failed to find user by email",
       );
     });
 
     it("should throw error when trying to getBy a non-unique index field as unique", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       await assertRejects(
-        () => userService.getBy("updatedAt", "2025-01-01"),
+        () => service.getBy("updatedAt", "2025-01-01"),
         HttpError,
         `Index "updatedAt" is not a valid unique index for user. Valid unique indexes are: username, email.`,
       );
@@ -235,11 +236,11 @@ describe("UserService", () => {
   });
 
   describe("update", () => {
-    afterEach(() => userService.close());
-
     it("should update an existing user and return the updated user", async () => {
+      using time = new FakeTime();
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const initialUserData = createSampleUserInput();
-      const createdUser = await userService.create(initialUserData);
+      const createdUser = await service.create(initialUserData);
 
       time.tick(1000);
 
@@ -250,7 +251,7 @@ describe("UserService", () => {
         email: createdUser.email,
       };
 
-      const updatedUser = await userService.update(updates);
+      const updatedUser = await service.update(updates);
 
       assertEquals(updatedUser.id, createdUser.id);
       assertEquals(updatedUser.username, updates.username);
@@ -263,13 +264,15 @@ describe("UserService", () => {
         1000,
       );
 
-      const retrievedUser = await userService.get(createdUser.id);
+      const retrievedUser = await service.get(createdUser.id);
       assertEquals(retrievedUser, updatedUser);
     });
 
     it("should update an existing user with password and not expose password fields", async () => {
+      using time = new FakeTime();
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const initialUserData = createSampleUserInput();
-      const createdUser = await userService.create(initialUserData);
+      const createdUser = await service.create(initialUserData);
 
       time.tick(1000);
 
@@ -281,70 +284,73 @@ describe("UserService", () => {
         password: "newpassword123",
       };
 
-      const updatedUser = await userService.update(updates);
+      const updatedUser = await service.update(updates);
 
       assertEquals(updatedUser.id, createdUser.id);
       assertEquals(updatedUser.displayName, updates.displayName);
       assertEquals(updatedUser.password, undefined);
       assertEquals(
-        await userService.checkPassword(updatedUser.id, "newpassword123"),
+        await service.checkPassword(updatedUser.id, "newpassword123"),
         true,
       );
       assertEquals(
-        await userService.checkPassword(createdUser.id, "wrongpassword123"),
+        await service.checkPassword(createdUser.id, "wrongpassword123"),
         false,
       );
     });
 
     it("should update unique index (username) successfully", async () => {
-      const user1 = await userService.create(
+      using service = new UserService({ keyspace: crypto.randomUUID() });
+      const user1 = await service.create(
         createSampleUserInput({ username: "user1update" }),
       );
       const newUsername = "user1updated";
-      const updatedUser = await userService.update({
+      const updatedUser = await service.update({
         ...user1,
         username: newUsername,
       });
       assertEquals(updatedUser.username, newUsername);
-      const fetchedUser = await userService.getBy("username", newUsername);
+      const fetchedUser = await service.getBy("username", newUsername);
       assertEquals(fetchedUser.id, user1.id);
 
       await assertRejects(
-        () => userService.getBy("username", "user1update"),
+        () => service.getBy("username", "user1update"),
         HttpError,
         "Failed to find user by username",
       );
     });
 
     it("should update unique index (email) successfully", async () => {
-      const user1 = await userService.create(
+      using service = new UserService({ keyspace: crypto.randomUUID() });
+      const user1 = await service.create(
         createSampleUserInput({ email: "email1@update.com" }),
       );
       const newEmail = "email1updated@update.com";
-      const updatedUser = await userService.update({
+      const updatedUser = await service.update({
         ...user1,
         email: newEmail,
       });
       assertEquals(updatedUser.email, newEmail);
-      const fetchedUser = await userService.getBy("email", newEmail);
+      const fetchedUser = await service.getBy("email", newEmail);
       assertEquals(fetchedUser.id, user1.id);
 
       await assertRejects(
-        () => userService.getBy("email", "email1@update.com"),
+        () => service.getBy("email", "email1@update.com"),
         HttpError,
         "Failed to find user by email",
       );
     });
 
     it("should fail to update if new username conflicts with an existing user", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const user1Data = createSampleUserInput({ username: "conflictuser1" });
       const user2Data = createSampleUserInput({ username: "conflictuser2" });
-      await userService.create(user1Data);
-      const user2 = await userService.create(user2Data);
+      await service.create(user1Data);
+      const user2 = await service.create(user2Data);
 
       await assertRejects(
         () =>
-          userService.update({
+          service.update({
             ...user2,
             username: user1Data.username,
           }),
@@ -354,18 +360,19 @@ describe("UserService", () => {
     });
 
     it("should fail to update if new email conflicts with an existing user", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const user1Data = createSampleUserInput({
         email: "conflict1@example.com",
       });
       const user2Data = createSampleUserInput({
         email: "conflict2@example.com",
       });
-      await userService.create(user1Data);
-      const user2 = await userService.create(user2Data);
+      await service.create(user1Data);
+      const user2 = await service.create(user2Data);
 
       await assertRejects(
         () =>
-          userService.update({
+          service.update({
             ...user2,
             email: user1Data.email,
           }),
@@ -375,6 +382,7 @@ describe("UserService", () => {
     });
 
     it("should fail to update a user that does not exist", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const nonExistentUserUpdate: Omit<User, "createdAt" | "updatedAt"> = {
         id: generateUUIDv7(),
         username: "ghost",
@@ -382,14 +390,15 @@ describe("UserService", () => {
         email: "ghost@example.com",
       };
       await assertRejects(
-        () => userService.update(nonExistentUserUpdate),
+        () => service.update(nonExistentUserUpdate),
         HttpError,
         "Failed to find user to update",
       );
     });
 
     it("should fail to update with invalid data (e.g., empty displayName)", async () => {
-      const createdUser = await userService.create(createSampleUserInput());
+      using service = new UserService({ keyspace: crypto.randomUUID() });
+      const createdUser = await service.create(createSampleUserInput());
       const invalidUpdate = {
         id: createdUser.id,
         username: createdUser.username,
@@ -397,14 +406,15 @@ describe("UserService", () => {
         email: createdUser.email,
       };
       await assertRejects(
-        () => userService.update(invalidUpdate),
+        () => service.update(invalidUpdate),
         HttpError,
         "Invalid user: Display name is required",
       );
     });
 
     it("should fail to update with invalid password (too short)", async () => {
-      const createdUser = await userService.create(createSampleUserInput());
+      using service = new UserService({ keyspace: crypto.randomUUID() });
+      const createdUser = await service.create(createSampleUserInput());
       const invalidUpdate = {
         id: createdUser.id,
         username: createdUser.username,
@@ -413,7 +423,7 @@ describe("UserService", () => {
         password: "short",
       };
       await assertRejects(
-        () => userService.update(invalidUpdate),
+        () => service.update(invalidUpdate),
         HttpError,
         "Invalid user: Password must be at least 8 characters",
       );
@@ -421,11 +431,11 @@ describe("UserService", () => {
   });
 
   describe("patch", () => {
-    afterEach(() => userService.close());
-
     it("should partially update an existing user", async () => {
+      using time = new FakeTime();
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const initialUserData = createSampleUserInput();
-      const createdUser = await userService.create(initialUserData);
+      const createdUser = await service.create(initialUserData);
 
       time.tick(1000);
 
@@ -433,7 +443,7 @@ describe("UserService", () => {
         id: createdUser.id,
         displayName: "Patched User Display Name",
       };
-      const patchedUser = await userService.patch(patchData);
+      const patchedUser = await service.patch(patchData);
 
       assertEquals(patchedUser.id, createdUser.id);
       assertEquals(patchedUser.username, createdUser.username);
@@ -446,13 +456,15 @@ describe("UserService", () => {
         1000,
       );
 
-      const retrievedUser = await userService.get(createdUser.id);
+      const retrievedUser = await service.get(createdUser.id);
       assertEquals(retrievedUser, patchedUser);
     });
 
     it("should patch user with password and not expose password fields", async () => {
+      using time = new FakeTime();
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const initialUserData = createSampleUserInput();
-      const createdUser = await userService.create(initialUserData);
+      const createdUser = await service.create(initialUserData);
 
       time.tick(1000);
 
@@ -460,82 +472,89 @@ describe("UserService", () => {
         id: createdUser.id,
         password: "patchedpassword123",
       };
-      const patchedUser = await userService.patch(patchData);
+      const patchedUser = await service.patch(patchData);
 
       assertEquals(patchedUser.id, createdUser.id);
       assertEquals(patchedUser.password, undefined);
       assertEquals(
-        await userService.checkPassword(patchedUser.id, "patchedpassword123"),
+        await service.checkPassword(patchedUser.id, "patchedpassword123"),
         true,
       );
       assertEquals(
-        await userService.checkPassword(createdUser.id, "wrongpassword123"),
+        await service.checkPassword(createdUser.id, "wrongpassword123"),
         false,
       );
     });
 
     it("should patch unique index (username) successfully", async () => {
-      const user1 = await userService.create(
+      using service = new UserService({ keyspace: crypto.randomUUID() });
+      const user1 = await service.create(
         createSampleUserInput({ username: "user1patch" }),
       );
       const newUsername = "user1patched";
-      const patchedUser = await userService.patch({
+      const patchedUser = await service.patch({
         id: user1.id,
         username: newUsername,
       });
       assertEquals(patchedUser.username, newUsername);
-      const fetchedUser = await userService.getBy("username", newUsername);
+      const fetchedUser = await service.getBy("username", newUsername);
       assertEquals(fetchedUser.id, user1.id);
-      await assertRejects(() => userService.getBy("username", "user1patch"));
+      await assertRejects(
+        () => service.getBy("username", "user1patch"),
+      );
     });
 
     it("should fail to patch if new username conflicts", async () => {
-      const user1 = await userService.create(
+      using service = new UserService({ keyspace: crypto.randomUUID() });
+      const user1 = await service.create(
         createSampleUserInput({ username: "patchconflict1" }),
       );
-      const user2 = await userService.create(
+      const user2 = await service.create(
         createSampleUserInput({ username: "patchconflict2" }),
       );
       await assertRejects(
-        () => userService.patch({ id: user2.id, username: user1.username }),
+        () => service.patch({ id: user2.id, username: user1.username }),
         HttpError,
         "Failed to patch user",
       );
     });
 
     it("should fail to patch a user that does not exist", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const nonExistentUserPatch = {
         id: generateUUIDv7(),
         displayName: "Trying to patch",
       };
       await assertRejects(
-        () => userService.patch(nonExistentUserPatch),
+        () => service.patch(nonExistentUserPatch),
         HttpError,
         "Failed to find user to patch",
       );
     });
 
     it("should fail to patch with invalid data (e.g., username too long)", async () => {
-      const createdUser = await userService.create(createSampleUserInput());
+      using service = new UserService({ keyspace: crypto.randomUUID() });
+      const createdUser = await service.create(createSampleUserInput());
       const invalidPatch = {
         id: createdUser.id,
         username: "u".repeat(51),
       };
       await assertRejects(
-        () => userService.patch(invalidPatch),
+        () => service.patch(invalidPatch),
         HttpError,
         "Invalid user: Username must be less than 50 characters",
       );
     });
 
     it("should fail to patch with invalid password (too short)", async () => {
-      const createdUser = await userService.create(createSampleUserInput());
+      using service = new UserService({ keyspace: crypto.randomUUID() });
+      const createdUser = await service.create(createSampleUserInput());
       const invalidPatch = {
         id: createdUser.id,
         password: "short",
       };
       await assertRejects(
-        () => userService.patch(invalidPatch),
+        () => service.patch(invalidPatch),
         HttpError,
         "Invalid user: Password must be at least 8 characters",
       );
@@ -543,56 +562,57 @@ describe("UserService", () => {
   });
 
   describe("delete", () => {
-    afterEach(() => userService.close());
-
     it("should delete an existing user and its unique indexes", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const newUserData = createSampleUserInput();
-      const createdUser = await userService.create(newUserData);
+      const createdUser = await service.create(newUserData);
 
-      await userService.delete(createdUser.id);
+      await service.delete(createdUser.id);
 
       await assertRejects(
-        () => userService.get(createdUser.id),
+        () => service.get(createdUser.id),
         HttpError,
         "Failed to find user",
       );
       await assertRejects(
-        () => userService.getBy("username", newUserData.username),
+        () => service.getBy("username", newUserData.username),
         HttpError,
         "Failed to find user by username",
       );
       await assertRejects(
-        () => userService.getBy("email", newUserData.email),
+        () => service.getBy("email", newUserData.email),
         HttpError,
         "Failed to find user by email",
       );
     });
 
     it("should delete an existing user with password and remove password data", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const newUserData = createSampleUserInput({ password: "deletetest123" });
-      const createdUser = await userService.create(newUserData);
+      const createdUser = await service.create(newUserData);
 
       assertEquals(
-        await userService.checkPassword(createdUser.id, "deletetest123"),
+        await service.checkPassword(createdUser.id, "deletetest123"),
         true,
       );
 
-      await userService.delete(createdUser.id);
+      await service.delete(createdUser.id);
 
       await assertRejects(
-        () => userService.get(createdUser.id),
+        () => service.get(createdUser.id),
         HttpError,
         "Failed to find user",
       );
       assertEquals(
-        await userService.checkPassword(createdUser.id, "deletetest123"),
+        await service.checkPassword(createdUser.id, "deletetest123"),
         false,
       );
     });
 
     it("should fail to delete a user that does not exist", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       await assertRejects(
-        () => userService.delete(generateUUIDv7()),
+        () => service.delete(generateUUIDv7()),
         HttpError,
         "Failed to find user to delete",
       );
@@ -600,122 +620,128 @@ describe("UserService", () => {
   });
 
   describe("updatePassword", () => {
-    afterEach(() => userService.close());
-
     it("should update password for an existing user", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const newUserData = createSampleUserInput();
-      const createdUser = await userService.create(newUserData);
+      const createdUser = await service.create(newUserData);
 
-      await userService.updatePassword(createdUser.id, "newpassword123");
+      await service.updatePassword(createdUser.id, "newpassword123");
 
       assertEquals(
-        await userService.checkPassword(createdUser.id, "newpassword123"),
+        await service.checkPassword(createdUser.id, "newpassword123"),
         true,
       );
       assertEquals(
-        await userService.checkPassword(createdUser.id, "wrongpassword123"),
+        await service.checkPassword(createdUser.id, "wrongpassword123"),
         false,
       );
     });
 
     it("should allow updating password multiple times", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const newUserData = createSampleUserInput();
-      const createdUser = await userService.create(newUserData);
+      const createdUser = await service.create(newUserData);
 
-      await userService.updatePassword(createdUser.id, "firstpassword123");
+      await service.updatePassword(createdUser.id, "firstpassword123");
       assertEquals(
-        await userService.checkPassword(createdUser.id, "firstpassword123"),
+        await service.checkPassword(createdUser.id, "firstpassword123"),
         true,
       );
 
-      await userService.updatePassword(createdUser.id, "secondpassword123");
+      await service.updatePassword(createdUser.id, "secondpassword123");
       assertEquals(
-        await userService.checkPassword(createdUser.id, "firstpassword123"),
+        await service.checkPassword(createdUser.id, "firstpassword123"),
         false,
       );
       assertEquals(
-        await userService.checkPassword(createdUser.id, "secondpassword123"),
+        await service.checkPassword(createdUser.id, "secondpassword123"),
         true,
       );
     });
 
     it("should work for users created without initial password", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const newUserData = createSampleUserInput();
-      const createdUser = await userService.create(newUserData);
+      const createdUser = await service.create(newUserData);
 
       assertEquals(
-        await userService.checkPassword(createdUser.id, "anypassword"),
+        await service.checkPassword(createdUser.id, "anypassword"),
         false,
       );
 
-      await userService.updatePassword(createdUser.id, "laterpassword123");
+      await service.updatePassword(createdUser.id, "laterpassword123");
       assertEquals(
-        await userService.checkPassword(createdUser.id, "laterpassword123"),
+        await service.checkPassword(createdUser.id, "laterpassword123"),
         true,
       );
     });
   });
 
   describe("checkPassword", () => {
-    afterEach(() => userService.close());
-
     it("should return true for correct password", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const password = "correctpassword123";
       const newUserData = createSampleUserInput({ password });
-      const createdUser = await userService.create(newUserData);
+      const createdUser = await service.create(newUserData);
 
       assertEquals(
-        await userService.checkPassword(createdUser.id, password),
+        await service.checkPassword(createdUser.id, password),
         true,
       );
     });
 
     it("should return false for incorrect password", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const password = "correctpassword123";
       const newUserData = createSampleUserInput({ password });
-      const createdUser = await userService.create(newUserData);
+      const createdUser = await service.create(newUserData);
 
       assertEquals(
-        await userService.checkPassword(createdUser.id, "wrongpassword"),
+        await service.checkPassword(createdUser.id, "wrongpassword"),
         false,
       );
     });
 
     it("should return false for user without password", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const newUserData = createSampleUserInput();
-      const createdUser = await userService.create(newUserData);
+      const createdUser = await service.create(newUserData);
 
       assertEquals(
-        await userService.checkPassword(createdUser.id, "anypassword"),
+        await service.checkPassword(createdUser.id, "anypassword"),
         false,
       );
     });
 
     it("should return false for non-existent user", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const nonExistentId = generateUUIDv7();
       assertEquals(
-        await userService.checkPassword(nonExistentId, "anypassword"),
+        await service.checkPassword(nonExistentId, "anypassword"),
         false,
       );
     });
 
     it("should be case sensitive", async () => {
+      using service = new UserService({ keyspace: crypto.randomUUID() });
       const password = "CaseSensitive123";
       const newUserData = createSampleUserInput({ password });
-      const createdUser = await userService.create(newUserData);
+      const createdUser = await service.create(newUserData);
 
       assertEquals(
-        await userService.checkPassword(createdUser.id, password),
+        await service.checkPassword(createdUser.id, password),
         true,
       );
       assertEquals(
-        await userService.checkPassword(createdUser.id, "casesensitive123"),
+        await service.checkPassword(createdUser.id, "casesensitive123"),
         false,
       );
     });
   });
 
   describe("list", () => {
+    let time: FakeTime;
+    let userService: UserService;
     const users: User[] = [];
     const userInputs: NewUser[] = [
       {
@@ -741,6 +767,9 @@ describe("UserService", () => {
     ];
 
     beforeAll(async () => {
+      time = new FakeTime();
+      userService = new UserService({ keyspace: crypto.randomUUID() });
+
       for (const data of userInputs) {
         time.tick(500);
         users.push(await userService.create(data));
@@ -756,7 +785,11 @@ describe("UserService", () => {
         displayName: "Robert List (updated)",
       });
     });
-    afterAll(() => userService.close());
+
+    afterAll(() => {
+      userService.close();
+      time.restore();
+    });
 
     it("should return all users with default options (sorted by id)", async () => {
       const { entries, cursor } = await userService.list();

@@ -6,9 +6,9 @@ import {
   describe,
   it,
 } from "@std/testing/bdd";
-import { FakeTime } from "@std/testing/time";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { sortBy } from "@std/collections/sort-by";
+import { FakeTime } from "@std/testing/time";
 import { z } from "zod";
 import { HttpError } from "@udibo/http-error";
 import {
@@ -36,7 +36,11 @@ describe("Service", () => {
 
   describe("create", () => {
     it("without unique index", async () => {
-      using service = new Service({ name: "user", schema: userSchema });
+      using service = new Service({
+        name: "user",
+        schema: userSchema,
+        keyspace: crypto.randomUUID(),
+      });
 
       const user = await service.create({ name: "John Doe", age: 32 });
       assert(validateUUIDv7(user.id));
@@ -52,6 +56,7 @@ describe("Service", () => {
         name: "user",
         schema: userSchema,
         uniqueIndexes: ["name"],
+        keyspace: crypto.randomUUID(),
       });
 
       const user = await service.create({ name: "John Doe", age: 32 });
@@ -68,6 +73,7 @@ describe("Service", () => {
         name: "user",
         schema: userSchema,
         uniqueIndexes: ["name"],
+        keyspace: crypto.randomUUID(),
       });
 
       await service.create({ name: "John Doe", age: 32 });
@@ -81,7 +87,11 @@ describe("Service", () => {
     });
 
     it("should fail to create with invalid data", async () => {
-      using service = new Service({ name: "user", schema: userSchema });
+      using service = new Service({
+        name: "user",
+        schema: userSchema,
+        keyspace: crypto.randomUUID(),
+      });
       await assertRejects(
         async () => {
           await service.create({ name: "John Doe", age: 17 });
@@ -92,10 +102,11 @@ describe("Service", () => {
     });
 
     it("with non-unique index: should create user and set non-unique index", async () => {
-      using service = new Service<IndexedUser>({
+      const service = new Service<IndexedUser>({
         name: "indexedUserCreate",
         schema: indexedUserSchema,
         indexes: ["age"],
+        keyspace: crypto.randomUUID(),
       });
       const user = await service.create({
         name: "Test User",
@@ -110,9 +121,16 @@ describe("Service", () => {
 
   describe("get", () => {
     it("without unique index", async () => {
-      using service = new Service({ name: "user", schema: userSchema });
+      using service = new Service({
+        name: "user",
+        schema: userSchema,
+        keyspace: crypto.randomUUID(),
+      });
 
-      const createdUser = await service.create({ name: "John Doe", age: 32 });
+      const createdUser = await service.create({
+        name: "John Doe",
+        age: 32,
+      });
       const user = await service.get(createdUser.id);
       assertEquals(user, createdUser);
       assert(user.createdAt instanceof Date);
@@ -132,9 +150,13 @@ describe("Service", () => {
         name: "user",
         schema: userSchema,
         uniqueIndexes: ["name"],
+        keyspace: crypto.randomUUID(),
       });
 
-      const createdUser = await service.create({ name: "John Doe", age: 32 });
+      const createdUser = await service.create({
+        name: "John Doe",
+        age: 32,
+      });
       const user = await service.get(createdUser.id);
       assertEquals(user, createdUser);
       assert(user.createdAt instanceof Date);
@@ -159,6 +181,7 @@ describe("Service", () => {
         name: "user",
         schema: userSchema,
         uniqueIndexes: ["name"],
+        keyspace: crypto.randomUUID(),
       });
       createdUser = await service.create({ name: "John Doe", age: 32 });
     });
@@ -196,7 +219,19 @@ describe("Service", () => {
   });
 
   describe("parse", () => {
-    const service = new Service({ name: "user", schema: userSchema });
+    let service: Service<z.infer<typeof userSchema>>;
+
+    beforeAll(() => {
+      service = new Service({
+        name: "user",
+        schema: userSchema,
+        keyspace: crypto.randomUUID(),
+      });
+    });
+
+    afterAll(() => {
+      service.close();
+    });
 
     it("should return parsed data for valid input", () => {
       const now = new Date();
@@ -262,8 +297,15 @@ describe("Service", () => {
   describe("update", () => {
     it("without unique index", async () => {
       using time = new FakeTime();
-      using service = new Service({ name: "user", schema: userSchema });
-      const initialUser = await service.create({ name: "John Doe", age: 32 });
+      using service = new Service({
+        name: "user",
+        schema: userSchema,
+        keyspace: crypto.randomUUID(),
+      });
+      const initialUser = await service.create({
+        name: "John Doe",
+        age: 32,
+      });
 
       time.tick(10);
 
@@ -287,7 +329,11 @@ describe("Service", () => {
     });
 
     it("should fail to update non-existent user", async () => {
-      using service = new Service({ name: "user", schema: userSchema });
+      using service = new Service({
+        name: "user",
+        schema: userSchema,
+        keyspace: crypto.randomUUID(),
+      });
       const nonExistentUser = {
         id: "non-existent-id",
         name: "Ghost User",
@@ -309,8 +355,12 @@ describe("Service", () => {
           name: "user",
           schema: userSchema,
           uniqueIndexes: ["name"],
+          keyspace: crypto.randomUUID(),
         });
-        const initialUser = await service.create({ name: "John Doe", age: 32 });
+        const initialUser = await service.create({
+          name: "John Doe",
+          age: 32,
+        });
 
         time.tick(10);
 
@@ -341,8 +391,12 @@ describe("Service", () => {
           name: "user",
           schema: userSchema,
           uniqueIndexes: ["name"],
+          keyspace: crypto.randomUUID(),
         });
-        const initialUser = await service.create({ name: "John Doe", age: 32 });
+        const initialUser = await service.create({
+          name: "John Doe",
+          age: 32,
+        });
 
         time.tick(10);
 
@@ -370,7 +424,10 @@ describe("Service", () => {
           HttpError,
           "Failed to find user by name",
         );
-        const retrievedUserByNameNew = await service.getBy("name", "Jane Doe");
+        const retrievedUserByNameNew = await service.getBy(
+          "name",
+          "Jane Doe",
+        );
         assertEquals(retrievedUserByNameNew, updatedUser);
       });
 
@@ -379,6 +436,7 @@ describe("Service", () => {
           name: "user",
           schema: userSchema,
           uniqueIndexes: ["name"],
+          keyspace: crypto.randomUUID(),
         });
         await service.create({ name: "John Doe", age: 32 });
         const userToUpdate = await service.create({
@@ -396,8 +454,15 @@ describe("Service", () => {
       });
 
       it("should fail to update with invalid data", async () => {
-        using service = new Service({ name: "user", schema: userSchema });
-        const initialUser = await service.create({ name: "John Doe", age: 32 });
+        using service = new Service({
+          name: "user",
+          schema: userSchema,
+          keyspace: crypto.randomUUID(),
+        });
+        const initialUser = await service.create({
+          name: "John Doe",
+          age: 32,
+        });
         await assertRejects(
           async () => {
             await service.update({
@@ -424,6 +489,7 @@ describe("Service", () => {
             name: "indexedUserUpdate",
             schema: indexedUserSchema,
             indexes: ["age", "department"],
+            keyspace: crypto.randomUUID(),
           });
           initialUser = await service.create({
             name: "User One",
@@ -473,7 +539,6 @@ describe("Service", () => {
               u.id === updatedUser.id && u.age === 26
             ),
           );
-          // Check old age index entry is gone for this user, and new one exists
           const usersAtOldAge = await service.list({ index: "age" });
           assert(
             !usersAtOldAge.entries.find((u) =>
@@ -537,8 +602,15 @@ describe("Service", () => {
   describe("patch", () => {
     it("without unique index", async () => {
       using time = new FakeTime();
-      using service = new Service({ name: "user", schema: userSchema });
-      const initialUser = await service.create({ name: "John Doe", age: 32 });
+      using service = new Service({
+        name: "user",
+        schema: userSchema,
+        keyspace: crypto.randomUUID(),
+      });
+      const initialUser = await service.create({
+        name: "John Doe",
+        age: 32,
+      });
 
       time.tick(10);
 
@@ -558,7 +630,11 @@ describe("Service", () => {
     });
 
     it("should fail to patch non-existent user", async () => {
-      using service = new Service({ name: "user", schema: userSchema });
+      using service = new Service({
+        name: "user",
+        schema: userSchema,
+        keyspace: crypto.randomUUID(),
+      });
       const nonExistentUserPatch = {
         id: "non-existent-id",
         age: 99,
@@ -579,8 +655,12 @@ describe("Service", () => {
           name: "user",
           schema: userSchema,
           uniqueIndexes: ["name"],
+          keyspace: crypto.randomUUID(),
         });
-        const initialUser = await service.create({ name: "John Doe", age: 32 });
+        const initialUser = await service.create({
+          name: "John Doe",
+          age: 32,
+        });
 
         time.tick(10);
 
@@ -597,7 +677,10 @@ describe("Service", () => {
 
         const retrievedUser = await service.get(initialUser.id);
         assertEquals(retrievedUser, patchedUser);
-        const retrievedUserByName = await service.getBy("name", "John Doe");
+        const retrievedUserByName = await service.getBy(
+          "name",
+          "John Doe",
+        );
         assertEquals(retrievedUserByName, patchedUser);
       });
 
@@ -607,15 +690,19 @@ describe("Service", () => {
           name: "user",
           schema: userSchema,
           uniqueIndexes: ["name"],
+          keyspace: crypto.randomUUID(),
         });
-        const initialUser = await service.create({ name: "John Doe", age: 32 });
+        const initialUser = await service.create({
+          name: "John Doe",
+          age: 32,
+        });
 
         time.tick(10);
 
         const patchPayload = { id: initialUser.id, name: "Jane Doe" };
         const patchedUser = await service.patch(patchPayload);
         assertEquals(patchedUser.name, "Jane Doe");
-        assertEquals(patchedUser.age, 32); // Age should remain from initialUser
+        assertEquals(patchedUser.age, 32);
         assertEquals(patchedUser.id, initialUser.id);
         assertEquals(patchedUser.createdAt, initialUser.createdAt);
         assertEquals(
@@ -632,7 +719,10 @@ describe("Service", () => {
           HttpError,
           "Failed to find user by name",
         );
-        const retrievedUserByNameNew = await service.getBy("name", "Jane Doe");
+        const retrievedUserByNameNew = await service.getBy(
+          "name",
+          "Jane Doe",
+        );
         assertEquals(retrievedUserByNameNew, patchedUser);
       });
 
@@ -641,9 +731,13 @@ describe("Service", () => {
           name: "user",
           schema: userSchema,
           uniqueIndexes: ["name"],
+          keyspace: crypto.randomUUID(),
         });
         await service.create({ name: "John Doe", age: 32 });
-        const userToPatch = await service.create({ name: "Jane Doe", age: 33 });
+        const userToPatch = await service.create({
+          name: "Jane Doe",
+          age: 33,
+        });
 
         await assertRejects(
           async () => {
@@ -655,8 +749,15 @@ describe("Service", () => {
       });
 
       it("should fail to patch with invalid data", async () => {
-        using service = new Service({ name: "user", schema: userSchema });
-        const initialUser = await service.create({ name: "John Doe", age: 32 });
+        using service = new Service({
+          name: "user",
+          schema: userSchema,
+          keyspace: crypto.randomUUID(),
+        });
+        const initialUser = await service.create({
+          name: "John Doe",
+          age: 32,
+        });
         await assertRejects(
           async () => {
             await service.patch({ id: initialUser.id, age: 17 });
@@ -679,6 +780,7 @@ describe("Service", () => {
             name: "indexedUserPatch",
             schema: indexedUserSchema,
             indexes: ["age", "department"],
+            keyspace: crypto.randomUUID(),
           });
           initialUser = await service.create({
             name: "User Two",
@@ -793,8 +895,15 @@ describe("Service", () => {
 
   describe("delete", () => {
     it("without unique index", async () => {
-      using service = new Service({ name: "user", schema: userSchema });
-      const initialUser = await service.create({ name: "John Doe", age: 32 });
+      using service = new Service({
+        name: "user",
+        schema: userSchema,
+        keyspace: crypto.randomUUID(),
+      });
+      const initialUser = await service.create({
+        name: "John Doe",
+        age: 32,
+      });
 
       await service.delete(initialUser.id);
 
@@ -808,7 +917,11 @@ describe("Service", () => {
     });
 
     it("should fail to delete non-existent user", async () => {
-      using service = new Service({ name: "user", schema: userSchema });
+      using service = new Service({
+        name: "user",
+        schema: userSchema,
+        keyspace: crypto.randomUUID(),
+      });
       await assertRejects(
         async () => {
           await service.delete("non-existent-id");
@@ -824,8 +937,12 @@ describe("Service", () => {
           name: "user",
           schema: userSchema,
           uniqueIndexes: ["name"],
+          keyspace: crypto.randomUUID(),
         });
-        const initialUser = await service.create({ name: "John Doe", age: 32 });
+        const initialUser = await service.create({
+          name: "John Doe",
+          age: 32,
+        });
 
         await service.delete(initialUser.id);
 
@@ -849,10 +966,11 @@ describe("Service", () => {
 
     describe("with non-unique index", () => {
       it("should delete user and remove non-unique index entries", async () => {
-        using service = new Service<IndexedUser>({
+        const service = new Service<IndexedUser>({
           name: "indexedUserDelete",
           schema: indexedUserSchema,
           indexes: ["age", "department"],
+          keyspace: crypto.randomUUID(),
         });
         const user = await service.create({
           name: "User Three",
@@ -871,7 +989,9 @@ describe("Service", () => {
             u.id === userId && u.age === userAge
           ),
         );
-        const listedUsersByDept = await service.list({ index: "department" });
+        const listedUsersByDept = await service.list({
+          index: "department",
+        });
         assert(
           !listedUsersByDept.entries.some((u) =>
             u.id === userId && u.department === userDept
@@ -888,6 +1008,7 @@ describe("Service", () => {
   });
 
   describe("list", () => {
+    let time: FakeTime;
     let service: Service<z.infer<typeof userSchema>>;
     const usersToCreate = [
       { name: "Alice", age: 30 },
@@ -899,8 +1020,12 @@ describe("Service", () => {
     let createdUsers: z.infer<typeof userSchema>[];
 
     beforeAll(async () => {
-      using time = new FakeTime();
-      service = new Service({ name: "user", schema: userSchema });
+      time = new FakeTime();
+      service = new Service({
+        name: "user",
+        schema: userSchema,
+        keyspace: crypto.randomUUID(),
+      });
       createdUsers = [];
       for (const userData of usersToCreate) {
         time.tick(100);
@@ -914,6 +1039,7 @@ describe("Service", () => {
 
     afterAll(() => {
       service.close();
+      time.restore();
     });
 
     it("should return all items with default options", async () => {
@@ -1009,6 +1135,7 @@ describe("Service", () => {
       using emptyService = new Service({
         name: "emptyUser",
         schema: userSchema,
+        keyspace: crypto.randomUUID(),
       });
       const { entries, cursor } = await emptyService.list();
       assertEquals(entries.length, 0);
@@ -1020,9 +1147,8 @@ describe("Service", () => {
         name: "indexedUser",
         schema: userSchema,
         uniqueIndexes: ["name"],
+        keyspace: crypto.randomUUID(),
       });
-
-      using time = new FakeTime();
 
       const usersData = [
         { name: "Charlie", age: 35 },
@@ -1052,16 +1178,17 @@ describe("Service", () => {
     });
 
     it("should throw HttpError if listing by a non-existent index", async () => {
-      using service = new Service({
+      using indexService = new Service({
         name: "user",
         schema: userSchema,
         uniqueIndexes: ["name"],
         indexes: ["age"],
+        keyspace: crypto.randomUUID(),
       });
       await assertRejects(
         async () => {
           // @ts-expect-error: testing invalid index
-          await service.list({ index: "nonExistentIndex" });
+          await indexService.list({ index: "nonExistentIndex" });
         },
         HttpError,
         `Index "nonExistentIndex" is not a valid index for user. Valid indexes are: id, name, age.`,
@@ -1069,14 +1196,15 @@ describe("Service", () => {
     });
 
     it("should throw HttpError if listing by a non-existent index when no indexes are defined", async () => {
-      using service = new Service({
+      using noIndexService = new Service({
         name: "user",
         schema: userSchema,
+        keyspace: crypto.randomUUID(),
       });
       await assertRejects(
         async () => {
           // @ts-expect-error: testing invalid index
-          await service.list({ index: "nonExistentIndex" });
+          await noIndexService.list({ index: "nonExistentIndex" });
         },
         HttpError,
         `Index "nonExistentIndex" is not a valid index for user. Valid indexes are: id.`,
@@ -1084,7 +1212,7 @@ describe("Service", () => {
     });
 
     describe("with non-unique index", () => {
-      let service: Service<IndexedUser>;
+      let nonUniqueService: Service<IndexedUser>;
       const usersData: Array<
         Omit<IndexedUser, "id" | "createdAt" | "updatedAt">
       > = [
@@ -1100,16 +1228,16 @@ describe("Service", () => {
       let createdUsersSortedByDepartmentThenId: IndexedUser[];
 
       beforeAll(async () => {
-        using time = new FakeTime();
-        service = new Service<IndexedUser>({
+        nonUniqueService = new Service<IndexedUser>({
           name: "userListByNonUnique",
           schema: indexedUserSchema,
           indexes: ["age", "department"],
+          keyspace: crypto.randomUUID(),
         });
         const tempCreatedUsers: IndexedUser[] = [];
         for (const userData of usersData) {
           time.tick(100);
-          tempCreatedUsers.push(await service.create(userData));
+          tempCreatedUsers.push(await nonUniqueService.create(userData));
         }
 
         createdUsersSortedById = sortBy(
@@ -1129,18 +1257,20 @@ describe("Service", () => {
       });
 
       afterAll(() => {
-        service.close();
+        nonUniqueService.close();
       });
 
       it("should list all items sorted by id (when default index 'id' is used, even with non-unique indexes present)", async () => {
-        const { entries, cursor } = await service.list();
+        const { entries, cursor } = await nonUniqueService.list();
         assertEquals(entries.length, createdUsersSortedById.length);
         assertEquals(entries, createdUsersSortedById);
         assertEquals(cursor, "");
       });
 
       it("should list all items sorted by 'age' (non-unique index), then by id", async () => {
-        const { entries, cursor } = await service.list({ index: "age" });
+        const { entries, cursor } = await nonUniqueService.list({
+          index: "age",
+        });
         assertEquals(entries.length, createdUsersSortedByAgeThenId.length);
         assertEquals(entries, createdUsersSortedByAgeThenId);
         assertEquals(cursor, "");
@@ -1148,7 +1278,10 @@ describe("Service", () => {
 
       it("should list items by 'age' with limit", async () => {
         const limit = 2;
-        const { entries, cursor } = await service.list({ index: "age", limit });
+        const { entries, cursor } = await nonUniqueService.list({
+          index: "age",
+          limit,
+        });
         assertEquals(entries.length, limit);
         assertEquals(entries, createdUsersSortedByAgeThenId.slice(0, limit));
         assert(cursor !== "", "Cursor should not be empty");
@@ -1156,7 +1289,7 @@ describe("Service", () => {
 
       it("should list remaining items by 'age' with cursor", async () => {
         const limit = 2;
-        let page = await service.list({ index: "age", limit });
+        let page = await nonUniqueService.list({ index: "age", limit });
         assertEquals(page.entries.length, limit);
         assertEquals(
           page.entries,
@@ -1167,7 +1300,7 @@ describe("Service", () => {
           "Cursor should not be empty for the first page",
         );
 
-        page = await service.list({
+        page = await nonUniqueService.list({
           index: "age",
           limit: createdUsersSortedByAgeThenId.length,
           cursor: page.cursor,
@@ -1185,7 +1318,7 @@ describe("Service", () => {
       });
 
       it("should list items by 'age' in reverse order", async () => {
-        const { entries, cursor } = await service.list({
+        const { entries, cursor } = await nonUniqueService.list({
           index: "age",
           reverse: true,
         });
@@ -1195,7 +1328,9 @@ describe("Service", () => {
       });
 
       it("should list all items sorted by 'department' (non-unique index), then by id", async () => {
-        const { entries, cursor } = await service.list({ index: "department" });
+        const { entries, cursor } = await nonUniqueService.list({
+          index: "department",
+        });
         assertEquals(
           entries.length,
           createdUsersSortedByDepartmentThenId.length,
@@ -1206,7 +1341,7 @@ describe("Service", () => {
 
       it("should list items by 'department' with limit and cursor", async () => {
         const limit = 3;
-        let page = await service.list({ index: "department", limit });
+        let page = await nonUniqueService.list({ index: "department", limit });
         assertEquals(page.entries.length, limit);
         assertEquals(
           page.entries,
@@ -1214,7 +1349,7 @@ describe("Service", () => {
         );
         assert(page.cursor !== "", "Cursor should not be empty for page 1");
 
-        page = await service.list({
+        page = await nonUniqueService.list({
           index: "department",
           limit: createdUsersSortedByDepartmentThenId.length,
           cursor: page.cursor,

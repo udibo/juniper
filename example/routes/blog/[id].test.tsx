@@ -3,32 +3,37 @@ import { afterAll, beforeAll, describe, it } from "@std/testing/bdd";
 import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
 
 import { server } from "@/main.ts";
-import { type NewPost, postService } from "@/services/post.ts";
+import { postService } from "@/services/post.ts";
+import type { NewPost, Post } from "@/services/post.ts";
 
 describe("GET /blog/:id", () => {
   let testAuthorId: string;
-  let testPostId: string;
+  let testPost: Post;
 
   beforeAll(async () => {
     testAuthorId = generateUUIDv7();
 
-    const testPost: NewPost = {
+    const testPostData: NewPost = {
       title: "Individual Test Blog Post",
       content:
         "This is the full content of a test blog post that should be displayed on the individual post page.",
       authorId: testAuthorId,
     };
 
-    const createdPost = await postService.create(testPost);
-    testPostId = createdPost.id;
+    testPost = await postService.create(testPostData);
   });
 
   afterAll(async () => {
-    await postService.close();
+    try {
+      await postService.delete(testPost.id);
+    } catch {
+      // ignore cleanup errors
+    }
+    postService.close();
   });
 
   it("should return HTML with individual blog post", async () => {
-    const res = await server.request(`http://localhost/blog/${testPostId}`);
+    const res = await server.request(`http://localhost/blog/${testPost.id}`);
     assertEquals(res.status, 200);
     assertEquals(res.headers.get("content-type"), "text/html; charset=utf-8");
     const html = await res.text();
@@ -39,7 +44,7 @@ describe("GET /blog/:id", () => {
   });
 
   it("should include navigation back to blog listing", async () => {
-    const res = await server.request(`http://localhost/blog/${testPostId}`);
+    const res = await server.request(`http://localhost/blog/${testPost.id}`);
     const html = await res.text();
 
     assertStringIncludes(html, "← Back to Blog");
@@ -52,11 +57,11 @@ describe("GET /blog/:id", () => {
   });
 
   it("should display post metadata", async () => {
-    const res = await server.request(`http://localhost/blog/${testPostId}`);
+    const res = await server.request(`http://localhost/blog/${testPost.id}`);
     const html = await res.text();
 
     assertStringIncludes(html, "Published:");
-    assertStringIncludes(html, testPostId);
+    assertStringIncludes(html, testPost.id);
     assertStringIncludes(html, testAuthorId);
   });
 });

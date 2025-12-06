@@ -27,6 +27,7 @@
 - Formatting issues can be automatically fixed with `deno fmt`.
 - For stubs and spys, prefer using explicit resource management over manually
   adding try/finally with restore call.
+- Never disable sanitization to get tests to pass.
 
 ## Style
 

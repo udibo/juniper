@@ -4,25 +4,29 @@ import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
 
 import { server } from "@/main.ts";
 import { postService } from "@/services/post.ts";
-import type { NewPost } from "@/services/post.ts";
+import type { NewPost, Post } from "@/services/post.ts";
 
 describe("GET /blog (index)", () => {
-  let testAuthorId: string;
+  let testPost: Post;
 
   beforeAll(async () => {
-    testAuthorId = generateUUIDv7();
-
-    const testPost: NewPost = {
+    const testAuthorId = generateUUIDv7();
+    const testPostData: NewPost = {
       title: "Test Blog Post",
       content: "This is test content for the blog post listing page.",
       authorId: testAuthorId,
     };
 
-    await postService.create(testPost);
+    testPost = await postService.create(testPostData);
   });
 
   afterAll(async () => {
-    await postService.close();
+    try {
+      await postService.delete(testPost.id);
+    } catch {
+      // ignore cleanup errors
+    }
+    postService.close();
   });
 
   it("should return HTML with blog posts listing", async () => {

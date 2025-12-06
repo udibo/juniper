@@ -1,6 +1,6 @@
 import { assert, assertEquals, assertExists } from "@std/assert";
 import { sortBy } from "@std/collections/sort-by";
-import { afterAll, afterEach, beforeAll, describe, it } from "@std/testing/bdd";
+import { afterAll, beforeAll, describe, it } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
 
@@ -66,7 +66,6 @@ describe("/api/users", () => {
         displayName: "Robert G. (updated)",
       });
     });
-    afterAll(() => userService.close());
 
     it("should return a list of users", async () => {
       const res = await server.request("/api/users");
@@ -211,8 +210,6 @@ describe("/api/users", () => {
   });
 
   describe("GET /:id", () => {
-    afterEach(() => userService.close());
-
     it("should return a specific user if found", async () => {
       const newUserData = createSampleUserInput();
       const createdUser = await userService.create(newUserData);
@@ -262,8 +259,6 @@ describe("/api/users", () => {
   });
 
   describe("POST /", () => {
-    afterEach(() => userService.close());
-
     it("should create a new user and return it", async () => {
       const newUserData = createSampleUserInput({
         username: "apipostuser",
@@ -402,8 +397,6 @@ describe("/api/users", () => {
   });
 
   describe("PUT /:id", () => {
-    afterEach(() => userService.close());
-
     it("should update an existing user and return it", async () => {
       const createdUser = await userService.create(
         createSampleUserInput({ username: "putuseroriginal" }),
@@ -579,8 +572,6 @@ describe("/api/users", () => {
   });
 
   describe("PATCH /:id", () => {
-    afterEach(() => userService.close());
-
     it("should partially update an existing user and return it", async () => {
       const createdUser = await userService.create(
         createSampleUserInput({ username: "patchuseroriginal" }),
@@ -744,8 +735,6 @@ describe("/api/users", () => {
   });
 
   describe("DELETE /:id", () => {
-    afterEach(() => userService.close());
-
     it("should delete an existing user and return a confirmation", async () => {
       const createdUser = await userService.create(
         createSampleUserInput({ username: "deleteuser" }),
