@@ -86,14 +86,23 @@ const defaultPasswordEntry: PasswordEntry = {
   salt: generateSalt(),
 };
 
-class UserService extends Service<User> {
-  constructor() {
+export interface UserServiceOptions {
+  keyspace?: string;
+}
+
+export class UserService extends Service<User> {
+  constructor(options?: UserServiceOptions) {
     super({
       name: "user",
       schema: UserSchema,
       uniqueIndexes: ["username", "email"],
       indexes: ["updatedAt"],
+      keyspace: options?.keyspace,
     });
+  }
+
+  protected passwordKey(id: string): Deno.KvKey {
+    return this.key("password", id);
   }
 
   updatePassword(id: string, password: string): Promise<void> {
@@ -103,7 +112,7 @@ class UserService extends Service<User> {
       const salt = generateSalt();
       const hashedPassword = await hashPassword(password, salt);
       const kv = await this.getKv();
-      await kv.set([this.name, "password", id], {
+      await kv.set(this.passwordKey(id), {
         hashedPassword,
         salt,
       });
@@ -115,13 +124,10 @@ class UserService extends Service<User> {
       span.setAttribute("service", this.name);
       span.setAttribute("id", id);
       const kv = await this.getKv();
-      const { value: passwordEntry } = await kv.get<PasswordEntry>([
-        this.name,
-        "password",
-        id,
-      ]);
+      const { value: passwordEntry } = await kv.get<PasswordEntry>(
+        this.passwordKey(id),
+      );
       const { hashedPassword, salt } = passwordEntry ?? defaultPasswordEntry;
-      // Always hash the password to avoid timing attacks.
       return await hashPassword(password, salt) === hashedPassword;
     });
   }
@@ -198,7 +204,7 @@ class UserService extends Service<User> {
       span.setAttribute("id", id);
       await super.delete(id);
       const kv = await this.getKv();
-      await kv.delete([this.name, "password", id]);
+      await kv.delete(this.passwordKey(id));
     });
   }
 }

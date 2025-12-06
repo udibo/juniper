@@ -22,6 +22,7 @@ export interface ServiceOptions<T extends Entity> {
   schema: z.ZodSchema<T>;
   uniqueIndexes?: Exclude<keyof T, "id">[];
   indexes?: Exclude<keyof T, "id">[];
+  keyspace?: string;
 }
 
 const ListQuerySchema = z.object({
@@ -41,33 +42,110 @@ const ListQuerySchema = z.object({
   index: z.string().optional(),
 });
 
-let kv: Deno.Kv | undefined;
+let defaultKv: Deno.Kv | undefined;
+
+async function getDefaultKv(): Promise<Deno.Kv> {
+  if (!defaultKv) {
+    defaultKv = await (isTest() ? Deno.openKv(":memory:") : Deno.openKv());
+  }
+  return defaultKv;
+}
+
+function closeDefaultKv(): void {
+  defaultKv?.close();
+  defaultKv = undefined;
+}
+
+function notFound(name: string, context?: string): HttpError {
+  const message = context
+    ? `Failed to find ${name} ${context}`
+    : `Failed to find ${name}`;
+  return new HttpError(404, message);
+}
+
+function invalidIndex(
+  name: string,
+  index: string,
+  validIndexes: string[],
+): HttpError {
+  return new HttpError(
+    400,
+    `Index "${index}" is not a valid unique index for ${name}. Valid unique indexes are: ${
+      validIndexes.join(", ")
+    }.`,
+  );
+}
+
+function operationFailed(name: string, operation: string): HttpError {
+  return new HttpError(400, `Failed to ${operation} ${name}`);
+}
+
+function validationFailed(name: string, messages: string[]): HttpError {
+  return new HttpError(400, `Invalid ${name}: ${messages.join(", ")}`);
+}
 
 export class Service<T extends Entity> implements Disposable {
   public readonly name: string;
   public readonly schema: z.ZodSchema<T>;
-  public readonly uniqueIndexes: Exclude<keyof T, "id">[];
-  public readonly indexes: Exclude<keyof T, "id">[];
+  readonly #uniqueIndexes: Exclude<keyof T, "id">[];
+  readonly #indexes: Exclude<keyof T, "id">[];
+  readonly #keyspace: string | undefined;
 
   constructor(options: ServiceOptions<T>) {
     this.name = options.name;
     this.schema = options.schema;
-    this.uniqueIndexes = options.uniqueIndexes || [];
-    this.indexes = options.indexes || [];
+    this.#uniqueIndexes = options.uniqueIndexes ?? [];
+    this.#indexes = options.indexes ?? [];
+    this.#keyspace = options.keyspace;
   }
 
-  protected async getKv(): Promise<Deno.Kv> {
-    if (!kv) {
-      kv = await (isTest() ? Deno.openKv(":memory:") : Deno.openKv());
-    }
+  get uniqueIndexes(): Exclude<keyof T, "id">[] {
+    return [...this.#uniqueIndexes];
+  }
 
-    return kv;
+  get indexes(): Exclude<keyof T, "id">[] {
+    return [...this.#indexes];
+  }
+
+  get allIndexes(): string[] {
+    return [
+      "id",
+      ...this.#uniqueIndexes as string[],
+      ...this.#indexes as string[],
+    ];
+  }
+
+  protected key(...parts: Deno.KvKeyPart[]): Deno.KvKey {
+    if (this.#keyspace) {
+      return [this.#keyspace, this.name, ...parts];
+    }
+    return [this.name, ...parts];
+  }
+
+  protected idKey(id: string): Deno.KvKey {
+    return this.key("id", id);
+  }
+
+  protected indexKey(
+    index: Exclude<keyof T, "id">,
+    value: Deno.KvKeyPart,
+    id?: string,
+  ): Deno.KvKey {
+    return id ? this.key(index, value, id) : this.key(index, value);
+  }
+
+  protected getKv(): Promise<Deno.Kv> {
+    return getDefaultKv();
+  }
+
+  async open(): Promise<void> {
+    await getDefaultKv();
   }
 
   close(): void {
-    kv?.close();
-    kv = undefined;
+    closeDefaultKv();
   }
+
   [Symbol.dispose](): void {
     this.close();
   }
@@ -91,19 +169,18 @@ export class Service<T extends Entity> implements Disposable {
         if (parsed.index) {
           span.setAttribute("query.index", parsed.index);
           const explicitIndexes = [
-            ...this.uniqueIndexes,
-            ...this.indexes,
+            ...this.#uniqueIndexes,
+            ...this.#indexes,
           ] as string[];
           if (explicitIndexes.includes(parsed.index)) {
             options.index = parsed.index as
               & Exclude<keyof T, "id">
               & Deno.KvKeyPart;
           } else {
-            const allValidIndexesForErrorMessage = ["id", ...explicitIndexes];
             throw new HttpError(
               400,
               `Invalid index "${parsed.index}" for ${this.name}. Valid indexes are: ${
-                allValidIndexesForErrorMessage.join(", ")
+                this.allIndexes.join(", ")
               }.`,
             );
           }
@@ -135,10 +212,7 @@ export class Service<T extends Entity> implements Disposable {
             }
             return e.message;
           });
-          throw new HttpError(
-            400,
-            `Invalid ${this.name}: ${messages.join(", ")}`,
-          );
+          throw validationFailed(this.name, messages);
         }
         throw HttpError.from(error);
       }
@@ -155,24 +229,18 @@ export class Service<T extends Entity> implements Disposable {
       span.setAttribute("value", String(value));
       if (
         index !== "id" &&
-        !this.uniqueIndexes.includes(index as Exclude<keyof T, "id">)
+        !this.#uniqueIndexes.includes(index as Exclude<keyof T, "id">)
       ) {
-        throw new HttpError(
-          400,
-          `Index "${
-            String(index)
-          }" is not a valid unique index for ${this.name}. Valid unique indexes are: ${
-            this.uniqueIndexes.join(", ")
-          }.`,
+        throw invalidIndex(
+          this.name,
+          String(index),
+          this.#uniqueIndexes as string[],
         );
       }
       const kv = await this.getKv();
-      const entry = await kv.get<T>([this.name, index, value]);
+      const entry = await kv.get<T>(this.key(index as Deno.KvKeyPart, value));
       if (!entry.value) {
-        throw new HttpError(
-          404,
-          `Failed to find ${this.name} by ${String(index)}`,
-        );
+        throw notFound(this.name, `by ${String(index)}`);
       }
       return entry.value;
     });
@@ -183,9 +251,9 @@ export class Service<T extends Entity> implements Disposable {
       span.setAttribute("service", this.name);
       span.setAttribute("id", id);
       const kv = await this.getKv();
-      const entry = await kv.get<T>([this.name, "id", id]);
+      const entry = await kv.get<T>(this.idKey(id));
       if (!entry.value) {
-        throw new HttpError(404, `Failed to find ${this.name}`);
+        throw notFound(this.name);
       }
       return entry.value;
     });
@@ -217,16 +285,15 @@ export class Service<T extends Entity> implements Disposable {
       if (
         index &&
         index !== "id" &&
-        !this.uniqueIndexes.includes(index as Exclude<keyof T, "id">) &&
-        !this.indexes.includes(index as Exclude<keyof T, "id">)
+        !this.#uniqueIndexes.includes(index as Exclude<keyof T, "id">) &&
+        !this.#indexes.includes(index as Exclude<keyof T, "id">)
       ) {
-        const validIndexes = ["id", ...this.uniqueIndexes, ...this.indexes];
         throw new HttpError(
           400,
           `Index "${
             String(index)
           }" is not a valid index for ${this.name}. Valid indexes are: ${
-            validIndexes.join(", ")
+            this.allIndexes.join(", ")
           }.`,
         );
       }
@@ -234,7 +301,7 @@ export class Service<T extends Entity> implements Disposable {
       const kv = await this.getKv();
 
       const entries = kv.list<T>(
-        { prefix: [this.name, index ?? "id"] },
+        { prefix: this.key(index ?? "id") },
         listOptions,
       );
       const values: T[] = [];
@@ -266,22 +333,25 @@ export class Service<T extends Entity> implements Disposable {
         updatedAt: now,
       });
       const transaction = kv.atomic();
-      for (const index of this.uniqueIndexes) {
-        const key = this.getKvKeyPart(created[index]);
-        transaction.check({ key: [this.name, index, key], versionstamp: null });
+      for (const index of this.#uniqueIndexes) {
+        const keyPart = this.getKvKeyPart(created[index]);
+        transaction.check({
+          key: this.indexKey(index, keyPart),
+          versionstamp: null,
+        });
       }
-      transaction.set([this.name, "id", id], created);
-      for (const index of this.uniqueIndexes) {
-        const key = this.getKvKeyPart(created[index]);
-        transaction.set([this.name, index, key], created);
+      transaction.set(this.idKey(id), created);
+      for (const index of this.#uniqueIndexes) {
+        const keyPart = this.getKvKeyPart(created[index]);
+        transaction.set(this.indexKey(index, keyPart), created);
       }
-      for (const index of this.indexes) {
-        const key = this.getKvKeyPart(created[index]);
-        transaction.set([this.name, index, key, id], created);
+      for (const index of this.#indexes) {
+        const keyPart = this.getKvKeyPart(created[index]);
+        transaction.set(this.indexKey(index, keyPart, id), created);
       }
       const result = await transaction.commit();
       if (!result.ok) {
-        throw new HttpError(400, `Failed to create ${this.name}`);
+        throw operationFailed(this.name, "create");
       }
       return created;
     });
@@ -293,9 +363,9 @@ export class Service<T extends Entity> implements Disposable {
       span.setAttribute("id", value.id);
       const kv = await this.getKv();
 
-      const existing = await kv.get<T>([this.name, "id", value.id]);
+      const existing = await kv.get<T>(this.idKey(value.id));
       if (!existing.value) {
-        throw new HttpError(404, `Failed to find ${this.name} to update`);
+        throw notFound(this.name, "to update");
       }
 
       const updatedValue = this.parse({
@@ -306,49 +376,43 @@ export class Service<T extends Entity> implements Disposable {
 
       const transaction = kv.atomic();
       transaction.check(existing);
-      for (const index of this.uniqueIndexes) {
+      for (const index of this.#uniqueIndexes) {
         const currentKey = this.getKvKeyPart(existing.value![index]);
         const nextKey = this.getKvKeyPart(updatedValue[index]);
         if (nextKey !== currentKey) {
           transaction.check({
-            key: [this.name, index, nextKey],
+            key: this.indexKey(index, nextKey),
             versionstamp: null,
           });
         }
       }
 
-      transaction.set(
-        [this.name, "id", updatedValue.id],
-        updatedValue,
-      );
-      for (const index of this.uniqueIndexes) {
+      transaction.set(this.idKey(updatedValue.id), updatedValue);
+      for (const index of this.#uniqueIndexes) {
         const currentKey = this.getKvKeyPart(existing.value![index]);
         const nextKey = this.getKvKeyPart(updatedValue[index]);
         if (nextKey !== currentKey) {
-          transaction.delete([this.name, index, currentKey]);
+          transaction.delete(this.indexKey(index, currentKey));
         }
-        transaction.set([this.name, index, nextKey], updatedValue);
+        transaction.set(this.indexKey(index, nextKey), updatedValue);
       }
-      for (const index of this.indexes) {
+      for (const index of this.#indexes) {
         const currentKey = this.getKvKeyPart(existing.value![index]);
         const nextKey = this.getKvKeyPart(updatedValue[index]);
         if (existing.value && currentKey !== nextKey) {
-          transaction.delete([
-            this.name,
-            index,
-            currentKey,
-            existing.value.id,
-          ]);
+          transaction.delete(
+            this.indexKey(index, currentKey, existing.value.id),
+          );
         }
         transaction.set(
-          [this.name, index, nextKey, updatedValue.id],
+          this.indexKey(index, nextKey, updatedValue.id),
           updatedValue,
         );
       }
 
       const result = await transaction.commit();
       if (!result.ok) {
-        throw new HttpError(400, `Failed to update ${this.name}`);
+        throw operationFailed(this.name, "update");
       }
 
       return updatedValue;
@@ -363,9 +427,9 @@ export class Service<T extends Entity> implements Disposable {
       span.setAttribute("id", partialValue.id);
       const kv = await this.getKv();
 
-      const existing = await kv.get<T>([this.name, "id", partialValue.id]);
+      const existing = await kv.get<T>(this.idKey(partialValue.id));
       if (!existing.value) {
-        throw new HttpError(404, `Failed to find ${this.name} to patch`);
+        throw notFound(this.name, "to patch");
       }
 
       const newValue = this.parse({
@@ -376,43 +440,40 @@ export class Service<T extends Entity> implements Disposable {
 
       const transaction = kv.atomic();
       transaction.check(existing);
-      for (const index of this.uniqueIndexes) {
+      for (const index of this.#uniqueIndexes) {
         const currentKey = this.getKvKeyPart(existing.value![index]);
         const nextKey = this.getKvKeyPart(newValue[index]);
         if (nextKey !== currentKey) {
           transaction.check({
-            key: [this.name, index, nextKey],
+            key: this.indexKey(index, nextKey),
             versionstamp: null,
           });
         }
       }
 
-      transaction.set([this.name, "id", newValue.id], newValue);
-      for (const index of this.uniqueIndexes) {
+      transaction.set(this.idKey(newValue.id), newValue);
+      for (const index of this.#uniqueIndexes) {
         const currentKey = this.getKvKeyPart(existing.value![index]);
         const nextKey = this.getKvKeyPart(newValue[index]);
         if (nextKey !== currentKey) {
-          transaction.delete([this.name, index, currentKey]);
+          transaction.delete(this.indexKey(index, currentKey));
         }
-        transaction.set([this.name, index, nextKey], newValue);
+        transaction.set(this.indexKey(index, nextKey), newValue);
       }
-      for (const index of this.indexes) {
+      for (const index of this.#indexes) {
         const currentKey = this.getKvKeyPart(existing.value![index]);
         const nextKey = this.getKvKeyPart(newValue[index]);
         if (existing.value && currentKey !== nextKey) {
-          transaction.delete([
-            this.name,
-            index,
-            currentKey,
-            existing.value.id,
-          ]);
+          transaction.delete(
+            this.indexKey(index, currentKey, existing.value.id),
+          );
         }
-        transaction.set([this.name, index, nextKey, newValue.id], newValue);
+        transaction.set(this.indexKey(index, nextKey, newValue.id), newValue);
       }
 
       const result = await transaction.commit();
       if (!result.ok) {
-        throw new HttpError(400, `Failed to patch ${this.name}`);
+        throw operationFailed(this.name, "patch");
       }
 
       return newValue;
@@ -425,28 +486,28 @@ export class Service<T extends Entity> implements Disposable {
       span.setAttribute("id", id);
       const kv = await this.getKv();
 
-      const existingEntry = await kv.get<T>([this.name, "id", id]);
+      const existingEntry = await kv.get<T>(this.idKey(id));
       if (!existingEntry.value) {
-        throw new HttpError(404, `Failed to find ${this.name} to delete`);
+        throw notFound(this.name, "to delete");
       }
 
       const existingValue = existingEntry.value;
       const transaction = kv.atomic();
       transaction.check(existingEntry);
 
-      transaction.delete([this.name, "id", id]);
-      for (const index of this.uniqueIndexes) {
-        const key = this.getKvKeyPart(existingValue[index]);
-        transaction.delete([this.name, index, key]);
+      transaction.delete(this.idKey(id));
+      for (const index of this.#uniqueIndexes) {
+        const keyPart = this.getKvKeyPart(existingValue[index]);
+        transaction.delete(this.indexKey(index, keyPart));
       }
-      for (const index of this.indexes) {
-        const key = this.getKvKeyPart(existingValue[index]);
-        transaction.delete([this.name, index, key, id]);
+      for (const index of this.#indexes) {
+        const keyPart = this.getKvKeyPart(existingValue[index]);
+        transaction.delete(this.indexKey(index, keyPart, id));
       }
 
       const result = await transaction.commit();
       if (!result.ok) {
-        throw new HttpError(400, `Failed to delete ${this.name}`);
+        throw operationFailed(this.name, "delete");
       }
     });
   }

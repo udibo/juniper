@@ -17,9 +17,20 @@ export type Post = z.infer<typeof PostSchema>;
 export type NewPost = Omit<Post, "id" | "createdAt" | "updatedAt">;
 export type PostPatch = Partial<Post> & { id: string };
 
-export const postService = new Service({
-  name: "post",
-  schema: PostSchema,
-  uniqueIndexes: [],
-  indexes: ["authorId", "updatedAt"],
-});
+export interface PostServiceOptions {
+  keyspace?: string;
+}
+
+export class PostService extends Service<Post> {
+  constructor(options?: PostServiceOptions) {
+    super({
+      name: "post",
+      schema: PostSchema,
+      uniqueIndexes: [],
+      indexes: ["authorId", "updatedAt"],
+      keyspace: options?.keyspace,
+    });
+  }
+}
+
+export const postService = new PostService();

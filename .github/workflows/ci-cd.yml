@@ -56,7 +56,7 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       - name: Run example tests
-        run: deno task test:example
+        run: deno task test:example --parallel
       - name: Run minimal template tests
         run: deno task test:minimal --parallel
   publish:
