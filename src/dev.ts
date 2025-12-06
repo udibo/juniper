@@ -1,4 +1,5 @@
 import { parseArgs } from "@std/cli/parse-args";
+import * as path from "@std/path";
 
 import { Builder } from "@udibo/juniper/build";
 
@@ -8,15 +9,19 @@ if (import.meta.main) {
   const args = parseArgs(Deno.args, {
     string: ["project-root", "port"],
   });
-  const projectRoot = args["project-root"] ?? Deno.cwd();
+  const projectRoot = path.resolve(Deno.cwd(), args["project-root"] ?? ".");
   const port = args.port ? Number(args.port) : undefined;
-  let builder: Builder;
+  let builder: Builder | undefined;
   try {
     builder = (await import(projectRoot + "/build.ts")).builder;
-  } catch {
-    console.log("🔨 No build.ts file found, using default builder...");
+  } catch (error) {
+    console.error("❌ Error importing build.ts:", error);
   }
-  builder ??= new Builder({ projectRoot });
+
+  if (!builder) {
+    console.log("🔨 No build.ts file found, using default builder...");
+    builder = new Builder({ projectRoot });
+  }
 
   const devServer = new DevServer({ builder, port });
 

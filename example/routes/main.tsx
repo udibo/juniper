@@ -11,6 +11,7 @@ export default function Main() {
         name="viewport"
         content="width=device-width,initial-scale=1.0"
       />
+      <link rel="stylesheet" href="/build/main.css" />
       <Outlet />
     </>
   );
