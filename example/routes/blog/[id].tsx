@@ -1,17 +1,22 @@
-import type { ErrorBoundaryProps, RouteProps } from "@udibo/juniper";
+import type {
+  ErrorBoundaryProps,
+  RouteActionArgs,
+  RouteLoaderArgs,
+  RouteProps,
+} from "@udibo/juniper";
 import { HttpError } from "@udibo/http-error";
-import type { LoaderFunctionArgs } from "react-router";
-import { Link } from "react-router";
+import { Link, useFetcher } from "react-router";
+import { useEffect, useState } from "react";
 
-import type { Post } from "@/services/post.ts";
 import { postService } from "@/services/post.ts";
+import type { Post } from "@/services/post.ts";
 
 interface BlogPostLoaderData {
   post: Post;
 }
 
 export async function loader(
-  { params }: LoaderFunctionArgs,
+  { params }: RouteLoaderArgs,
 ): Promise<BlogPostLoaderData> {
   try {
     const post = await postService.get(params.id!);
@@ -24,126 +29,231 @@ export async function loader(
   }
 }
 
+interface EditPostActionData {
+  post?: Post;
+  error?: string;
+  deleted?: boolean;
+}
+
+export async function action(
+  { request, params }: RouteActionArgs,
+): Promise<EditPostActionData> {
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+
+  if (intent === "delete") {
+    try {
+      await postService.delete(params.id!);
+      return { deleted: true };
+    } catch {
+      return { error: "Failed to delete post" };
+    }
+  }
+
+  const title = formData.get("title") as string;
+  const content = formData.get("content") as string;
+
+  try {
+    const post = await postService.patch({ id: params.id!, title, content });
+    return { post };
+  } catch {
+    return { error: "Failed to update post" };
+  }
+}
+
 export default function BlogPost({
   loaderData,
 }: RouteProps<{ id: string }, BlogPostLoaderData>) {
-  const { post } = loaderData;
+  const post = loaderData.post;
+  const fetcher = useFetcher<EditPostActionData>();
+  const [isEditing, setIsEditing] = useState(false);
+  const isSubmitting = fetcher.state !== "idle";
+
+  useEffect(() => {
+    if (fetcher.data?.post && isEditing) {
+      setIsEditing(false);
+    }
+  }, [fetcher.data?.post, isEditing]);
+
+  if (fetcher.data?.deleted) {
+    return (
+      <div className="text-center py-12">
+        <h2 className="text-2xl font-bold text-slate-100 mb-4">Post Deleted</h2>
+        <p className="text-slate-400 mb-6">This blog post has been deleted.</p>
+        <Link
+          to="/blog"
+          className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors"
+        >
+          ← Back to Blog
+        </Link>
+      </div>
+    );
+  }
+
+  const displayPost = fetcher.data?.post || post;
 
   return (
     <div>
-      <nav style={{ marginBottom: "2rem" }}>
+      <nav className="mb-8">
         <Link
           to="/blog"
-          style={{
-            textDecoration: "none",
-            color: "#2563eb",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.5rem",
-          }}
+          className="text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-2 transition-colors"
         >
           ← Back to Blog
         </Link>
       </nav>
 
-      <article>
-        <header
-          style={{
-            marginBottom: "2rem",
-            borderBottom: "1px solid #e0e0e0",
-            paddingBottom: "1rem",
-          }}
-        >
-          <h1
-            style={{
-              margin: 0,
-              marginBottom: "1rem",
-              fontSize: "2.5rem",
-              lineHeight: "1.2",
-            }}
-          >
-            {post.title}
-          </h1>
-          <div
-            style={{
-              color: "#666",
-              fontSize: "0.9rem",
-              display: "flex",
-              gap: "1rem",
-              alignItems: "center",
-            }}
-          >
-            <time dateTime={new Date(post.createdAt).toISOString()}>
-              Published: {new Date(post.createdAt).toLocaleDateString("en-US", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
-            </time>
-            {new Date(post.createdAt).getTime() !==
-                new Date(post.updatedAt).getTime() && (
-              <time dateTime={new Date(post.updatedAt).toISOString()}>
-                Updated: {new Date(post.updatedAt).toLocaleDateString("en-US", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </time>
-            )}
+      {isEditing
+        ? (
+          <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700/50">
+            <h3 className="text-xl font-semibold mb-4 text-slate-100">
+              Edit Post
+            </h3>
+            <fetcher.Form method="post" className="space-y-4">
+              <div>
+                <label
+                  htmlFor="title"
+                  className="block text-sm font-medium text-slate-300 mb-2"
+                >
+                  Title
+                </label>
+                <input
+                  type="text"
+                  id="title"
+                  name="title"
+                  defaultValue={displayPost.title}
+                  required
+                  className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-100 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="content"
+                  className="block text-sm font-medium text-slate-300 mb-2"
+                >
+                  Content
+                </label>
+                <textarea
+                  id="content"
+                  name="content"
+                  defaultValue={displayPost.content}
+                  required
+                  rows={10}
+                  className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-100 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none"
+                />
+              </div>
+              {fetcher.data?.error && (
+                <p className="text-red-400 text-sm">{fetcher.data.error}</p>
+              )}
+              <div className="flex gap-4">
+                <button
+                  type="submit"
+                  name="intent"
+                  value="update"
+                  disabled={isSubmitting}
+                  className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? "Saving..." : "Save Changes"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="px-6 py-3 border border-slate-600 text-slate-300 hover:text-slate-100 hover:border-slate-500 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </fetcher.Form>
           </div>
-        </header>
+        )
+        : (
+          <article>
+            <header className="mb-8 pb-6 border-b border-slate-700/50">
+              <h1 className="text-4xl font-bold text-slate-100 mb-4 leading-tight">
+                {displayPost.title}
+              </h1>
+              <div className="text-slate-500 flex gap-4 items-center flex-wrap">
+                <time dateTime={new Date(displayPost.createdAt).toISOString()}>
+                  Published:{" "}
+                  {new Date(displayPost.createdAt).toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </time>
+                {new Date(displayPost.createdAt).getTime() !==
+                    new Date(displayPost.updatedAt).getTime() && (
+                  <time
+                    dateTime={new Date(displayPost.updatedAt).toISOString()}
+                  >
+                    Updated:{" "}
+                    {new Date(displayPost.updatedAt).toLocaleDateString(
+                      "en-US",
+                      {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      },
+                    )}
+                  </time>
+                )}
+              </div>
+            </header>
 
-        <div
-          style={{
-            lineHeight: "1.8",
-            fontSize: "1.1rem",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-            marginBottom: "2rem",
-          }}
-        >
-          {post.content}
-        </div>
+            <div className="text-slate-300 leading-relaxed text-lg whitespace-pre-wrap mb-8">
+              {displayPost.content}
+            </div>
 
-        <footer
-          style={{
-            borderTop: "1px solid #e0e0e0",
-            paddingTop: "1rem",
-            color: "#666",
-          }}
-        >
-          <p style={{ margin: 0, fontSize: "0.9rem" }}>
-            Post ID: {post.id} | Author: {post.authorId}
-          </p>
-        </footer>
-      </article>
+            <div className="flex gap-4 pt-6 border-t border-slate-700/50">
+              <button
+                type="button"
+                onClick={() => setIsEditing(true)}
+                className="px-5 py-2 bg-slate-700 hover:bg-slate-600 text-slate-100 font-medium rounded-lg transition-colors"
+              >
+                Edit
+              </button>
+              <fetcher.Form method="post">
+                <button
+                  type="submit"
+                  name="intent"
+                  value="delete"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 font-medium rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? "Deleting..." : "Delete"}
+                </button>
+              </fetcher.Form>
+            </div>
+
+            <footer className="mt-8 pt-6 border-t border-slate-700/50 text-slate-500 text-sm">
+              Post ID: {displayPost.id} | Author: {displayPost.authorId}
+            </footer>
+          </article>
+        )}
     </div>
   );
 }
 
-export function ErrorBoundary(
-  { error, params }: ErrorBoundaryProps<{ id: string }, BlogPostLoaderData>,
-) {
-  console.log("ErrorBoundary error", error);
-
+export function ErrorBoundary({
+  error,
+  params,
+}: ErrorBoundaryProps<{ id: string }, BlogPostLoaderData>) {
   return (
-    <div style={{ textAlign: "center", padding: "2rem" }}>
-      <h1>Blog Post Not Found</h1>
-      <p style={{ marginBottom: "2rem", color: "#666" }}>
+    <div className="text-center py-12">
+      <h1 className="text-3xl font-bold text-slate-100 mb-4">
+        Blog Post Not Found
+      </h1>
+      <p className="text-slate-400 mb-6">
         {params.id
           ? `Sorry, we couldn't find a blog post with ID "${params.id}".`
           : "Sorry, we couldn't find that blog post."}
       </p>
-      <p>
+      <p className="text-slate-500 mb-8">
         {error instanceof Error ? error.message : "Unknown error"}
       </p>
       <Link
         to="/blog"
-        style={{
-          textDecoration: "none",
-          color: "#2563eb",
-          fontWeight: "500",
-        }}
+        className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors"
       >
         ← Back to Blog
       </Link>

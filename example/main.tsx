@@ -9,10 +9,6 @@ export const client = new Client({
   index: () => import("./routes/index.tsx"),
   children: [
     {
-      path: "about",
-      main: () => import("./routes/about.tsx"),
-    },
-    {
       path: "blog",
       main: () => import("./routes/blog/main.tsx"),
       index: () => import("./routes/blog/index.tsx"),
@@ -24,20 +20,95 @@ export const client = new Client({
       ],
     },
     {
-      path: "errors",
+      path: "features",
+      main: () => import("./routes/features/main.tsx"),
+      index: () => import("./routes/features/index.tsx"),
       children: [
         {
-          path: "custom",
-          main: () => import("./routes/errors/custom.tsx"),
+          path: "data",
+          children: [
+            {
+              path: "action",
+              main: () => import("./routes/features/data/action.tsx"),
+            },
+            {
+              path: "deferred",
+              main: () => import("./routes/features/data/deferred.tsx"),
+            },
+            {
+              path: "fetcher",
+              main: () => import("./routes/features/data/fetcher.tsx"),
+            },
+            {
+              path: "hydrate-fallback",
+              main: () => import("./routes/features/data/hydrate-fallback.tsx"),
+            },
+            {
+              path: "loader",
+              main: () => import("./routes/features/data/loader.tsx"),
+            },
+          ],
         },
-      ],
-    },
-    {
-      path: "loaders",
-      children: [
         {
-          path: "defer",
-          main: () => import("./routes/loaders/defer.tsx"),
+          path: "errors",
+          main: () => import("./routes/features/errors/main.tsx"),
+          children: [
+            {
+              path: "boundary",
+              main: () => import("./routes/features/errors/boundary.tsx"),
+            },
+            {
+              path: "ssr",
+              main: () => import("./routes/features/errors/ssr.tsx"),
+            },
+          ],
+        },
+        {
+          path: "routing",
+          index: () => import("./routes/features/routing/index.tsx"),
+          children: [
+            {
+              path: "files",
+              catchall: () =>
+                import("./routes/features/routing/files/[...].tsx"),
+            },
+            {
+              path: "post",
+              children: [
+                {
+                  path: ":id",
+                  main: () => import("./routes/features/routing/post/[id].tsx"),
+                },
+              ],
+            },
+            {
+              path: "settings",
+              children: [
+                {
+                  path: "appearance",
+                  main: () =>
+                    import("./routes/features/routing/settings/appearance.tsx"),
+                },
+              ],
+            },
+            {
+              path: "user",
+              children: [
+                {
+                  path: ":userId",
+                  children: [
+                    {
+                      path: "profile",
+                      main: () =>
+                        import(
+                          "./routes/features/routing/user/[userId]/profile.tsx"
+                        ),
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
         },
       ],
     },
