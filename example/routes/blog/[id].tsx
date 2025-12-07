@@ -6,7 +6,7 @@ import type {
 } from "@udibo/juniper";
 import { HttpError } from "@udibo/http-error";
 import { Link, useFetcher } from "react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { postService } from "@/services/post.ts";
 import type { Post } from "@/services/post.ts";
@@ -69,6 +69,12 @@ export default function BlogPost({
   const [isEditing, setIsEditing] = useState(false);
   const isSubmitting = fetcher.state !== "idle";
 
+  useEffect(() => {
+    if (fetcher.data?.post && isEditing) {
+      setIsEditing(false);
+    }
+  }, [fetcher.data?.post, isEditing]);
+
   if (fetcher.data?.deleted) {
     return (
       <div className="text-center py-12">
@@ -82,10 +88,6 @@ export default function BlogPost({
         </Link>
       </div>
     );
-  }
-
-  if (fetcher.data?.post && isEditing) {
-    setIsEditing(false);
   }
 
   const displayPost = fetcher.data?.post || post;

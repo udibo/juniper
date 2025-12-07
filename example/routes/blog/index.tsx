@@ -1,5 +1,5 @@
 import { Link, useFetcher } from "react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type {
   AnyParams,
   RouteActionArgs,
@@ -48,9 +48,11 @@ function NewPostForm() {
   const [isOpen, setIsOpen] = useState(false);
   const isSubmitting = fetcher.state !== "idle";
 
-  if (fetcher.data?.post && isOpen) {
-    setIsOpen(false);
-  }
+  useEffect(() => {
+    if (fetcher.data?.post && isOpen) {
+      setIsOpen(false);
+    }
+  }, [fetcher.data?.post, isOpen]);
 
   return (
     <div className="mb-8">
