@@ -26,26 +26,6 @@ export const server = createServer(import.meta.url, client, {
             },
           ],
         },
-        {
-          path: "catchall",
-        },
-        {
-          path: "empty",
-        },
-        {
-          path: "hello",
-        },
-        {
-          path: "hello2",
-          children: [
-            {
-              path: ":name",
-            },
-          ],
-        },
-        {
-          path: ":api",
-        },
       ],
     },
     {
