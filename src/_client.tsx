@@ -257,14 +257,13 @@ export function createRoute<
   if (_HydrateFallback) {
     HydrateFallback = function HydrateFallback() {
       const params = useParams();
-      const loaderData = useLoaderData();
       const actionData = useActionData();
 
       return React.createElement(
         _HydrateFallback as ComponentType<RouteProps>,
         {
           params,
-          loaderData,
+          loaderData: undefined,
           actionData,
         },
       );

@@ -285,7 +285,6 @@ export class Client<Context extends DefaultContext = DefaultContext> {
     const { matches, ...hydrationData } = this.getHydrationData();
 
     await this.loadLazyMatches(matches);
-    console.log("this.routeObjects", this.routeObjects);
 
     const router = createBrowserRouter(this.routeObjects, { hydrationData });
 
