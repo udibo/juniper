@@ -25,7 +25,7 @@ export default function PrefixRoute() {
       </InfoBox>
 
       <CodeBlock title="File Structure">
-{`routes/
+        {`routes/
   features/
     routing/
       settings/           ← No main.tsx (prefix only)

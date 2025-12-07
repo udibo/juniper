@@ -1,6 +1,16 @@
 interface FeatureBadgeProps {
   children: React.ReactNode;
-  color?: "emerald" | "blue" | "violet" | "orange" | "pink" | "teal" | "cyan" | "amber" | "red" | "purple";
+  color?:
+    | "emerald"
+    | "blue"
+    | "violet"
+    | "orange"
+    | "pink"
+    | "teal"
+    | "cyan"
+    | "amber"
+    | "red"
+    | "purple";
 }
 
 const colorClasses = {
@@ -16,17 +26,18 @@ const colorClasses = {
   purple: "bg-purple-500/10 text-purple-400",
 };
 
-export function FeatureBadge({ children, color = "emerald" }: FeatureBadgeProps) {
+export function FeatureBadge(
+  { children, color = "emerald" }: FeatureBadgeProps,
+) {
   return (
     <div className="flex items-center gap-3 mb-6">
       <span
-        className={`px-3 py-1 ${colorClasses[color]} text-xs font-semibold rounded-full uppercase tracking-wide`}
+        className={`px-3 py-1 ${
+          colorClasses[color]
+        } text-xs font-semibold rounded-full uppercase tracking-wide`}
       >
         {children}
       </span>
     </div>
   );
 }
-
-
-

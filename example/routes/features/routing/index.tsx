@@ -17,7 +17,7 @@ export default function RoutingIndex() {
       </p>
 
       <CodeBlock title="File Structure">
-{`routes/
+        {`routes/
   features/
     routing/
       index.tsx    ← You are here

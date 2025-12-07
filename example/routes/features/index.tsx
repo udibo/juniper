@@ -22,6 +22,3 @@ export default function FeaturesIndex() {
     </div>
   );
 }
-
-
-

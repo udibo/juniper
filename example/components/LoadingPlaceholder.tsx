@@ -12,6 +12,3 @@ export function LoadingPlaceholder({ label }: LoadingPlaceholderProps) {
     </div>
   );
 }
-
-
-

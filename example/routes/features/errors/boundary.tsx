@@ -66,7 +66,7 @@ export default function ErrorBoundaryDemo() {
       </div>
 
       <CodeBlock>
-{`// routes/features/errors/main.tsx
+        {`// routes/features/errors/main.tsx
 export function ErrorBoundary({ 
   error, 
   resetErrorBoundary 

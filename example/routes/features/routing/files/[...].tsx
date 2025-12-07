@@ -46,7 +46,7 @@ export default function WildcardRoute({
       </InfoBox>
 
       <CodeBlock title="File Structure">
-{`routes/
+        {`routes/
   features/
     routing/
       files/

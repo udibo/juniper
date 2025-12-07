@@ -30,7 +30,7 @@ export default function ParameterizedRoute({
       </InfoBox>
 
       <CodeBlock title="File Structure">
-{`routes/
+        {`routes/
   features/
     routing/
       post/

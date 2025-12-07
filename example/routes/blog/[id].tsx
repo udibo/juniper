@@ -181,7 +181,9 @@ export default function BlogPost({
                 </time>
                 {new Date(displayPost.createdAt).getTime() !==
                     new Date(displayPost.updatedAt).getTime() && (
-                  <time dateTime={new Date(displayPost.updatedAt).toISOString()}>
+                  <time
+                    dateTime={new Date(displayPost.updatedAt).toISOString()}
+                  >
                     Updated:{" "}
                     {new Date(displayPost.updatedAt).toLocaleDateString(
                       "en-US",

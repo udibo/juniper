@@ -17,13 +17,14 @@ const colorClasses = {
   slate: "border-slate-400",
 };
 
-export function Spinner({ size = "md", color = "emerald", className = "" }: SpinnerProps) {
+export function Spinner(
+  { size = "md", color = "emerald", className = "" }: SpinnerProps,
+) {
   return (
     <div
-      className={`${sizeClasses[size]} ${colorClasses[color]} border-t-transparent rounded-full animate-spin ${className}`}
+      className={`${sizeClasses[size]} ${
+        colorClasses[color]
+      } border-t-transparent rounded-full animate-spin ${className}`}
     />
   );
 }
-
-
-

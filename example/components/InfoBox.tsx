@@ -1,7 +1,18 @@
 interface InfoBoxProps {
   title?: string;
   children: React.ReactNode;
-  color?: "emerald" | "blue" | "violet" | "orange" | "pink" | "teal" | "cyan" | "amber" | "red" | "purple" | "slate";
+  color?:
+    | "emerald"
+    | "blue"
+    | "violet"
+    | "orange"
+    | "pink"
+    | "teal"
+    | "cyan"
+    | "amber"
+    | "red"
+    | "purple"
+    | "slate";
   className?: string;
 }
 
@@ -27,9 +38,13 @@ export function InfoBox({
 }: InfoBoxProps) {
   const [bgColor, borderColor, textColor] = colorClasses[color].split(" ");
   return (
-    <div className={`${bgColor} border ${borderColor} rounded-xl p-6 ${className}`}>
+    <div
+      className={`${bgColor} border ${borderColor} rounded-xl p-6 ${className}`}
+    >
       {title && (
-        <h3 className={`text-sm font-semibold ${textColor} uppercase tracking-wide mb-4`}>
+        <h3
+          className={`text-sm font-semibold ${textColor} uppercase tracking-wide mb-4`}
+        >
           {title}
         </h3>
       )}
@@ -37,6 +52,3 @@ export function InfoBox({
     </div>
   );
 }
-
-
-

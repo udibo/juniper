@@ -30,7 +30,7 @@ export default function NestedParamsRoute({
       </InfoBox>
 
       <CodeBlock title="File Structure">
-{`routes/
+        {`routes/
   features/
     routing/
       user/
