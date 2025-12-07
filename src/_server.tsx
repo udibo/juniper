@@ -7,6 +7,7 @@ import type { Env, Schema } from "hono";
 import { createFactory } from "hono/factory";
 import { serveStatic } from "hono/deno";
 import { stream } from "hono/streaming";
+import type { StatusCode } from "hono/utils/http-status";
 import type { HydrationState } from "react-router";
 import {
   createStaticHandler,
@@ -452,6 +453,16 @@ export function createHandlers<
         const deepestMatch = context.matches[context.matches.length - 1];
         const actionHeaders = context.actionHeaders[deepestMatch.route.id];
         const loaderHeaders = context.loaderHeaders[deepestMatch.route.id];
+
+        const statusCode: StatusCode = Object.values(context.errors ?? {})
+          .find((value: unknown) =>
+            value instanceof Error && (value as HttpError).status
+          )
+          ?.status ??
+          context.statusCode ??
+          200;
+
+        c.status(statusCode);
 
         for (const [key, value] of actionHeaders?.entries() ?? []) {
           c.header(key, value);

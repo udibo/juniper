@@ -53,7 +53,7 @@ describe("GET /blog/:id", () => {
   it("should return 404 for non-existent blog post", async () => {
     const nonExistentId = generateUUIDv7();
     const res = await server.request(`http://localhost/blog/${nonExistentId}`);
-    assertEquals(res.status, 200);
+    assertEquals(res.status, 404);
   });
 
   it("should display post metadata", async () => {

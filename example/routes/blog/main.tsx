@@ -3,18 +3,15 @@ import { Link, Outlet } from "react-router";
 export default function BlogLayout() {
   return (
     <div>
-      <header
-        style={{
-          borderBottom: "1px solid #ccc",
-          paddingBottom: "1rem",
-          marginBottom: "2rem",
-        }}
-      >
-        <nav style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-          <Link to="/" style={{ textDecoration: "none", color: "#666" }}>
+      <header className="border-b border-slate-700/50 pb-6 mb-8">
+        <nav className="flex gap-4 items-center">
+          <Link
+            to="/"
+            className="text-slate-400 hover:text-emerald-400 transition-colors"
+          >
             ← Home
           </Link>
-          <h1 style={{ margin: 0 }}>Blog</h1>
+          <h1 className="text-3xl font-bold text-slate-100 m-0">Blog</h1>
         </nav>
       </header>
 

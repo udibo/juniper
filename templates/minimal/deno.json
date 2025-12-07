@@ -38,9 +38,9 @@
     "@std/path": "jsr:@std/path@^1.1.2",
     "@std/streams": "jsr:@std/streams@^1.0.13",
     "@opentelemetry/api": "npm:@opentelemetry/api@^1.9.0",
-    "react": "npm:react@^19.2.0",
-    "@types/react": "npm:@types/react@^19.2.2",
-    "react-router": "npm:react-router@^7.9.5",
+    "react": "npm:react@^19.2.1",
+    "@types/react": "npm:@types/react@^19.2.7",
+    "react-router": "npm:react-router@^7.10.1",
     "hono": "npm:hono@^4.10.4"
   },
   "permissions": {

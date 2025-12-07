@@ -2,9 +2,6 @@ import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { isProduction } from "@udibo/juniper/utils/env";
 
-import { CustomError } from "@/utils/error.ts";
-import type { SerializedCustomError } from "@/utils/error.ts";
-
 const app = new Hono();
 
 app.use(logger());
@@ -19,15 +16,3 @@ if (!isProduction()) {
 }
 
 export default app;
-
-export function serializeError(error: unknown) {
-  if (error instanceof CustomError) {
-    return {
-      __type: "Error",
-      __subType: "CustomError",
-      message: error.message,
-      exposeStack: error.exposeStack,
-      stack: error.stack,
-    } satisfies SerializedCustomError;
-  }
-}

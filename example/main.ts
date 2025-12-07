@@ -28,37 +28,23 @@ export const server = createServer(import.meta.url, client, {
         },
         {
           path: "catchall",
-          catchall: await import("./routes/api/catchall/[...].ts"),
         },
         {
           path: "empty",
         },
         {
           path: "hello",
-          index: await import("./routes/api/hello/index.ts"),
-          children: [
-            {
-              path: "example",
-              main: await import("./routes/api/hello/example.ts"),
-            },
-            {
-              path: ":name",
-              main: await import("./routes/api/hello/[name].ts"),
-            },
-          ],
         },
         {
           path: "hello2",
           children: [
             {
               path: ":name",
-              main: await import("./routes/api/hello2/[name]/main.ts"),
             },
           ],
         },
         {
           path: ":api",
-          index: await import("./routes/api/[api]/index.ts"),
         },
       ],
     },
@@ -66,14 +52,37 @@ export const server = createServer(import.meta.url, client, {
       path: "blog",
     },
     {
-      path: "errors",
-    },
-    {
-      path: "hello",
-      main: await import("./routes/hello.ts"),
-    },
-    {
-      path: "loaders",
+      path: "features",
+      children: [
+        {
+          path: "data",
+        },
+        {
+          path: "errors",
+        },
+        {
+          path: "routing",
+          children: [
+            {
+              path: "files",
+            },
+            {
+              path: "post",
+            },
+            {
+              path: "settings",
+            },
+            {
+              path: "user",
+              children: [
+                {
+                  path: ":userId",
+                },
+              ],
+            },
+          ],
+        },
+      ],
     },
   ],
 });

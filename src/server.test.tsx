@@ -379,7 +379,7 @@ describe("createServer", () => {
 
     const server = createServer(import.meta.url, client, { path: "/" });
     const res = await server.request("http://localhost/");
-    assertEquals(res.status, 200);
+    assertEquals(res.status, 500);
     const html = await res.text();
     assertStringIncludes(html, "<!DOCTYPE html>");
     assertStringIncludes(html, "<div>Error occurred</div>");

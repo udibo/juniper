@@ -1,15 +1,11 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import { afterAll, beforeAll, describe, it } from "@std/testing/bdd";
+import { afterEach, describe, it } from "@std/testing/bdd";
 
 import { server } from "@/main.ts";
 import { postService } from "@/services/post.ts";
 
 describe("GET /blog", () => {
-  beforeAll(async () => {
-    await postService.open();
-  });
-
-  afterAll(() => {
+  afterEach(() => {
     postService.close();
   });
 

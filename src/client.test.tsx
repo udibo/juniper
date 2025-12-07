@@ -3,6 +3,7 @@ import {
   assertEquals,
   assertExists,
   assertIsError,
+  assertNotEquals,
   assertObjectMatch,
   assertRejects,
 } from "@std/assert";
@@ -238,6 +239,35 @@ describe("createRoute", () => {
     assertEquals(routeObject.loader, undefined);
     assertEquals(routeObject.action, routeFile.action);
   });
+
+  it("from a file with HydrateFallback export", () => {
+    routeFile.HydrateFallback = () => <div>Loading...</div>;
+    const routeObject = createRoute(routeFile);
+    assertExists(routeObject.Component);
+    assertEquals(typeof routeObject.Component, "function");
+    assertEquals(routeObject.HydrateFallback, undefined);
+    assertEquals(routeObject.ErrorBoundary, undefined);
+    assertEquals(typeof routeObject.loader, "function");
+    assertEquals(routeObject.action, undefined);
+  });
+
+  it("from a file with loader export and HydrateFallback export", () => {
+    routeFile.loader = () => Promise.resolve({});
+    routeFile.HydrateFallback = () => <div>Loading...</div>;
+    const routeObject = createRoute(routeFile);
+    assertExists(routeObject.Component);
+    assertEquals(typeof routeObject.Component, "function");
+    assertEquals(routeObject.HydrateFallback, undefined);
+    assertEquals(routeObject.ErrorBoundary, undefined);
+    assertEquals(typeof routeObject.loader, "function");
+    assertNotEquals(routeObject.loader, routeFile.loader);
+    assertEquals(routeObject.action, undefined);
+  });
+
+  it("should not have HydrateFallback when not exported", () => {
+    const routeObject = createRoute(routeFile);
+    assertEquals(routeObject.HydrateFallback, undefined);
+  });
 });
 
 describe("createLazyRoute", () => {
@@ -277,6 +307,18 @@ describe("createLazyRoute", () => {
     assertEquals(typeof Component, "function");
     assertEquals(ErrorBoundary, undefined);
     assertEquals(loader, routeFile.loader);
+  });
+
+  it("from a file with HydrateFallback export", async () => {
+    routeFile.HydrateFallback = () => <div>Loading...</div>;
+    const lazyRouteObject = createLazyRoute(lazyRouteFile);
+    const { Component, ErrorBoundary, HydrateFallback, loader } =
+      await lazyRouteObject();
+    assertExists(Component);
+    assertEquals(typeof Component, "function");
+    assertEquals(HydrateFallback, undefined);
+    assertEquals(ErrorBoundary, undefined);
+    assertEquals(typeof loader, "function");
   });
 });
 

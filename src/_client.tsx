@@ -1,6 +1,7 @@
 import { HttpError } from "@udibo/http-error";
 import {
   type ActionFunctionArgs,
+  Await,
   type HydrationState,
   type LoaderFunctionArgs,
   type RouterContextProvider,
@@ -13,12 +14,13 @@ import {
 } from "react-router";
 import SuperJSON from "superjson";
 import type { SuperJSONResult } from "superjson";
-import React from "react";
+import React, { Suspense } from "react";
 import type { ComponentType } from "react";
 
 import type {
   AnyParams,
   ErrorBoundaryProps,
+  LoaderFunction,
   RouteModule,
   RouteProps,
 } from "@udibo/juniper";
@@ -247,7 +249,32 @@ export function createRoute<
     ErrorBoundary: _ErrorBoundary,
     default: _Component,
     HydrateFallback: _HydrateFallback,
+    loader: _Loader,
   } = routeFile;
+
+  let loader: LoaderFunction<Context, unknown> | undefined;
+  let HydrateFallback: ComponentType | undefined;
+  if (_HydrateFallback) {
+    HydrateFallback = function HydrateFallback() {
+      const params = useParams();
+      const loaderData = useLoaderData();
+      const actionData = useActionData();
+
+      return React.createElement(
+        _HydrateFallback as ComponentType<RouteProps>,
+        {
+          params,
+          loaderData,
+          actionData,
+        },
+      );
+    };
+    loader = function loader(args: LoaderFunctionArgs<Context>) {
+      return { promise: Promise.resolve(_Loader?.(args)) };
+    };
+  } else {
+    loader = _Loader;
+  }
 
   let Component: ComponentType | undefined;
   if (_Component) {
@@ -255,6 +282,22 @@ export function createRoute<
       const params = useParams();
       const loaderData = useLoaderData();
       const actionData = useActionData();
+
+      if (HydrateFallback) {
+        return (
+          <Suspense fallback={<HydrateFallback />}>
+            <Await resolve={loaderData.promise}>
+              {(resolvedLoaderData) => (
+                <_Component
+                  params={params}
+                  loaderData={resolvedLoaderData}
+                  actionData={actionData}
+                />
+              )}
+            </Await>
+          </Suspense>
+        );
+      }
 
       return React.createElement(
         _Component as ComponentType<RouteProps>,
@@ -294,29 +337,10 @@ export function createRoute<
     };
   }
 
-  let HydrateFallback: ComponentType | undefined;
-  if (_HydrateFallback) {
-    HydrateFallback = function HydrateFallback() {
-      const params = useParams();
-      const loaderData = useLoaderData();
-      const actionData = useActionData();
-
-      return React.createElement(
-        _HydrateFallback as ComponentType<RouteProps>,
-        {
-          params,
-          loaderData,
-          actionData,
-        },
-      );
-    };
-  }
-
   return {
-    Component: Component,
-    ErrorBoundary: ErrorBoundary,
-    HydrateFallback: HydrateFallback,
-    loader: routeFile.loader,
+    Component,
+    ErrorBoundary,
+    loader,
     action: routeFile.action,
   };
 }
