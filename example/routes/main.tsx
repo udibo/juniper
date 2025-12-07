@@ -9,7 +9,7 @@ export default function Main() {
         name="viewport"
         content="width=device-width,initial-scale=1.0"
       />
-      <link rel="stylesheet" href="/build/main.css" />
+      <link rel="stylesheet" href="/build/main.css" precedence="default" />
       <div className="min-h-screen bg-linear-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100">
         <nav className="border-b border-slate-700/50 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-50">
           <div className="max-w-6xl mx-auto px-6 py-4">
