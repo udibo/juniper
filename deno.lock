@@ -38,6 +38,7 @@
     "npm:esbuild@~0.25.5": "0.25.12",
     "npm:global-jsdom@27": "27.0.0_jsdom@27.1.0",
     "npm:hono@^4.10.4": "4.10.4",
+    "npm:isbot@^5.1.32": "5.1.32",
     "npm:less@^4.4.2": "4.4.2",
     "npm:postcss-modules@^6.0.1": "6.0.1_postcss@8.5.6",
     "npm:postcss@^8.5.6": "8.5.6",
@@ -1354,6 +1355,9 @@
     "is-what@5.5.0": {
       "integrity": "sha512-oG7cgbmg5kLYae2N5IVd3jm2s+vldjxJzK1pcu9LfpGuQ93MQSzo0okvRna+7y5ifrD+20FE8FvjusyGaz14fw=="
     },
+    "isbot@5.1.32": {
+      "integrity": "sha512-VNfjM73zz2IBZmdShMfAUg10prm6t7HFUQmNAEOAVS4YH92ZrZcvkMcGX6cIgBJAzWDzPent/EeAtYEHNPNPBQ=="
+    },
     "isexe@2.0.0": {
       "integrity": "sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw=="
     },
@@ -2209,6 +2213,7 @@
           "npm:esbuild@~0.25.12",
           "npm:global-jsdom@27",
           "npm:hono@^4.10.4",
+          "npm:isbot@^5.1.32",
           "npm:quick-lru@^7.3.0",
           "npm:react-dom@^19.2.1",
           "npm:react-error-boundary@^4.1.2",

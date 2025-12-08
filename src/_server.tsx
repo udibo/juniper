@@ -20,6 +20,7 @@ import { StrictMode, Suspense, use } from "react";
 import { renderToReadableStream } from "react-dom/server";
 import serialize from "serialize-javascript";
 import SuperJSON from "superjson";
+import { isbot } from "isbot";
 
 import type {
   ClientRoute,
@@ -419,9 +420,9 @@ export function createHandlers<
                   },
                 },
               );
-              // Add way for determining if page should progressively render or fully rener
-              // see https://react.dev/reference/react-dom/server/renderToReadableStream#waiting-for-all-content-to-load-for-crawlers-and-static-generation
-              // await renderStream.allReady;
+              if (isbot(c.req.header("user-agent"))) {
+                await renderStream.allReady;
+              }
             } catch (error) {
               if (
                 c.req.raw.signal.aborted ||

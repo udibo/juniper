@@ -39,6 +39,7 @@
     "@opentelemetry/api": "npm:@opentelemetry/api@^1.9.0",
     "babel-plugin-react-compiler": "npm:babel-plugin-react-compiler@^1.0.0",
     "esbuild": "npm:esbuild@^0.25.12",
+    "isbot": "npm:isbot@^5.1.32",
     "quick-lru": "npm:quick-lru@^7.3.0",
     "zod": "npm:zod@^3.25.76",
     "hono": "npm:hono@^4.10.4",
