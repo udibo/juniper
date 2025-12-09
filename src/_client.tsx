@@ -1,16 +1,20 @@
 import { HttpError } from "@udibo/http-error";
 import {
-  type ActionFunctionArgs,
   Await,
-  type HydrationState,
-  type LoaderFunctionArgs,
-  type RouterContextProvider,
   useActionData,
   useLoaderData,
   useLocation,
   useNavigate,
   useParams,
   useRouteError,
+} from "react-router";
+import type {
+  ActionFunction,
+  ActionFunctionArgs,
+  HydrationState,
+  LoaderFunction,
+  LoaderFunctionArgs,
+  RouterContextProvider,
 } from "react-router";
 import SuperJSON from "superjson";
 import type { SuperJSONResult } from "superjson";
@@ -20,7 +24,6 @@ import type { ComponentType } from "react";
 import type {
   AnyParams,
   ErrorBoundaryProps,
-  LoaderFunction,
   RouteModule,
   RouteProps,
 } from "@udibo/juniper";
@@ -249,10 +252,14 @@ export function createRoute<
     ErrorBoundary: _ErrorBoundary,
     default: _Component,
     HydrateFallback: _HydrateFallback,
-    loader: _Loader,
+    loader: _loader,
+    action: _action,
   } = routeFile;
 
-  let loader: LoaderFunction<Context, unknown> | undefined;
+  let loader:
+    | LoaderFunction<Context>
+    | undefined;
+  const serverLoader = () => null as unknown;
   let HydrateFallback: ComponentType | undefined;
   if (_HydrateFallback) {
     HydrateFallback = function HydrateFallback() {
@@ -269,10 +276,29 @@ export function createRoute<
       );
     };
     loader = function loader(args: LoaderFunctionArgs<Context>) {
-      return { promise: Promise.resolve(_Loader?.(args)) };
+      const { context, params, request } = args;
+      return {
+        promise: Promise.resolve(
+          _loader?.({ context, params, request, serverLoader }),
+        ),
+      };
     };
-  } else {
-    loader = _Loader;
+  } else if (_loader) {
+    loader = function loader(args: LoaderFunctionArgs<Context>) {
+      const { context, params, request } = args;
+      return _loader({ context, params, request, serverLoader });
+    };
+  }
+
+  let action:
+    | ActionFunction<Context>
+    | undefined;
+  const serverAction = () => null as unknown;
+  if (_action) {
+    action = function action(args: ActionFunctionArgs<Context>) {
+      const { context, params, request } = args;
+      return _action({ context, params, request, serverAction });
+    };
   }
 
   let Component: ComponentType | undefined;
@@ -340,7 +366,7 @@ export function createRoute<
     Component,
     ErrorBoundary,
     loader,
-    action: routeFile.action,
+    action,
   };
 }
 

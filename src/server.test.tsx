@@ -5,9 +5,9 @@ import {
 } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
 import { Outlet, useLoaderData, useParams } from "react-router";
-import type { LoaderFunctionArgs } from "react-router";
 import { HttpError } from "@udibo/http-error";
 
+import type { RouteLoaderArgs } from "@udibo/juniper";
 import { Client } from "@udibo/juniper/client";
 import { createServer } from "@udibo/juniper/server";
 import { simulateEnvironment } from "@udibo/juniper/utils/testing";
@@ -201,7 +201,7 @@ describe("createServer", () => {
                       </div>
                     );
                   },
-                  loader: (args: LoaderFunctionArgs) =>
+                  loader: (args: RouteLoaderArgs) =>
                     Promise.resolve({ postId: args.params.id }),
                 }),
             },
@@ -248,7 +248,7 @@ describe("createServer", () => {
                   </div>
                 );
               },
-              loader: (args: LoaderFunctionArgs) =>
+              loader: (args: RouteLoaderArgs) =>
                 Promise.resolve({ splat: args.params["*"] || "" }),
             }),
         },

@@ -1,9 +1,5 @@
 import type { ReactElement } from "react";
-import type {
-  ActionFunctionArgs as RouteActionArgsBase,
-  LoaderFunctionArgs as RouteLoaderArgsBase,
-  RouterContextProvider,
-} from "react-router";
+import type { RouterContextProvider } from "react-router";
 
 export type AnyParams = Record<string, string | undefined>;
 
@@ -34,9 +30,16 @@ export type AnyParams = Record<string, string | undefined>;
  * }
  * ```
  */
-export type RouteLoaderArgs<
+export interface RouteLoaderArgs<
   Context extends RouterContextProvider = RouterContextProvider,
-> = RouteLoaderArgsBase<Context>;
+  Params extends AnyParams = AnyParams,
+  LoaderData = unknown,
+> {
+  context: Context;
+  params: Params;
+  request: Request;
+  serverLoader: () => LoaderData | Promise<LoaderData>;
+}
 
 /**
  * The argument shape provided to route actions.
@@ -75,9 +78,16 @@ export type RouteLoaderArgs<
  * }
  * ```
  */
-export type RouteActionArgs<
+export interface RouteActionArgs<
   Context extends RouterContextProvider = RouterContextProvider,
-> = RouteActionArgsBase<Context>;
+  Params extends AnyParams = AnyParams,
+  ActionData = unknown,
+> {
+  context: Context;
+  params: Params;
+  request: Request;
+  serverAction: () => ActionData | Promise<ActionData>;
+}
 
 /**
  * The props that are common to route components and error boundaries.
@@ -378,9 +388,10 @@ export type RouteErrorBoundary<
  */
 export type LoaderFunction<
   Context extends RouterContextProvider = RouterContextProvider,
+  Params extends AnyParams = AnyParams,
   LoaderData = unknown,
 > = (
-  args: RouteLoaderArgs<Context>,
+  args: RouteLoaderArgs<Context, Params, LoaderData>,
 ) => LoaderData | Promise<LoaderData>;
 
 /**
@@ -441,9 +452,10 @@ export type LoaderFunction<
  */
 export type ActionFunction<
   Context extends RouterContextProvider = RouterContextProvider,
+  Params extends AnyParams = AnyParams,
   ActionData = unknown,
 > = (
-  args: RouteActionArgs<Context>,
+  args: RouteActionArgs<Context, Params, ActionData>,
 ) => ActionData | Promise<ActionData>;
 
 /**
@@ -515,9 +527,9 @@ export interface RouteModule<
   /** The route's hydration fallback component. */
   HydrateFallback?: RouteComponent<Params, LoaderData, ActionData>;
   /** The loader function. */
-  loader?: LoaderFunction<Context, LoaderData>;
+  loader?: LoaderFunction<Context, Params, LoaderData>;
   /** The action function. */
-  action?: ActionFunction<Context, ActionData>;
+  action?: ActionFunction<Context, Params, ActionData>;
 }
 
 /**
