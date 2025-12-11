@@ -341,14 +341,14 @@ export function mergeServerRoutes<
   clientRoutes: RouteObject[],
 ): RouteObject[] {
   function processRouteObjects(
-    serverR: Route<E, S, BasePath> | undefined,
+    serverRouteNode: Route<E, S, BasePath> | undefined,
     clientObjs: RouteObject[],
   ): RouteObject[] {
     return clientObjs.map((clientObj) => {
       const newRouteObj: RouteObject = { ...clientObj };
 
       if (clientObj.index) {
-        const serverIndex = serverR?.index;
+        const serverIndex = serverRouteNode?.index;
         if (serverIndex?.loader) {
           const serverLoader = serverIndex.loader;
           newRouteObj.loader = async (args: LoaderFunctionArgs) => {
@@ -374,7 +374,7 @@ export function mergeServerRoutes<
           };
         }
       } else if (clientObj.path === "*") {
-        const serverCatchall = serverR?.catchall;
+        const serverCatchall = serverRouteNode?.catchall;
         if (serverCatchall?.loader) {
           const serverLoader = serverCatchall.loader;
           newRouteObj.loader = async (args: LoaderFunctionArgs) => {
@@ -400,7 +400,7 @@ export function mergeServerRoutes<
           };
         }
       } else {
-        const serverMain = serverR?.main;
+        const serverMain = serverRouteNode?.main;
         if (serverMain?.loader) {
           const serverLoader = serverMain.loader;
           newRouteObj.loader = async (args: LoaderFunctionArgs) => {
@@ -428,7 +428,7 @@ export function mergeServerRoutes<
       }
 
       if (clientObj.children && clientObj.children.length > 0) {
-        const childServerRoutes = serverR?.children ?? [];
+        const childServerRoutes = serverRouteNode?.children ?? [];
         newRouteObj.children = clientObj.children.map((childClientObj) => {
           const matchingServerChild = childServerRoutes.find((sr) => {
             if (childClientObj.index) {
@@ -441,7 +441,8 @@ export function mergeServerRoutes<
           });
 
           if (childClientObj.index) {
-            const serverIndex = matchingServerChild?.index ?? serverR?.index;
+            const serverIndex = matchingServerChild?.index ??
+              serverRouteNode?.index;
             const indexRoute: RouteObject = { ...childClientObj };
             if (serverIndex?.loader) {
               const serverLoader = serverIndex.loader;
@@ -470,7 +471,7 @@ export function mergeServerRoutes<
             return indexRoute;
           } else if (childClientObj.path === "*") {
             const serverCatchall = matchingServerChild?.catchall ??
-              serverR?.catchall;
+              serverRouteNode?.catchall;
             const catchallRoute: RouteObject = { ...childClientObj };
             if (serverCatchall?.loader) {
               const serverLoader = serverCatchall.loader;

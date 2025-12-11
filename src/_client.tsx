@@ -315,6 +315,26 @@ export function createRoute<
   const hasServerLoader = serverFlags?.loader === true;
   const hasServerAction = serverFlags?.action === true;
 
+  function getServerLoader(request: Request) {
+    if (!hasServerLoader) {
+      throw new Error("Server loader not available for this route");
+    }
+    if (!routeId) {
+      throw new Error("Route ID is required to fetch server loader data");
+    }
+    return fetchServerLoader(request, routeId);
+  }
+
+  function getServerAction(request: Request) {
+    if (!hasServerAction) {
+      throw new Error("Server action not available for this route");
+    }
+    if (!routeId) {
+      throw new Error("Route ID is required to fetch server action data");
+    }
+    return fetchServerAction(request, routeId);
+  }
+
   let loader:
     | LoaderFunction<Context>
     | undefined;
@@ -336,11 +356,7 @@ export function createRoute<
     };
     loader = function loader(args: LoaderFunctionArgs<Context>) {
       const { context, params, request } = args;
-      const serverLoader = hasServerLoader && routeId
-        ? () => fetchServerLoader(request, routeId)
-        : () => {
-          throw new Error("Server loader not available for this route");
-        };
+      const serverLoader = () => getServerLoader(request);
       return {
         promise: Promise.resolve(
           _loader?.({ context, params, request, serverLoader }),
@@ -350,16 +366,12 @@ export function createRoute<
   } else if (_loader) {
     loader = function loader(args: LoaderFunctionArgs<Context>) {
       const { context, params, request } = args;
-      const serverLoader = hasServerLoader && routeId
-        ? () => fetchServerLoader(request, routeId)
-        : () => {
-          throw new Error("Server loader not available for this route");
-        };
+      const serverLoader = () => getServerLoader(request);
       return _loader({ context, params, request, serverLoader });
     };
-  } else if (hasServerLoader && routeId) {
+  } else if (hasServerLoader) {
     loader = function loader(args: LoaderFunctionArgs<Context>) {
-      return fetchServerLoader(args.request, routeId);
+      return getServerLoader(args.request);
     };
   }
 
@@ -370,16 +382,12 @@ export function createRoute<
   if (_action) {
     action = function action(args: ActionFunctionArgs<Context>) {
       const { context, params, request } = args;
-      const serverAction = hasServerAction && routeId
-        ? () => fetchServerAction(request, routeId)
-        : () => {
-          throw new Error("Server action not available for this route");
-        };
+      const serverAction = () => getServerAction(request);
       return _action({ context, params, request, serverAction });
     };
-  } else if (hasServerAction && routeId) {
+  } else if (hasServerAction) {
     action = function action(args: ActionFunctionArgs<Context>) {
-      return fetchServerAction(args.request, routeId);
+      return getServerAction(args.request);
     };
   }
 
