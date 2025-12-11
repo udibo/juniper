@@ -9,6 +9,8 @@ import {
 import { beforeAll, beforeEach, describe, it } from "@std/testing/bdd";
 import { HttpError } from "@udibo/http-error";
 import { Outlet } from "react-router";
+import type { ActionFunctionArgs } from "react-router";
+import SuperJSON from "superjson";
 import serialize from "serialize-javascript";
 
 import { Client, isSerializedError } from "@udibo/juniper/client";
@@ -265,6 +267,60 @@ describe("createRoute", () => {
   it("should not have HydrateFallback when not exported", () => {
     const routeObject = createRoute(routeFile);
     assertEquals(routeObject.HydrateFallback, undefined);
+  });
+
+  it("should allow serverAction after reading request formData", async () => {
+    const formData = new FormData();
+    formData.set("title", "Hello");
+    const request = new Request("http://localhost/blog", {
+      method: "POST",
+      body: formData,
+    });
+
+    routeFile.action = async ({ request, serverAction }) => {
+      const parsed = await request.formData();
+      assertEquals(parsed.get("title"), "Hello");
+      return await serverAction();
+    };
+
+    const originalFetch = globalThis.fetch;
+    const fetchCalls: RequestInit[] = [];
+    const payload = { ok: true };
+    globalThis.fetch = async (_input, init) => {
+      fetchCalls.push(init ?? {});
+      const serialized = SuperJSON.serialize(payload);
+      return new Response(JSON.stringify(serialized), {
+        headers: {
+          "Content-Type": "application/json",
+          "X-Juniper": "serialized",
+        },
+      });
+    };
+
+    try {
+      const routeObject = createRoute(routeFile, { action: true }, "route-1");
+      assertExists(routeObject.action);
+      const actionArgs = {
+        context: {} as never,
+        params: {},
+        request,
+        preventScrollReset: undefined,
+        submission: undefined,
+        unstable_viewTransition: undefined,
+        unstable_fetcherSubmission: undefined,
+        unstable_data: undefined,
+        unstable_allowRouteDeterminism: undefined,
+        unstable_pattern: "/blog",
+      } as ActionFunctionArgs;
+      const result = await routeObject.action(actionArgs);
+      assertEquals(result, payload);
+      assertEquals(fetchCalls.length, 1);
+      const fetchBody = fetchCalls[0].body;
+      assert(fetchBody instanceof FormData);
+      assertEquals(fetchBody.get("title"), "Hello");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
 

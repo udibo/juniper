@@ -34,6 +34,39 @@ export interface ServerFlags {
   action?: boolean;
 }
 
+const FORM_DATA_CACHE = Symbol("juniperFormDataCache");
+
+type RequestWithFormDataCache = Request & {
+  [FORM_DATA_CACHE]?: Promise<FormData>;
+};
+
+function getCachedFormData(
+  request: RequestWithFormDataCache,
+): Promise<FormData> {
+  const cached = request[FORM_DATA_CACHE];
+  if (cached) return cached;
+  const promise = Request.prototype.formData.call(request) as Promise<FormData>;
+  request[FORM_DATA_CACHE] = promise;
+  return promise;
+}
+
+function withCachedRequest(request: Request): RequestWithFormDataCache {
+  const requestWithCache = request as RequestWithFormDataCache;
+  if (requestWithCache[FORM_DATA_CACHE]) return requestWithCache;
+
+  return new Proxy(requestWithCache, {
+    get(target, prop, receiver) {
+      if (prop === "formData") {
+        return () => getCachedFormData(target);
+      }
+      if (prop === FORM_DATA_CACHE) {
+        return target[FORM_DATA_CACHE];
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+  }) as RequestWithFormDataCache;
+}
+
 /** A serialized error. */
 export type SerializedError = {
   __type: "Error";
@@ -230,7 +263,8 @@ async function fetchServerData(
 
   const fetchOptions: RequestInit = { method, headers };
   if (method === "POST") {
-    fetchOptions.body = await request.formData();
+    const requestWithCache = withCachedRequest(request);
+    fetchOptions.body = await getCachedFormData(requestWithCache);
   }
 
   const response = await fetch(request.url, fetchOptions);
@@ -355,7 +389,8 @@ export function createRoute<
       );
     };
     loader = function loader(args: LoaderFunctionArgs<Context>) {
-      const { context, params, request } = args;
+      const { context, params } = args;
+      const request = withCachedRequest(args.request);
       const serverLoader = () => getServerLoader(request);
       return {
         promise: Promise.resolve(
@@ -365,7 +400,8 @@ export function createRoute<
     };
   } else if (_loader) {
     loader = function loader(args: LoaderFunctionArgs<Context>) {
-      const { context, params, request } = args;
+      const { context, params } = args;
+      const request = withCachedRequest(args.request);
       const serverLoader = () => getServerLoader(request);
       return _loader({ context, params, request, serverLoader });
     };
@@ -381,13 +417,15 @@ export function createRoute<
 
   if (_action) {
     action = function action(args: ActionFunctionArgs<Context>) {
-      const { context, params, request } = args;
+      const { context, params } = args;
+      const request = withCachedRequest(args.request);
       const serverAction = () => getServerAction(request);
       return _action({ context, params, request, serverAction });
     };
   } else if (hasServerAction) {
     action = function action(args: ActionFunctionArgs<Context>) {
-      return getServerAction(args.request);
+      const request = withCachedRequest(args.request);
+      return getServerAction(request);
     };
   }
 
