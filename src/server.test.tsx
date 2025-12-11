@@ -425,8 +425,7 @@ describe("mergeServerRoutes", () => {
         {
           path: "*",
           catchall: {
-            loader: () =>
-              Promise.resolve({ source: "server-child-catchall" }),
+            loader: () => Promise.resolve({ source: "server-child-catchall" }),
           },
         },
       ],
@@ -440,14 +439,15 @@ describe("mergeServerRoutes", () => {
     ];
 
     const [rootRoute] = mergeServerRoutes(serverRoute, clientRoutes);
-    const createArgs = (url: string) =>
-      ({
-        context: {} as never,
-        params: {},
-        request: new Request(url),
-      } as unknown as LoaderFunctionArgs);
+    const createArgs = (url: string) => ({
+      context: {} as never,
+      params: {},
+      request: new Request(url),
+    } as unknown as LoaderFunctionArgs);
 
-    const indexRoute = rootRoute.children?.find((route) => route.index === true);
+    const indexRoute = rootRoute.children?.find((route) =>
+      route.index === true
+    );
     assertExists(indexRoute);
     const indexLoader = typeof indexRoute.loader === "function"
       ? indexRoute.loader
