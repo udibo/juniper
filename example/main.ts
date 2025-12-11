@@ -30,6 +30,23 @@ export const server = createServer(import.meta.url, client, {
     },
     {
       path: "blog",
+      index: await import("./routes/blog/index.ts"),
+      children: [
+        {
+          path: "create",
+          main: await import("./routes/blog/create.ts"),
+        },
+        {
+          path: ":id",
+          index: await import("./routes/blog/[id]/index.ts"),
+          children: [
+            {
+              path: "edit",
+              main: await import("./routes/blog/[id]/edit.ts"),
+            },
+          ],
+        },
+      ],
     },
     {
       path: "features",

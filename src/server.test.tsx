@@ -139,7 +139,8 @@ describe("createServer", () => {
     assertEquals(res.status, 200);
     const ct = res.headers.get("content-type");
     assertEquals(ct && ct.startsWith("application/json"), true);
-    assertEquals(await res.json(), { ok: true });
+    const data = await res.json();
+    assertEquals(data.json, { ok: true });
   });
 
   it("should handle index routes correctly", async () => {

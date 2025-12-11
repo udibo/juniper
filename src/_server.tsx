@@ -8,7 +8,11 @@ import { createFactory } from "hono/factory";
 import { serveStatic } from "hono/deno";
 import { stream } from "hono/streaming";
 import type { StatusCode } from "hono/utils/http-status";
-import type { HydrationState } from "react-router";
+import type {
+  ActionFunctionArgs,
+  HydrationState,
+  LoaderFunctionArgs,
+} from "react-router";
 import {
   createStaticHandler,
   createStaticRouter,
@@ -36,6 +40,7 @@ import {
   type SerializedHydrationDataPromises,
 } from "./_client.tsx";
 import { startActiveSpan } from "./utils/_otel.ts";
+import type { ActionFunction, LoaderFunction } from "@udibo/juniper";
 
 const args = parseArgs(Deno.args, {
   boolean: ["hot-reload"],
@@ -82,6 +87,8 @@ interface ServerRouteModule<
   BasePath extends string = "/",
 > {
   default?: Hono<E, S, BasePath>;
+  loader?: LoaderFunction;
+  action?: ActionFunction;
 }
 
 interface ServerMainRouteModule<
@@ -308,6 +315,207 @@ function getPublicEnv(allPublicEnvKeys: string[]): Record<string, string> {
   return publicEnv;
 }
 
+function serverLoaderError() {
+  throw new Error("Cannot call serverLoader from server");
+}
+
+function serverActionError() {
+  throw new Error("Cannot call serverAction from server");
+}
+
+/**
+ * Merges server routes with client route objects, replacing client loaders/actions
+ * with server-side implementations where available. If no server loader/action exists,
+ * the client loader/action is preserved.
+ *
+ * @param serverRoute - The server route configuration
+ * @param clientRoutes - The client route objects from React Router
+ * @returns The merged route objects with server loaders/actions
+ */
+export function mergeServerRoutes<
+  E extends Env = Env,
+  S extends Schema = Schema,
+  BasePath extends string = "/",
+>(
+  serverRoute: Route<E, S, BasePath>,
+  clientRoutes: RouteObject[],
+): RouteObject[] {
+  function processRouteObjects(
+    serverR: Route<E, S, BasePath> | undefined,
+    clientObjs: RouteObject[],
+  ): RouteObject[] {
+    return clientObjs.map((clientObj) => {
+      const newRouteObj: RouteObject = { ...clientObj };
+
+      if (clientObj.index) {
+        const serverIndex = serverR?.index;
+        if (serverIndex?.loader) {
+          const serverLoader = serverIndex.loader;
+          newRouteObj.loader = async (args: LoaderFunctionArgs) => {
+            const { context, params, request } = args;
+            return await serverLoader({
+              context,
+              params,
+              request,
+              serverLoader: serverLoaderError,
+            });
+          };
+        }
+        if (serverIndex?.action) {
+          const serverAction = serverIndex.action;
+          newRouteObj.action = async (args: ActionFunctionArgs) => {
+            const { context, params, request } = args;
+            return await serverAction({
+              context,
+              params,
+              request,
+              serverAction: serverActionError,
+            });
+          };
+        }
+      } else if (clientObj.path === "*") {
+        const serverCatchall = serverR?.catchall;
+        if (serverCatchall?.loader) {
+          const serverLoader = serverCatchall.loader;
+          newRouteObj.loader = async (args: LoaderFunctionArgs) => {
+            const { context, params, request } = args;
+            return await serverLoader({
+              context,
+              params,
+              request,
+              serverLoader: serverLoaderError,
+            });
+          };
+        }
+        if (serverCatchall?.action) {
+          const serverAction = serverCatchall.action;
+          newRouteObj.action = async (args: ActionFunctionArgs) => {
+            const { context, params, request } = args;
+            return await serverAction({
+              context,
+              params,
+              request,
+              serverAction: serverActionError,
+            });
+          };
+        }
+      } else {
+        const serverMain = serverR?.main;
+        if (serverMain?.loader) {
+          const serverLoader = serverMain.loader;
+          newRouteObj.loader = async (args: LoaderFunctionArgs) => {
+            const { context, params, request } = args;
+            return await serverLoader({
+              context,
+              params,
+              request,
+              serverLoader: serverLoaderError,
+            });
+          };
+        }
+        if (serverMain?.action) {
+          const serverAction = serverMain.action;
+          newRouteObj.action = async (args: ActionFunctionArgs) => {
+            const { context, params, request } = args;
+            return await serverAction({
+              context,
+              params,
+              request,
+              serverAction: serverActionError,
+            });
+          };
+        }
+      }
+
+      if (clientObj.children && clientObj.children.length > 0) {
+        const childServerRoutes = serverR?.children ?? [];
+        newRouteObj.children = clientObj.children.map((childClientObj) => {
+          if (childClientObj.index) {
+            const serverIndex = serverR?.index;
+            const indexRoute: RouteObject = { ...childClientObj };
+            if (serverIndex?.loader) {
+              const serverLoader = serverIndex.loader;
+              indexRoute.loader = async (args: LoaderFunctionArgs) => {
+                const { context, params, request } = args;
+                return await serverLoader({
+                  context,
+                  params,
+                  request,
+                  serverLoader: serverLoaderError,
+                });
+              };
+            }
+            if (serverIndex?.action) {
+              const serverAction = serverIndex.action;
+              indexRoute.action = async (args: ActionFunctionArgs) => {
+                const { context, params, request } = args;
+                return await serverAction({
+                  context,
+                  params,
+                  request,
+                  serverAction: serverActionError,
+                });
+              };
+            }
+            return indexRoute;
+          } else if (childClientObj.path === "*") {
+            const serverCatchall = serverR?.catchall;
+            const catchallRoute: RouteObject = { ...childClientObj };
+            if (serverCatchall?.loader) {
+              const serverLoader = serverCatchall.loader;
+              catchallRoute.loader = async (args: LoaderFunctionArgs) => {
+                const { context, params, request } = args;
+                return await serverLoader({
+                  context,
+                  params,
+                  request,
+                  serverLoader: serverLoaderError,
+                });
+              };
+            }
+            if (serverCatchall?.action) {
+              const serverAction = serverCatchall.action;
+              catchallRoute.action = async (args: ActionFunctionArgs) => {
+                const { context, params, request } = args;
+                return await serverAction({
+                  context,
+                  params,
+                  request,
+                  serverAction: serverActionError,
+                });
+              };
+            }
+            return catchallRoute;
+          }
+
+          const matchingServerChild = childServerRoutes.find(
+            (sr) => sr.path === childClientObj.path,
+          );
+
+          if (matchingServerChild) {
+            return processRouteObjects(matchingServerChild, [
+              childClientObj,
+            ])[0];
+          }
+
+          const noServerRoute: RouteObject = { ...childClientObj };
+          if (childClientObj.children) {
+            noServerRoute.children = processRouteObjects(
+              undefined,
+              childClientObj.children,
+            );
+          }
+          return noServerRoute;
+        });
+      }
+
+      return newRouteObj;
+    });
+  }
+
+  return processRouteObjects(serverRoute, clientRoutes);
+}
+
 /**
  * Creates handlers for React Router.
  *
@@ -493,8 +701,28 @@ export function createHandlers<
     },
     async function handleDataRequest(c) {
       return await startActiveSpan("handleDataRequest", async (_span) => {
-        const data = await queryRoute(c.req.raw);
-        return c.json(data);
+        const routeId = c.req.header("X-Juniper-Route-Id");
+
+        const requestContext = new RouterContextProvider();
+        const dataOrResponse = await queryRoute(c.req.raw, {
+          requestContext,
+          routeId,
+        });
+
+        if (dataOrResponse instanceof Response) {
+          const location = dataOrResponse.headers.get("Location");
+          if (
+            dataOrResponse.status >= 300 && dataOrResponse.status < 400 &&
+            location
+          ) {
+            c.header("X-Juniper", "redirect");
+            return c.json({ location });
+          }
+          return dataOrResponse;
+        }
+
+        c.header("X-Juniper", "serialized");
+        return c.json(SuperJSON.serialize(dataOrResponse));
       });
     },
   );

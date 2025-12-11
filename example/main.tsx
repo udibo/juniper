@@ -12,10 +12,34 @@ export const client = new Client({
       path: "blog",
       main: () => import("./routes/blog/main.tsx"),
       index: () => import("./routes/blog/index.tsx"),
+      serverIndex: {
+        loader: true,
+      },
       children: [
         {
+          path: "create",
+          main: () => import("./routes/blog/create.tsx"),
+          server: {
+            action: true,
+          },
+        },
+        {
           path: ":id",
-          main: () => import("./routes/blog/[id].tsx"),
+          index: () => import("./routes/blog/[id]/index.tsx"),
+          serverIndex: {
+            loader: true,
+            action: true,
+          },
+          children: [
+            {
+              path: "edit",
+              main: () => import("./routes/blog/[id]/edit.tsx"),
+              server: {
+                loader: true,
+                action: true,
+              },
+            },
+          ],
         },
       ],
     },

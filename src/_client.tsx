@@ -1,6 +1,7 @@
 import { HttpError } from "@udibo/http-error";
 import {
   Await,
+  redirect,
   useActionData,
   useLoaderData,
   useLocation,
@@ -27,6 +28,11 @@ import type {
   RouteModule,
   RouteProps,
 } from "@udibo/juniper";
+
+export interface ServerFlags {
+  loader?: boolean;
+  action?: boolean;
+}
 
 /** A serialized error. */
 export type SerializedError = {
@@ -212,6 +218,52 @@ export function App({ children }: { children: React.ReactNode }) {
   );
 }
 
+async function fetchServerData(
+  request: Request,
+  method: "GET" | "POST",
+  routeId: string,
+): Promise<unknown> {
+  const headers: Record<string, string> = {
+    "Accept": "application/json",
+    "X-Juniper-Route-Id": routeId,
+  };
+
+  const fetchOptions: RequestInit = { method, headers };
+  if (method === "POST") {
+    fetchOptions.body = await request.formData();
+  }
+
+  const response = await fetch(request.url, fetchOptions);
+
+  if (!response.ok) {
+    throw await HttpError.from(response);
+  }
+
+  const responseType = response.headers.get("X-Juniper");
+  if (responseType === "serialized") {
+    return SuperJSON.deserialize(await response.json());
+  } else if (responseType === "redirect") {
+    const location = (await response.json()).location;
+    return redirect(location);
+  }
+
+  return response;
+}
+
+function fetchServerLoader(
+  request: Request,
+  routeId: string,
+): Promise<unknown> {
+  return fetchServerData(request, "GET", routeId);
+}
+
+function fetchServerAction(
+  request: Request,
+  routeId: string,
+): Promise<unknown> {
+  return fetchServerData(request, "POST", routeId);
+}
+
 export type Route<
   Context extends RouterContextProvider = RouterContextProvider,
 > = {
@@ -241,12 +293,16 @@ export type LazyRoute<
  *
  * @template Context - The router context type.
  * @param routeFile - The module exports for the route.
+ * @param serverFlags - Flags indicating whether the route has server-side loader/action.
+ * @param routeId - The route ID used for server data requests.
  * @returns A concrete `Route` instance.
  */
 export function createRoute<
   Context extends RouterContextProvider = RouterContextProvider,
 >(
   routeFile: RouteModule<AnyParams, unknown, unknown, Context>,
+  serverFlags?: ServerFlags,
+  routeId?: string,
 ): Route<Context> {
   const {
     ErrorBoundary: _ErrorBoundary,
@@ -256,10 +312,13 @@ export function createRoute<
     action: _action,
   } = routeFile;
 
+  const hasServerLoader = serverFlags?.loader === true;
+  const hasServerAction = serverFlags?.action === true;
+
   let loader:
     | LoaderFunction<Context>
     | undefined;
-  const serverLoader = () => null as unknown;
+
   let HydrateFallback: ComponentType | undefined;
   if (_HydrateFallback) {
     HydrateFallback = function HydrateFallback() {
@@ -277,6 +336,11 @@ export function createRoute<
     };
     loader = function loader(args: LoaderFunctionArgs<Context>) {
       const { context, params, request } = args;
+      const serverLoader = hasServerLoader && routeId
+        ? () => fetchServerLoader(request, routeId)
+        : () => {
+          throw new Error("Server loader not available for this route");
+        };
       return {
         promise: Promise.resolve(
           _loader?.({ context, params, request, serverLoader }),
@@ -286,18 +350,36 @@ export function createRoute<
   } else if (_loader) {
     loader = function loader(args: LoaderFunctionArgs<Context>) {
       const { context, params, request } = args;
+      const serverLoader = hasServerLoader && routeId
+        ? () => fetchServerLoader(request, routeId)
+        : () => {
+          throw new Error("Server loader not available for this route");
+        };
       return _loader({ context, params, request, serverLoader });
+    };
+  } else if (hasServerLoader && routeId) {
+    loader = function loader(args: LoaderFunctionArgs<Context>) {
+      return fetchServerLoader(args.request, routeId);
     };
   }
 
   let action:
     | ActionFunction<Context>
     | undefined;
-  const serverAction = () => null as unknown;
+
   if (_action) {
     action = function action(args: ActionFunctionArgs<Context>) {
       const { context, params, request } = args;
+      const serverAction = hasServerAction && routeId
+        ? () => fetchServerAction(request, routeId)
+        : () => {
+          throw new Error("Server action not available for this route");
+        };
       return _action({ context, params, request, serverAction });
+    };
+  } else if (hasServerAction && routeId) {
+    action = function action(args: ActionFunctionArgs<Context>) {
+      return fetchServerAction(args.request, routeId);
     };
   }
 
@@ -375,6 +457,8 @@ export function createRoute<
  *
  * @template Context - The router context type.
  * @param lazyRouteFile - The lazy route file to create a lazy route object from.
+ * @param serverFlags - Flags indicating whether the route has server-side loader/action.
+ * @param routeId - The route ID used for server data requests.
  * @returns A lazy route object.
  */
 export function createLazyRoute<
@@ -383,10 +467,12 @@ export function createLazyRoute<
   lazyRouteFile: () => Promise<
     RouteModule<AnyParams, unknown, unknown, Context>
   >,
+  serverFlags?: ServerFlags,
+  routeId?: string,
 ): LazyRoute<Context> {
   return async (): Promise<Route<Context>> => {
     const routeFile = await lazyRouteFile();
-    return createRoute(routeFile);
+    return createRoute(routeFile, serverFlags, routeId);
   };
 }
 

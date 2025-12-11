@@ -38,7 +38,7 @@ export interface RouteLoaderArgs<
   context: Context;
   params: Params;
   request: Request;
-  serverLoader: () => LoaderData | Promise<LoaderData>;
+  serverLoader: () => LoaderData | Response | Promise<LoaderData | Response>;
 }
 
 /**
@@ -86,7 +86,7 @@ export interface RouteActionArgs<
   context: Context;
   params: Params;
   request: Request;
-  serverAction: () => ActionData | Promise<ActionData>;
+  serverAction: () => ActionData | Response | Promise<ActionData | Response>;
 }
 
 /**
