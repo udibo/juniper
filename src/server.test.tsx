@@ -1,10 +1,12 @@
 import {
   assertEquals,
+  assertExists,
   assertObjectMatch,
   assertStringIncludes,
 } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
 import { Outlet, useLoaderData, useParams } from "react-router";
+import type { LoaderFunctionArgs } from "react-router";
 import { HttpError } from "@udibo/http-error";
 
 import type { RouteLoaderArgs } from "@udibo/juniper";
@@ -12,7 +14,7 @@ import { Client } from "@udibo/juniper/client";
 import { createServer } from "@udibo/juniper/server";
 import { simulateEnvironment } from "@udibo/juniper/utils/testing";
 
-import { serializeErrorDefault } from "./_server.tsx";
+import { mergeServerRoutes, serializeErrorDefault } from "./_server.tsx";
 
 describe("createServer", () => {
   it("should return 404 for a non-existent route", async () => {
@@ -406,6 +408,66 @@ describe("createServer", () => {
       status: 500,
       title: "InternalServerError",
     });
+  });
+});
+
+describe("mergeServerRoutes", () => {
+  it("should use matching child server routes for index and catchall", async () => {
+    const serverRoute = {
+      path: "/",
+      children: [
+        {
+          path: "/",
+          index: {
+            loader: () => Promise.resolve({ source: "server-child-index" }),
+          },
+        },
+        {
+          path: "*",
+          catchall: {
+            loader: () =>
+              Promise.resolve({ source: "server-child-catchall" }),
+          },
+        },
+      ],
+    };
+
+    const clientRoutes = [
+      {
+        path: "/",
+        children: [{ index: true }, { path: "*" }],
+      },
+    ];
+
+    const [rootRoute] = mergeServerRoutes(serverRoute, clientRoutes);
+    const createArgs = (url: string) =>
+      ({
+        context: {} as never,
+        params: {},
+        request: new Request(url),
+      } as unknown as LoaderFunctionArgs);
+
+    const indexRoute = rootRoute.children?.find((route) => route.index === true);
+    assertExists(indexRoute);
+    const indexLoader = typeof indexRoute.loader === "function"
+      ? indexRoute.loader
+      : undefined;
+    assertExists(indexLoader);
+    const indexResult = await indexLoader(createArgs("http://localhost/"));
+    assertEquals(indexResult, { source: "server-child-index" });
+
+    const catchallRoute = rootRoute.children?.find((route) =>
+      route.path === "*"
+    );
+    assertExists(catchallRoute);
+    const catchallLoader = typeof catchallRoute.loader === "function"
+      ? catchallRoute.loader
+      : undefined;
+    assertExists(catchallLoader);
+    const catchallResult = await catchallLoader(
+      createArgs("http://localhost/any"),
+    );
+    assertEquals(catchallResult, { source: "server-child-catchall" });
   });
 });
 
