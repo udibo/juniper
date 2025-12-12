@@ -2,7 +2,7 @@ import { redirect } from "react-router";
 
 import { postService } from "@/services/post.ts";
 
-import type { EditPostActionData, EditPostLoaderData } from "./edit.tsx";
+import type { EditPostLoaderData } from "./edit.tsx";
 
 export async function loader(
   { params }: { params: Record<string, string | undefined>; request: Request },
@@ -16,7 +16,7 @@ export async function action(
     params: Record<string, string | undefined>;
     request: Request;
   },
-): Promise<EditPostActionData | Response> {
+): Promise<Response> {
   const formData = await request.formData();
   const title = formData.get("title") as string;
   const content = formData.get("content") as string;

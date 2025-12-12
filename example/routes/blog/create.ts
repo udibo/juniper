@@ -2,11 +2,9 @@ import { redirect } from "react-router";
 
 import { postService } from "@/services/post.ts";
 
-import type { CreatePostActionData } from "./create.tsx";
-
 export async function action(
   { request }: { params: Record<string, string | undefined>; request: Request },
-): Promise<CreatePostActionData | Response> {
+): Promise<Response> {
   const formData = await request.formData();
   const title = formData.get("title") as string;
   const content = formData.get("content") as string;

@@ -1,13 +1,6 @@
 import { Form, Link } from "react-router";
-import type { AnyParams, RouteProps } from "@udibo/juniper";
 
-export interface CreatePostActionData {
-  error?: string;
-}
-
-export default function CreatePost({
-  actionData,
-}: RouteProps<AnyParams, undefined, CreatePostActionData>) {
+export default function CreatePost() {
   return (
     <div>
       <nav className="mb-8">
@@ -61,9 +54,6 @@ export default function CreatePost({
               placeholder="Write your post content..."
             />
           </div>
-          {actionData?.error && (
-            <p className="text-red-400 text-sm">{actionData.error}</p>
-          )}
           <div className="flex gap-4">
             <button
               type="submit"

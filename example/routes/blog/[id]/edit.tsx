@@ -7,14 +7,9 @@ export interface EditPostLoaderData {
   post: Post;
 }
 
-export interface EditPostActionData {
-  error?: string;
-}
-
 export default function EditPost({
   loaderData,
-  actionData,
-}: RouteProps<{ id: string }, EditPostLoaderData, EditPostActionData>) {
+}: RouteProps<{ id: string }, EditPostLoaderData>) {
   const post = loaderData.post;
 
   return (
@@ -63,9 +58,6 @@ export default function EditPost({
               className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-100 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none"
             />
           </div>
-          {actionData?.error && (
-            <p className="text-red-400 text-sm">{actionData.error}</p>
-          )}
           <div className="flex gap-4">
             <button
               type="submit"
