@@ -107,6 +107,12 @@ describe("createServer", () => {
       path: "/",
       main: {
         default: () => <div>Home</div>,
+      },
+    });
+
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
         loader: () =>
           Promise.resolve(
             new Response(null, {
@@ -115,11 +121,8 @@ describe("createServer", () => {
           ),
       },
     });
-
-    const server = createServer(import.meta.url, client, { path: "/" });
     const res = await server.request("http://localhost/");
     assertEquals(res.status, 200);
-    // Header is copied from loaderHeaders in server.tsx
     assertEquals(res.headers.get("x-loader"), "yes");
     const html = await res.text();
     assertStringIncludes(html, "<div>Home</div>");
@@ -130,11 +133,15 @@ describe("createServer", () => {
       path: "/",
       main: {
         default: () => <div>Home</div>,
-        loader: () => Promise.resolve({ ok: true }),
       },
     });
 
-    const server = createServer(import.meta.url, client, { path: "/" });
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        loader: () => Promise.resolve({ ok: true }),
+      },
+    });
     const res = await server.request("http://localhost/", {
       headers: { accept: "application/json" },
     });
@@ -158,7 +165,6 @@ describe("createServer", () => {
                 const data = useLoaderData() as { posts: unknown[] };
                 return <div>Blog Index Page - {data.posts.length} posts</div>;
               },
-              loader: () => Promise.resolve({ posts: [] }),
             }),
         },
       ],
@@ -166,6 +172,14 @@ describe("createServer", () => {
 
     const server = createServer(import.meta.url, client, {
       path: "/",
+      children: [
+        {
+          path: "blog",
+          index: {
+            loader: () => Promise.resolve({ posts: [] }),
+          },
+        },
+      ],
     });
 
     const res = await server.request("http://localhost/blog");
@@ -204,8 +218,6 @@ describe("createServer", () => {
                       </div>
                     );
                   },
-                  loader: (args: RouteLoaderArgs) =>
-                    Promise.resolve({ postId: args.params.id }),
                 }),
             },
           ],
@@ -215,6 +227,20 @@ describe("createServer", () => {
 
     const server = createServer(import.meta.url, client, {
       path: "/",
+      children: [
+        {
+          path: "blog",
+          children: [
+            {
+              path: ":id",
+              main: {
+                loader: (args: RouteLoaderArgs) =>
+                  Promise.resolve({ postId: args.params.id }),
+              },
+            },
+          ],
+        },
+      ],
     });
 
     const res = await server.request("http://localhost/blog/123");
@@ -251,8 +277,6 @@ describe("createServer", () => {
                   </div>
                 );
               },
-              loader: (args: RouteLoaderArgs) =>
-                Promise.resolve({ splat: args.params["*"] || "" }),
             }),
         },
       ],
@@ -260,6 +284,15 @@ describe("createServer", () => {
 
     const server = createServer(import.meta.url, client, {
       path: "/",
+      children: [
+        {
+          path: "api",
+          catchall: {
+            loader: (args: RouteLoaderArgs) =>
+              Promise.resolve({ splat: args.params["*"] || "" }),
+          },
+        },
+      ],
     });
 
     const res = await server.request("http://localhost/api/foo/bar/baz");
@@ -289,19 +322,28 @@ describe("createServer", () => {
                 const data = useLoaderData() as { message: string };
                 return <div>Action Test Page - {data.message}</div>;
               },
-              loader: () => Promise.resolve({ message: "loaded" }),
-              action: () =>
-                Promise.resolve(
-                  new Response(JSON.stringify({ success: true }), {
-                    headers: new Headers([["X-Action", "processed"]]),
-                  }),
-                ),
             }),
         },
       ],
     });
 
-    const server = createServer(import.meta.url, client, { path: "/" });
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      children: [
+        {
+          path: "test",
+          main: {
+            loader: () => Promise.resolve({ message: "loaded" }),
+            action: () =>
+              Promise.resolve(
+                new Response(JSON.stringify({ success: true }), {
+                  headers: new Headers([["X-Action", "processed"]]),
+                }),
+              ),
+          },
+        },
+      ],
+    });
     const res = await server.request("http://localhost/test", {
       method: "POST",
       headers: {
@@ -330,24 +372,33 @@ describe("createServer", () => {
               default: function HeadersTestPage() {
                 return <div>Headers Test Page</div>;
               },
-              loader: () =>
-                Promise.resolve(
-                  new Response(null, {
-                    headers: new Headers([["X-Loader", "loaded"]]),
-                  }),
-                ),
-              action: () =>
-                Promise.resolve(
-                  new Response(null, {
-                    headers: new Headers([["X-Action", "processed"]]),
-                  }),
-                ),
             }),
         },
       ],
     });
 
-    const server = createServer(import.meta.url, client, { path: "/" });
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      children: [
+        {
+          path: "test",
+          main: {
+            loader: () =>
+              Promise.resolve(
+                new Response(null, {
+                  headers: new Headers([["X-Loader", "loaded"]]),
+                }),
+              ),
+            action: () =>
+              Promise.resolve(
+                new Response(null, {
+                  headers: new Headers([["X-Action", "processed"]]),
+                }),
+              ),
+          },
+        },
+      ],
+    });
 
     const getRes = await server.request("http://localhost/test");
     assertEquals(getRes.status, 200);
@@ -376,11 +427,15 @@ describe("createServer", () => {
       main: {
         default: () => <div>Home</div>,
         ErrorBoundary: () => <div>Error occurred</div>,
-        loader: () => Promise.reject(new Error("Test error")),
       },
     });
 
-    const server = createServer(import.meta.url, client, { path: "/" });
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        loader: () => Promise.reject(new Error("Test error")),
+      },
+    });
     const res = await server.request("http://localhost/");
     assertEquals(res.status, 500);
     const html = await res.text();

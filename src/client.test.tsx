@@ -247,9 +247,9 @@ describe("createRoute", () => {
     const routeObject = createRoute(routeFile);
     assertExists(routeObject.Component);
     assertEquals(typeof routeObject.Component, "function");
-    assertEquals(routeObject.HydrateFallback, undefined);
+    assertEquals(typeof routeObject.HydrateFallback, "function");
     assertEquals(routeObject.ErrorBoundary, undefined);
-    assertEquals(typeof routeObject.loader, "function");
+    assertEquals(routeObject.loader, undefined);
     assertEquals(routeObject.action, undefined);
   });
 
@@ -259,7 +259,7 @@ describe("createRoute", () => {
     const routeObject = createRoute(routeFile);
     assertExists(routeObject.Component);
     assertEquals(typeof routeObject.Component, "function");
-    assertEquals(routeObject.HydrateFallback, undefined);
+    assertEquals(typeof routeObject.HydrateFallback, "function");
     assertEquals(routeObject.ErrorBoundary, undefined);
     assertEquals(typeof routeObject.loader, "function");
     assertEquals(routeObject.action, undefined);
@@ -372,9 +372,9 @@ describe("createLazyRoute", () => {
       await lazyRouteObject();
     assertExists(Component);
     assertEquals(typeof Component, "function");
-    assertEquals(HydrateFallback, undefined);
+    assertEquals(typeof HydrateFallback, "function");
     assertEquals(ErrorBoundary, undefined);
-    assertEquals(typeof loader, "function");
+    assertEquals(loader, undefined);
     assertEquals(action, undefined);
   });
 });

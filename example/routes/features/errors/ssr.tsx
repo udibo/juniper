@@ -4,19 +4,10 @@ import { useLoaderData } from "react-router";
 import { CodeBlock } from "@/components/CodeBlock.tsx";
 import { FeatureBadge } from "@/components/FeatureBadge.tsx";
 import { InfoBox } from "@/components/InfoBox.tsx";
-import { isServer } from "@udibo/juniper/utils/env";
-import { HttpError } from "@udibo/http-error";
 
 export function loader(_args: RouteLoaderArgs) {
-  if (isServer()) {
-    throw new HttpError(
-      400,
-      "This error was thrown during server-side rendering!",
-    );
-  }
-
   return {
-    message: "Data loaded successfully from the server!",
+    message: "Data loaded successfully from the client!",
     timestamp: new Date().toISOString(),
   };
 }

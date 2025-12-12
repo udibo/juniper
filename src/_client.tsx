@@ -55,14 +55,18 @@ function withCachedRequest(request: Request): RequestWithFormDataCache {
   if (requestWithCache[FORM_DATA_CACHE]) return requestWithCache;
 
   return new Proxy(requestWithCache, {
-    get(target, prop, receiver) {
+    get(target, prop, _receiver) {
       if (prop === "formData") {
         return () => getCachedFormData(target);
       }
       if (prop === FORM_DATA_CACHE) {
         return target[FORM_DATA_CACHE];
       }
-      return Reflect.get(target, prop, receiver);
+      const value = Reflect.get(target, prop, target);
+      if (typeof value === "function" && prop !== "constructor") {
+        return value.bind(target);
+      }
+      return value;
     },
   }) as RequestWithFormDataCache;
 }
@@ -263,8 +267,7 @@ async function fetchServerData(
 
   const fetchOptions: RequestInit = { method, headers };
   if (method === "POST") {
-    const requestWithCache = withCachedRequest(request);
-    fetchOptions.body = await getCachedFormData(requestWithCache);
+    fetchOptions.body = await request.formData();
   }
 
   const response = await fetch(request.url, fetchOptions);
@@ -388,16 +391,18 @@ export function createRoute<
         },
       );
     };
-    loader = function loader(args: LoaderFunctionArgs<Context>) {
-      const { context, params } = args;
-      const request = withCachedRequest(args.request);
-      const serverLoader = () => getServerLoader(request);
-      return {
-        promise: Promise.resolve(
-          _loader?.({ context, params, request, serverLoader }),
-        ),
+    if (_loader) {
+      loader = function loader(args: LoaderFunctionArgs<Context>) {
+        const { context, params } = args;
+        const request = withCachedRequest(args.request);
+        const serverLoader = () => getServerLoader(request);
+        const result = _loader({ context, params, request, serverLoader });
+        if (result instanceof Promise) {
+          return { promise: result };
+        }
+        return result;
       };
-    };
+    }
   } else if (_loader) {
     loader = function loader(args: LoaderFunctionArgs<Context>) {
       const { context, params } = args;
@@ -429,6 +434,8 @@ export function createRoute<
     };
   }
 
+  const hasClientLoader = !!_loader;
+
   let Component: ComponentType | undefined;
   if (_Component) {
     Component = function Component() {
@@ -436,20 +443,32 @@ export function createRoute<
       const loaderData = useLoaderData();
       const actionData = useActionData();
 
-      if (HydrateFallback) {
-        return (
-          <Suspense fallback={<HydrateFallback />}>
-            <Await resolve={loaderData.promise}>
-              {(resolvedLoaderData) => (
-                <_Component
-                  params={params}
-                  loaderData={resolvedLoaderData}
-                  actionData={actionData}
-                />
-              )}
-            </Await>
-          </Suspense>
-        );
+      if (hasClientLoader) {
+        if (loaderData == null) {
+          if (HydrateFallback) {
+            return <HydrateFallback />;
+          }
+          return null;
+        }
+        if (HydrateFallback) {
+          const hasPromise = typeof loaderData === "object" &&
+            "promise" in loaderData;
+          if (hasPromise) {
+            return (
+              <Suspense fallback={<HydrateFallback />}>
+                <Await resolve={loaderData.promise}>
+                  {(resolvedLoaderData) => (
+                    <_Component
+                      params={params}
+                      loaderData={resolvedLoaderData}
+                      actionData={actionData}
+                    />
+                  )}
+                </Await>
+              </Suspense>
+            );
+          }
+        }
       }
 
       return React.createElement(
@@ -493,6 +512,7 @@ export function createRoute<
   return {
     Component,
     ErrorBoundary,
+    HydrateFallback,
     loader,
     action,
   };

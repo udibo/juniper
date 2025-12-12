@@ -28,6 +28,9 @@
 - For stubs and spys, prefer using explicit resource management over manually
   adding try/finally with restore call.
 - Never disable sanitization to get tests to pass.
+- Use `describe` and `it` from `@std/testing/bdd` instead of `Deno.test`.
+- If spys, stubs, fakes, or simulated time is needed, use `@std/testing/mock`
+  and `@std/testing/time` instead of implementing your own.
 
 ## Style
 

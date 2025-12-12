@@ -1,7 +1,8 @@
+import type { ReactNode } from "react";
 import { Link, Outlet } from "react-router";
 import type { ErrorBoundaryProps } from "@udibo/juniper";
 
-export default function Main() {
+function Shell({ children }: { children: ReactNode }) {
   return (
     <>
       <meta charSet="utf-8" />
@@ -38,10 +39,18 @@ export default function Main() {
           </div>
         </nav>
         <main className="max-w-6xl mx-auto px-6 py-12">
-          <Outlet />
+          {children}
         </main>
       </div>
     </>
+  );
+}
+
+export default function Main() {
+  return (
+    <Shell>
+      <Outlet />
+    </Shell>
   );
 }
 
@@ -49,24 +58,31 @@ export function ErrorBoundary(
   { error, resetErrorBoundary }: ErrorBoundaryProps,
 ) {
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100 flex items-center justify-center">
-      <div className="text-center p-8 max-w-md">
-        <h1 className="text-4xl font-bold text-red-400 mb-4">
-          Something went wrong
-        </h1>
-        <p className="text-slate-300 mb-6">
-          {error instanceof Error
-            ? error.message
-            : "An unexpected error occurred"}
-        </p>
-        <button
-          type="button"
-          onClick={resetErrorBoundary}
-          className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold rounded-lg transition-colors"
-        >
-          Try again
-        </button>
+    <Shell>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center p-8 max-w-md">
+          <h1 className="text-4xl font-bold text-red-400 mb-4">
+            Something went wrong
+          </h1>
+          <p className="text-slate-300 mb-6">
+            {error instanceof Error
+              ? error.message
+              : "An unexpected error occurred"}
+          </p>
+          <form>
+            <button
+              type="submit"
+              onClick={(event) => {
+                event.preventDefault();
+                resetErrorBoundary();
+              }}
+              className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold rounded-lg transition-colors"
+            >
+              Try again
+            </button>
+          </form>
+        </div>
       </div>
-    </div>
+    </Shell>
   );
 }

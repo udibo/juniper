@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link, Outlet, useLocation } from "react-router";
 
 interface FeatureGroup {
@@ -25,10 +26,46 @@ const featureGroups: FeatureGroup[] = [
     ],
   },
   {
+    title: "Server Loaders",
+    features: [
+      { name: "Return Object", path: "/features/data/server-loaders/object" },
+      {
+        name: "Throw Redirect",
+        path: "/features/data/server-loaders/redirect",
+      },
+      {
+        name: "Return Response",
+        path: "/features/data/server-loaders/response",
+      },
+      {
+        name: "Client Calls Server",
+        path: "/features/data/server-loaders/client-calls-server",
+      },
+    ],
+  },
+  {
     title: "Actions",
     features: [
       { name: "Form Action", path: "/features/data/action" },
       { name: "Fetcher Action", path: "/features/data/fetcher" },
+    ],
+  },
+  {
+    title: "Server Actions",
+    features: [
+      { name: "Return Object", path: "/features/data/server-actions/object" },
+      {
+        name: "Throw Redirect",
+        path: "/features/data/server-actions/redirect",
+      },
+      {
+        name: "Return Response",
+        path: "/features/data/server-actions/response",
+      },
+      {
+        name: "Client Calls Server",
+        path: "/features/data/server-actions/client-calls-server",
+      },
     ],
   },
   {
@@ -50,7 +87,7 @@ function getActiveFeaturePath(pathname: string): string | undefined {
     .sort((a, b) => b.length - a.length)[0];
 }
 
-export default function FeaturesLayout() {
+function FeaturesLayoutShell({ children }: { children: ReactNode }) {
   const location = useLocation();
   const activeFeaturePath = getActiveFeaturePath(location.pathname);
 
@@ -99,9 +136,17 @@ export default function FeaturesLayout() {
         </aside>
 
         <main className="bg-slate-800/30 rounded-2xl p-8 border border-slate-700/50 min-h-[400px]">
-          <Outlet />
+          {children}
         </main>
       </div>
     </div>
+  );
+}
+
+export default function FeaturesLayout() {
+  return (
+    <FeaturesLayoutShell>
+      <Outlet />
+    </FeaturesLayoutShell>
   );
 }

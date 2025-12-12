@@ -53,9 +53,75 @@ export const server = createServer(import.meta.url, client, {
       children: [
         {
           path: "data",
+          children: [
+            {
+              path: "server-actions",
+              children: [
+                {
+                  path: "client-calls-server",
+                  main: await import(
+                    "./routes/features/data/server-actions/client-calls-server.ts"
+                  ),
+                },
+                {
+                  path: "object",
+                  main: await import(
+                    "./routes/features/data/server-actions/object.ts"
+                  ),
+                },
+                {
+                  path: "redirect",
+                  main: await import(
+                    "./routes/features/data/server-actions/redirect.ts"
+                  ),
+                },
+                {
+                  path: "response",
+                  main: await import(
+                    "./routes/features/data/server-actions/response.ts"
+                  ),
+                },
+              ],
+            },
+            {
+              path: "server-loaders",
+              children: [
+                {
+                  path: "client-calls-server",
+                  main: await import(
+                    "./routes/features/data/server-loaders/client-calls-server.ts"
+                  ),
+                },
+                {
+                  path: "object",
+                  main: await import(
+                    "./routes/features/data/server-loaders/object.ts"
+                  ),
+                },
+                {
+                  path: "redirect",
+                  main: await import(
+                    "./routes/features/data/server-loaders/redirect.ts"
+                  ),
+                },
+                {
+                  path: "response",
+                  main: await import(
+                    "./routes/features/data/server-loaders/response.ts"
+                  ),
+                },
+              ],
+            },
+          ],
         },
         {
           path: "errors",
+          children: [
+            {
+              path: "ssr",
+              main: await import("./routes/features/errors/ssr.ts"),
+            },
+          ],
         },
         {
           path: "routing",

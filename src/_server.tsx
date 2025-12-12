@@ -323,10 +323,27 @@ function serverActionError() {
   throw new Error("Cannot call serverAction from server");
 }
 
+type LazyRouteFunction = () => Promise<
+  Omit<RouteObject, "children" | "index" | "path">
+>;
+
+function wrapLazyToStripLoaderAndAction(
+  lazy: RouteObject["lazy"],
+): RouteObject["lazy"] {
+  if (!lazy || typeof lazy !== "function") return lazy;
+
+  const lazyFn = lazy as LazyRouteFunction;
+  const wrappedLazy: LazyRouteFunction = async () => {
+    const { loader: _loader, action: _action, ...rest } = await lazyFn();
+    return rest;
+  };
+  return wrappedLazy as RouteObject["lazy"];
+}
+
 /**
  * Merges server routes with client route objects, replacing client loaders/actions
- * with server-side implementations where available. If no server loader/action exists,
- * the client loader/action is preserved.
+ * with server-side implementations where available. Client loaders/actions are always
+ * stripped from the route objects since they are only used for client-side navigation.
  *
  * @param serverRoute - The server route configuration
  * @param clientRoutes - The client route objects from React Router
@@ -340,6 +357,40 @@ export function mergeServerRoutes<
   serverRoute: Route<E, S, BasePath>,
   clientRoutes: RouteObject[],
 ): RouteObject[] {
+  function applyServerModule(
+    routeObj: RouteObject,
+    serverModule: Pick<ServerRouteModule, "loader" | "action"> | undefined,
+  ): void {
+    delete routeObj.loader;
+    delete routeObj.action;
+    routeObj.lazy = wrapLazyToStripLoaderAndAction(routeObj.lazy);
+
+    if (serverModule?.loader) {
+      const serverLoader = serverModule.loader;
+      routeObj.loader = async (args: LoaderFunctionArgs) => {
+        const { context, params, request } = args;
+        return await serverLoader({
+          context,
+          params,
+          request,
+          serverLoader: serverLoaderError,
+        });
+      };
+    }
+    if (serverModule?.action) {
+      const serverAction = serverModule.action;
+      routeObj.action = async (args: ActionFunctionArgs) => {
+        const { context, params, request } = args;
+        return await serverAction({
+          context,
+          params,
+          request,
+          serverAction: serverActionError,
+        });
+      };
+    }
+  }
+
   function processRouteObjects(
     serverRouteNode: Route<E, S, BasePath> | undefined,
     clientObjs: RouteObject[],
@@ -348,83 +399,11 @@ export function mergeServerRoutes<
       const newRouteObj: RouteObject = { ...clientObj };
 
       if (clientObj.index) {
-        const serverIndex = serverRouteNode?.index;
-        if (serverIndex?.loader) {
-          const serverLoader = serverIndex.loader;
-          newRouteObj.loader = async (args: LoaderFunctionArgs) => {
-            const { context, params, request } = args;
-            return await serverLoader({
-              context,
-              params,
-              request,
-              serverLoader: serverLoaderError,
-            });
-          };
-        }
-        if (serverIndex?.action) {
-          const serverAction = serverIndex.action;
-          newRouteObj.action = async (args: ActionFunctionArgs) => {
-            const { context, params, request } = args;
-            return await serverAction({
-              context,
-              params,
-              request,
-              serverAction: serverActionError,
-            });
-          };
-        }
+        applyServerModule(newRouteObj, serverRouteNode?.index);
       } else if (clientObj.path === "*") {
-        const serverCatchall = serverRouteNode?.catchall;
-        if (serverCatchall?.loader) {
-          const serverLoader = serverCatchall.loader;
-          newRouteObj.loader = async (args: LoaderFunctionArgs) => {
-            const { context, params, request } = args;
-            return await serverLoader({
-              context,
-              params,
-              request,
-              serverLoader: serverLoaderError,
-            });
-          };
-        }
-        if (serverCatchall?.action) {
-          const serverAction = serverCatchall.action;
-          newRouteObj.action = async (args: ActionFunctionArgs) => {
-            const { context, params, request } = args;
-            return await serverAction({
-              context,
-              params,
-              request,
-              serverAction: serverActionError,
-            });
-          };
-        }
+        applyServerModule(newRouteObj, serverRouteNode?.catchall);
       } else {
-        const serverMain = serverRouteNode?.main;
-        if (serverMain?.loader) {
-          const serverLoader = serverMain.loader;
-          newRouteObj.loader = async (args: LoaderFunctionArgs) => {
-            const { context, params, request } = args;
-            return await serverLoader({
-              context,
-              params,
-              request,
-              serverLoader: serverLoaderError,
-            });
-          };
-        }
-        if (serverMain?.action) {
-          const serverAction = serverMain.action;
-          newRouteObj.action = async (args: ActionFunctionArgs) => {
-            const { context, params, request } = args;
-            return await serverAction({
-              context,
-              params,
-              request,
-              serverAction: serverActionError,
-            });
-          };
-        }
+        applyServerModule(newRouteObj, serverRouteNode?.main);
       }
 
       if (clientObj.children && clientObj.children.length > 0) {
@@ -444,59 +423,13 @@ export function mergeServerRoutes<
             const serverIndex = matchingServerChild?.index ??
               serverRouteNode?.index;
             const indexRoute: RouteObject = { ...childClientObj };
-            if (serverIndex?.loader) {
-              const serverLoader = serverIndex.loader;
-              indexRoute.loader = async (args: LoaderFunctionArgs) => {
-                const { context, params, request } = args;
-                return await serverLoader({
-                  context,
-                  params,
-                  request,
-                  serverLoader: serverLoaderError,
-                });
-              };
-            }
-            if (serverIndex?.action) {
-              const serverAction = serverIndex.action;
-              indexRoute.action = async (args: ActionFunctionArgs) => {
-                const { context, params, request } = args;
-                return await serverAction({
-                  context,
-                  params,
-                  request,
-                  serverAction: serverActionError,
-                });
-              };
-            }
+            applyServerModule(indexRoute, serverIndex);
             return indexRoute;
           } else if (childClientObj.path === "*") {
             const serverCatchall = matchingServerChild?.catchall ??
               serverRouteNode?.catchall;
             const catchallRoute: RouteObject = { ...childClientObj };
-            if (serverCatchall?.loader) {
-              const serverLoader = serverCatchall.loader;
-              catchallRoute.loader = async (args: LoaderFunctionArgs) => {
-                const { context, params, request } = args;
-                return await serverLoader({
-                  context,
-                  params,
-                  request,
-                  serverLoader: serverLoaderError,
-                });
-              };
-            }
-            if (serverCatchall?.action) {
-              const serverAction = serverCatchall.action;
-              catchallRoute.action = async (args: ActionFunctionArgs) => {
-                const { context, params, request } = args;
-                return await serverAction({
-                  context,
-                  params,
-                  request,
-                  serverAction: serverActionError,
-                });
-              };
-            }
+            applyServerModule(catchallRoute, serverCatchall);
             return catchallRoute;
           }
 
@@ -507,6 +440,7 @@ export function mergeServerRoutes<
           }
 
           const noServerRoute: RouteObject = { ...childClientObj };
+          applyServerModule(noServerRoute, undefined);
           if (childClientObj.children) {
             noServerRoute.children = processRouteObjects(
               undefined,
@@ -689,6 +623,7 @@ export function createHandlers<
         }
 
         c.header("Content-Type", "text/html; charset=utf-8");
+        c.header("Vary", "Accept");
         return stream(c, async (streamInstance) => {
           return await startActiveSpan("stream.pipe", async (streamSpan) => {
             try {
@@ -717,6 +652,7 @@ export function createHandlers<
           routeId,
         });
 
+        c.header("Vary", "Accept");
         if (dataOrResponse instanceof Response) {
           const location = dataOrResponse.headers.get("Location");
           if (
