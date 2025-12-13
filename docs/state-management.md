@@ -92,8 +92,6 @@ Use utilities from `@udibo/juniper/utils/testing`:
 
 - `simulateEnvironment()` wraps a callback with temporary env var overrides for
   tests manipulating feature flags.
-- `simulateBrowser()` wraps a callback with injected hydration data and
-  overrides `isServer` so you can run client-only tests without a DOM.
 - Snapshot serialized loader data to verify revalidation logic. Combine with
   `isSnapshotMode()` to update fixtures when needed.
 

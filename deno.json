@@ -121,5 +121,9 @@
       "net": true,
       "run": true
     }
+  },
+  "allowScripts": {
+    "allow": [],
+    "deny": ["npm:@parcel/watcher@2.5.1", "npm:esbuild@0.25.12"]
   }
 }

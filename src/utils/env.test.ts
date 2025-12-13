@@ -10,10 +10,9 @@ import {
   isServer,
   isTest,
 } from "@udibo/juniper/utils/env";
-import {
-  simulateBrowser,
-  simulateEnvironment,
-} from "@udibo/juniper/utils/testing";
+import { simulateEnvironment } from "@udibo/juniper/utils/testing";
+
+import { simulateBrowser } from "./testing.internal.ts";
 
 import { env } from "./_env.ts";
 

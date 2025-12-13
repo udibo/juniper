@@ -4,13 +4,9 @@
  * @module utils/testing
  */
 
+import "global-jsdom/register";
 import { AsyncLocalStorage } from "node:async_hooks";
 
-import type { HydrationData, SerializedHydrationData } from "../_client.tsx";
-import {
-  DEFAULT_PUBLIC_ENV_KEYS,
-  serializeHydrationData,
-} from "../_server.tsx";
 import { env } from "./_env.ts";
 
 interface EnvironmentStore {
@@ -32,31 +28,6 @@ function patchedGetEnv(key: string): string | undefined {
     }
   }
   return originalGetEnv(key);
-}
-
-interface HydrationDataStore {
-  hydrationData: SerializedHydrationData;
-}
-
-const hydrationDataStorage = new AsyncLocalStorage<HydrationDataStore>();
-
-const originalGetHydrationData = env.getHydrationData;
-const originalIsServer = env.isServer;
-
-function patchedGetHydrationData(): SerializedHydrationData | undefined {
-  const store = hydrationDataStorage.getStore();
-  if (store !== undefined) {
-    return store.hydrationData;
-  }
-  return originalGetHydrationData();
-}
-
-function patchedIsServer(): boolean {
-  const store = hydrationDataStorage.getStore();
-  if (store !== undefined) {
-    return false;
-  }
-  return originalIsServer();
 }
 
 /**
@@ -162,129 +133,4 @@ export function simulateEnvironment<T extends void | Promise<void>>(
 
     return environmentStorage.run(store, () => callback());
   });
-}
-
-export interface SimulateBrowserOptions {
-  serializeError?: (error: unknown) => unknown;
-  publicEnvKeys?: string[];
-}
-
-/**
- * Simulates a browser environment for the duration of a callback.
- * The browser globals are automatically restored after the callback completes,
- * whether it returns normally, throws an error, or returns a rejected promise.
- *
- * This function sets up the hydration data and overrides `env.isServer` to return `false`,
- * simulating a browser environment for testing client-side code.
- *
- * @example Using with a test case
- * ```ts
- * import { simulateBrowser } from "@udibo/juniper/utils/testing";
- * import { assertEquals } from "@std/assert";
- * import { describe, it } from "@std/testing/bdd";
- * import { isBrowser, isServer } from "@udibo/juniper/utils/env";
- *
- * describe("Browser tests", () => {
- *   it("should simulate browser environment", simulateBrowser(() => {
- *     assertEquals(isBrowser(), true);
- *     assertEquals(isServer(), false);
- *   }));
- *
- *   it("should simulate browser environment with hydration data", simulateBrowser({
- *     matches: [],
- *     publicEnv: { APP_ENV: "production" },
- *   }, () => {
- *     assertEquals(isBrowser(), true);
- *     assertEquals(isServer(), false);
- *   }));
- * });
- * ```
- *
- * @param hydrationData The hydration data for the simulated browser. Defaults to `{ matches: [] }`.
- * @param options Options for the simulated browser.
- * @param callback The function to execute with the simulated browser environment.
- * @returns A function that returns a promise which executes the callback with the simulated browser environment.
- */
-export function simulateBrowser<T extends void | Promise<void>>(
-  callback: () => T,
-): () => Promise<void>;
-export function simulateBrowser<T extends void | Promise<void>>(
-  options: SimulateBrowserOptions,
-  callback: () => T,
-): () => Promise<void>;
-export function simulateBrowser<T extends void | Promise<void>>(
-  hydrationData: HydrationData,
-  callback: () => T,
-): () => Promise<void>;
-export function simulateBrowser<T extends void | Promise<void>>(
-  hydrationData: HydrationData,
-  options: SimulateBrowserOptions,
-  callback: () => T,
-): () => Promise<void>;
-export function simulateBrowser<T extends void | Promise<void>>(
-  hydrationDataOrOptionsOrCallback:
-    | HydrationData
-    | SimulateBrowserOptions
-    | (() => T),
-  optionsOrCallback?: SimulateBrowserOptions | (() => T),
-  maybeCallback?: () => T,
-): () => Promise<void> {
-  let hydrationData: HydrationData;
-  let options: SimulateBrowserOptions;
-  let callback: () => T;
-
-  if (typeof hydrationDataOrOptionsOrCallback === "function") {
-    hydrationData = { matches: [] };
-    options = {};
-    callback = hydrationDataOrOptionsOrCallback;
-  } else if (typeof optionsOrCallback === "function") {
-    if ("matches" in hydrationDataOrOptionsOrCallback) {
-      hydrationData = hydrationDataOrOptionsOrCallback;
-      options = {};
-    } else {
-      hydrationData = { matches: [] };
-      options = hydrationDataOrOptionsOrCallback;
-    }
-    callback = optionsOrCallback;
-  } else {
-    hydrationData = hydrationDataOrOptionsOrCallback as HydrationData;
-    options = optionsOrCallback as SimulateBrowserOptions;
-    callback = maybeCallback!;
-  }
-
-  return async () => {
-    const allPublicEnvKeys = [
-      ...new Set([
-        ...DEFAULT_PUBLIC_ENV_KEYS,
-        ...(options.publicEnvKeys ?? []),
-      ]),
-    ];
-    const publicEnv: Record<string, string> = {};
-    for (const key of allPublicEnvKeys) {
-      const value = env.getEnv(key);
-      if (value !== undefined) {
-        publicEnv[key] = value;
-      }
-    }
-    const serializedHydrationData = await serializeHydrationData(
-      {
-        ...hydrationData,
-        publicEnv: { ...publicEnv, ...hydrationData.publicEnv },
-      },
-      { serializeError: options.serializeError },
-    );
-
-    const store: HydrationDataStore = {
-      hydrationData: serializedHydrationData,
-    };
-
-    if (env.getHydrationData !== patchedGetHydrationData) {
-      env.getHydrationData = patchedGetHydrationData;
-    }
-    if (env.isServer !== patchedIsServer) {
-      env.isServer = patchedIsServer;
-    }
-
-    await hydrationDataStorage.run(store, () => callback());
-  };
 }

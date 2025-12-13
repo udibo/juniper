@@ -40,6 +40,7 @@
     "npm:hono@^4.10.4": "4.10.4",
     "npm:isbot@^5.1.32": "5.1.32",
     "npm:less@^4.4.2": "4.4.2",
+    "npm:playwright@^1.57.0": "1.57.0",
     "npm:postcss-modules@^6.0.1": "6.0.1_postcss@8.5.6",
     "npm:postcss@^8.5.6": "8.5.6",
     "npm:quick-lru@^7.3.0": "7.3.0",
@@ -1197,6 +1198,11 @@
     "fresh@2.0.0": {
       "integrity": "sha512-Rx/WycZ60HOaqLKAi6cHRKKI7zxWbJ31MhntmtwMoaTeF7XFH9hhBp8vITaMidfljRQ6eYWCKkaTK+ykVJHP2A=="
     },
+    "fsevents@2.3.2": {
+      "integrity": "sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==",
+      "os": ["darwin"],
+      "scripts": true
+    },
     "function-bind@1.1.2": {
       "integrity": "sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA=="
     },
@@ -1662,6 +1668,20 @@
     },
     "pkce-challenge@5.0.0": {
       "integrity": "sha512-ueGLflrrnvwB3xuo/uGob5pd5FN7l0MsLf0Z87o/UQmRtwjvfylfc9MurIxRAWywCYTgrvpXBcqjV4OfCYGCIQ=="
+    },
+    "playwright-core@1.57.0": {
+      "integrity": "sha512-agTcKlMw/mjBWOnD6kFZttAAGHgi/Nw0CZ2o6JqWSbMlI219lAFLZZCyqByTsvVAJq5XA5H8cA6PrvBRpBWEuQ==",
+      "bin": true
+    },
+    "playwright@1.57.0": {
+      "integrity": "sha512-ilYQj1s8sr2ppEJ2YVadYBN0Mb3mdo9J0wQ+UuDhzYqURwSoW4n1Xs5vs7ORwgDGmyEh33tRMeS8KhdkMoLXQw==",
+      "dependencies": [
+        "playwright-core"
+      ],
+      "optionalDependencies": [
+        "fsevents"
+      ],
+      "bin": true
     },
     "postcss-modules-extract-imports@3.1.0_postcss@8.5.6": {
       "integrity": "sha512-k3kNe0aNFQDAZGbin48pL2VNidTF0w4/eASDsxlyspobzU3wZQLOGj7L9gfRe0Jo9/4uud09DsjFNH7winGv8Q==",
@@ -2186,6 +2206,7 @@
           "npm:@tailwindcss/postcss@^4.1.17",
           "npm:@types/react@^19.2.7",
           "npm:hono@^4.10.4",
+          "npm:playwright@^1.57.0",
           "npm:react-router@^7.10.1",
           "npm:react@^19.2.1",
           "npm:tailwindcss@^4.1.17",

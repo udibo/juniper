@@ -43,6 +43,7 @@
     "@std/streams": "jsr:@std/streams@^1.0.13",
     "@std/uuid": "jsr:@std/uuid@^1.0.9",
     "@opentelemetry/api": "npm:@opentelemetry/api@^1.9.0",
+    "playwright": "npm:playwright@^1.57.0",
     "react": "npm:react@^19.2.1",
     "@types/react": "npm:@types/react@^19.2.7",
     "react-router": "npm:react-router@^7.10.1",
