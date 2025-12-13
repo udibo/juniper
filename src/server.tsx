@@ -7,7 +7,7 @@ import { trimTrailingSlash } from "hono/trailing-slash";
 import type { Client } from "@udibo/juniper/client";
 import { getInstance } from "@udibo/juniper/utils/otel";
 
-import { buildApp, createHandlers } from "./_server.tsx";
+import { buildApp, createHandlers, mergeServerRoutes } from "./_server.tsx";
 import type { Route } from "./_server.tsx";
 
 /**
@@ -79,8 +79,8 @@ export function createServer<
   });
   appWrapper.use(trimTrailingSlash());
 
-  const clientRoutes = client.routeObjects;
-  const handlers = createHandlers(route, clientRoutes);
+  const serverRoutes = mergeServerRoutes(route, client.routeObjects);
+  const handlers = createHandlers(route, serverRoutes);
   const app = buildApp(route, client.rootRoute, handlers, projectRoot);
 
   appWrapper.route("/", app);

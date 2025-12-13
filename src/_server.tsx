@@ -8,7 +8,11 @@ import { createFactory } from "hono/factory";
 import { serveStatic } from "hono/deno";
 import { stream } from "hono/streaming";
 import type { StatusCode } from "hono/utils/http-status";
-import type { HydrationState } from "react-router";
+import type {
+  ActionFunctionArgs,
+  HydrationState,
+  LoaderFunctionArgs,
+} from "react-router";
 import {
   createStaticHandler,
   createStaticRouter,
@@ -36,6 +40,7 @@ import {
   type SerializedHydrationDataPromises,
 } from "./_client.tsx";
 import { startActiveSpan } from "./utils/_otel.ts";
+import type { ActionFunction, LoaderFunction } from "@udibo/juniper";
 
 const args = parseArgs(Deno.args, {
   boolean: ["hot-reload"],
@@ -82,6 +87,8 @@ interface ServerRouteModule<
   BasePath extends string = "/",
 > {
   default?: Hono<E, S, BasePath>;
+  loader?: LoaderFunction;
+  action?: ActionFunction;
 }
 
 interface ServerMainRouteModule<
@@ -308,6 +315,149 @@ function getPublicEnv(allPublicEnvKeys: string[]): Record<string, string> {
   return publicEnv;
 }
 
+function serverLoaderError() {
+  throw new Error("Cannot call serverLoader from server");
+}
+
+function serverActionError() {
+  throw new Error("Cannot call serverAction from server");
+}
+
+type LazyRouteFunction = () => Promise<
+  Omit<RouteObject, "children" | "index" | "path">
+>;
+
+function wrapLazyToStripLoaderAndAction(
+  lazy: RouteObject["lazy"],
+): RouteObject["lazy"] {
+  if (!lazy || typeof lazy !== "function") return lazy;
+
+  const lazyFn = lazy as LazyRouteFunction;
+  const wrappedLazy: LazyRouteFunction = async () => {
+    const { loader: _loader, action: _action, ...rest } = await lazyFn();
+    return rest;
+  };
+  return wrappedLazy as RouteObject["lazy"];
+}
+
+/**
+ * Merges server routes with client route objects, replacing client loaders/actions
+ * with server-side implementations where available. Client loaders/actions are always
+ * stripped from the route objects since they are only used for client-side navigation.
+ *
+ * @param serverRoute - The server route configuration
+ * @param clientRoutes - The client route objects from React Router
+ * @returns The merged route objects with server loaders/actions
+ */
+export function mergeServerRoutes<
+  E extends Env = Env,
+  S extends Schema = Schema,
+  BasePath extends string = "/",
+>(
+  serverRoute: Route<E, S, BasePath>,
+  clientRoutes: RouteObject[],
+): RouteObject[] {
+  function applyServerModule(
+    routeObj: RouteObject,
+    serverModule: Pick<ServerRouteModule, "loader" | "action"> | undefined,
+  ): void {
+    delete routeObj.loader;
+    delete routeObj.action;
+    routeObj.lazy = wrapLazyToStripLoaderAndAction(routeObj.lazy);
+
+    if (serverModule?.loader) {
+      const serverLoader = serverModule.loader;
+      routeObj.loader = async (args: LoaderFunctionArgs) => {
+        const { context, params, request } = args;
+        return await serverLoader({
+          context,
+          params,
+          request,
+          serverLoader: serverLoaderError,
+        });
+      };
+    }
+    if (serverModule?.action) {
+      const serverAction = serverModule.action;
+      routeObj.action = async (args: ActionFunctionArgs) => {
+        const { context, params, request } = args;
+        return await serverAction({
+          context,
+          params,
+          request,
+          serverAction: serverActionError,
+        });
+      };
+    }
+  }
+
+  function processRouteObjects(
+    serverRouteNode: Route<E, S, BasePath> | undefined,
+    clientObjs: RouteObject[],
+  ): RouteObject[] {
+    return clientObjs.map((clientObj) => {
+      const newRouteObj: RouteObject = { ...clientObj };
+
+      if (clientObj.index) {
+        applyServerModule(newRouteObj, serverRouteNode?.index);
+      } else if (clientObj.path === "*") {
+        applyServerModule(newRouteObj, serverRouteNode?.catchall);
+      } else {
+        applyServerModule(newRouteObj, serverRouteNode?.main);
+      }
+
+      if (clientObj.children && clientObj.children.length > 0) {
+        const childServerRoutes = serverRouteNode?.children ?? [];
+        newRouteObj.children = clientObj.children.map((childClientObj) => {
+          const matchingServerChild = childServerRoutes.find((sr) => {
+            if (childClientObj.index) {
+              return sr.path === clientObj.path && sr.index !== undefined;
+            }
+            if (childClientObj.path === "*") {
+              return sr.path === "*" || sr.catchall !== undefined;
+            }
+            return sr.path === childClientObj.path;
+          });
+
+          if (childClientObj.index) {
+            const serverIndex = matchingServerChild?.index ??
+              serverRouteNode?.index;
+            const indexRoute: RouteObject = { ...childClientObj };
+            applyServerModule(indexRoute, serverIndex);
+            return indexRoute;
+          } else if (childClientObj.path === "*") {
+            const serverCatchall = matchingServerChild?.catchall ??
+              serverRouteNode?.catchall;
+            const catchallRoute: RouteObject = { ...childClientObj };
+            applyServerModule(catchallRoute, serverCatchall);
+            return catchallRoute;
+          }
+
+          if (matchingServerChild) {
+            return processRouteObjects(matchingServerChild, [
+              childClientObj,
+            ])[0];
+          }
+
+          const noServerRoute: RouteObject = { ...childClientObj };
+          applyServerModule(noServerRoute, undefined);
+          if (childClientObj.children) {
+            noServerRoute.children = processRouteObjects(
+              undefined,
+              childClientObj.children,
+            );
+          }
+          return noServerRoute;
+        });
+      }
+
+      return newRouteObj;
+    });
+  }
+
+  return processRouteObjects(serverRoute, clientRoutes);
+}
+
 /**
  * Creates handlers for React Router.
  *
@@ -473,6 +623,7 @@ export function createHandlers<
         }
 
         c.header("Content-Type", "text/html; charset=utf-8");
+        c.header("Vary", "Accept");
         return stream(c, async (streamInstance) => {
           return await startActiveSpan("stream.pipe", async (streamSpan) => {
             try {
@@ -493,8 +644,29 @@ export function createHandlers<
     },
     async function handleDataRequest(c) {
       return await startActiveSpan("handleDataRequest", async (_span) => {
-        const data = await queryRoute(c.req.raw);
-        return c.json(data);
+        const routeId = c.req.header("X-Juniper-Route-Id");
+
+        const requestContext = new RouterContextProvider();
+        const dataOrResponse = await queryRoute(c.req.raw, {
+          requestContext,
+          routeId,
+        });
+
+        c.header("Vary", "Accept");
+        if (dataOrResponse instanceof Response) {
+          const location = dataOrResponse.headers.get("Location");
+          if (
+            dataOrResponse.status >= 300 && dataOrResponse.status < 400 &&
+            location
+          ) {
+            c.header("X-Juniper", "redirect");
+            return c.json({ location });
+          }
+          return dataOrResponse;
+        }
+
+        c.header("X-Juniper", "serialized");
+        return c.json(SuperJSON.serialize(dataOrResponse));
       });
     },
   );

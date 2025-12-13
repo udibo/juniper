@@ -1,6 +1,6 @@
 interface SpinnerProps {
   size?: "sm" | "md" | "lg";
-  color?: "emerald" | "blue" | "teal" | "slate";
+  color?: "emerald" | "blue" | "teal" | "slate" | "amber";
   className?: string;
 }
 
@@ -15,6 +15,7 @@ const colorClasses = {
   blue: "border-blue-400",
   teal: "border-teal-400",
   slate: "border-slate-400",
+  amber: "border-amber-400",
 };
 
 export function Spinner(

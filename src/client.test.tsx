@@ -3,13 +3,15 @@ import {
   assertEquals,
   assertExists,
   assertIsError,
-  assertNotEquals,
   assertObjectMatch,
   assertRejects,
 } from "@std/assert";
 import { beforeAll, beforeEach, describe, it } from "@std/testing/bdd";
+import { assertSpyCalls, stub } from "@std/testing/mock";
 import { HttpError } from "@udibo/http-error";
 import { Outlet } from "react-router";
+import type { ActionFunctionArgs } from "react-router";
+import SuperJSON from "superjson";
 import serialize from "serialize-javascript";
 
 import { Client, isSerializedError } from "@udibo/juniper/client";
@@ -226,7 +228,7 @@ describe("createRoute", () => {
     assertExists(routeObject.Component);
     assertEquals(typeof routeObject.Component, "function");
     assertEquals(routeObject.ErrorBoundary, undefined);
-    assertEquals(routeObject.loader, routeFile.loader);
+    assertEquals(typeof routeObject.loader, "function");
     assertEquals(routeObject.action, undefined);
   });
 
@@ -237,7 +239,7 @@ describe("createRoute", () => {
     assertEquals(typeof routeObject.Component, "function");
     assertEquals(routeObject.ErrorBoundary, undefined);
     assertEquals(routeObject.loader, undefined);
-    assertEquals(routeObject.action, routeFile.action);
+    assertEquals(typeof routeObject.action, "function");
   });
 
   it("from a file with HydrateFallback export", () => {
@@ -245,9 +247,9 @@ describe("createRoute", () => {
     const routeObject = createRoute(routeFile);
     assertExists(routeObject.Component);
     assertEquals(typeof routeObject.Component, "function");
-    assertEquals(routeObject.HydrateFallback, undefined);
+    assertEquals(typeof routeObject.HydrateFallback, "function");
     assertEquals(routeObject.ErrorBoundary, undefined);
-    assertEquals(typeof routeObject.loader, "function");
+    assertEquals(routeObject.loader, undefined);
     assertEquals(routeObject.action, undefined);
   });
 
@@ -257,16 +259,68 @@ describe("createRoute", () => {
     const routeObject = createRoute(routeFile);
     assertExists(routeObject.Component);
     assertEquals(typeof routeObject.Component, "function");
-    assertEquals(routeObject.HydrateFallback, undefined);
+    assertEquals(typeof routeObject.HydrateFallback, "function");
     assertEquals(routeObject.ErrorBoundary, undefined);
     assertEquals(typeof routeObject.loader, "function");
-    assertNotEquals(routeObject.loader, routeFile.loader);
     assertEquals(routeObject.action, undefined);
   });
 
   it("should not have HydrateFallback when not exported", () => {
     const routeObject = createRoute(routeFile);
     assertEquals(routeObject.HydrateFallback, undefined);
+  });
+
+  it("should allow serverAction after reading request formData", async () => {
+    const formData = new FormData();
+    formData.set("title", "Hello");
+    const request = new Request("http://localhost/blog", {
+      method: "POST",
+      body: formData,
+    });
+
+    routeFile.action = async ({ request, serverAction }) => {
+      const parsed = await request.formData();
+      assertEquals(parsed.get("title"), "Hello");
+      return await serverAction();
+    };
+
+    const payload = { ok: true };
+    using fetchStub = stub(
+      globalThis,
+      "fetch",
+      (_input: RequestInfo | URL, _init?: RequestInit) => {
+        const serialized = SuperJSON.serialize(payload);
+        return Promise.resolve(
+          new Response(JSON.stringify(serialized), {
+            headers: {
+              "Content-Type": "application/json",
+              "X-Juniper": "serialized",
+            },
+          }),
+        );
+      },
+    );
+
+    const routeObject = createRoute(routeFile, { action: true }, "route-1");
+    assertExists(routeObject.action);
+    const actionArgs = {
+      context: {} as never,
+      params: {},
+      request,
+      preventScrollReset: undefined,
+      submission: undefined,
+      unstable_viewTransition: undefined,
+      unstable_fetcherSubmission: undefined,
+      unstable_data: undefined,
+      unstable_allowRouteDeterminism: undefined,
+      unstable_pattern: "/blog",
+    } as ActionFunctionArgs;
+    const result = await routeObject.action(actionArgs);
+    assertEquals(result, payload);
+    assertSpyCalls(fetchStub, 1);
+    const fetchBody = fetchStub.calls[0].args[1]?.body;
+    assert(fetchBody instanceof FormData);
+    assertEquals(fetchBody.get("title"), "Hello");
   });
 });
 
@@ -302,23 +356,26 @@ describe("createLazyRoute", () => {
   it("from a file with loader export", async () => {
     routeFile.loader = () => Promise.resolve({});
     const lazyRouteObject = createLazyRoute(lazyRouteFile);
-    const { Component, ErrorBoundary, loader } = await lazyRouteObject();
+    const { Component, ErrorBoundary, loader, action } =
+      await lazyRouteObject();
     assertExists(Component);
     assertEquals(typeof Component, "function");
     assertEquals(ErrorBoundary, undefined);
-    assertEquals(loader, routeFile.loader);
+    assertEquals(typeof loader, "function");
+    assertEquals(action, undefined);
   });
 
   it("from a file with HydrateFallback export", async () => {
     routeFile.HydrateFallback = () => <div>Loading...</div>;
     const lazyRouteObject = createLazyRoute(lazyRouteFile);
-    const { Component, ErrorBoundary, HydrateFallback, loader } =
+    const { Component, ErrorBoundary, HydrateFallback, loader, action } =
       await lazyRouteObject();
     assertExists(Component);
     assertEquals(typeof Component, "function");
-    assertEquals(HydrateFallback, undefined);
+    assertEquals(typeof HydrateFallback, "function");
     assertEquals(ErrorBoundary, undefined);
-    assertEquals(typeof loader, "function");
+    assertEquals(loader, undefined);
+    assertEquals(action, undefined);
   });
 });
 

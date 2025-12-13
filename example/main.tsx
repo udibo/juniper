@@ -12,10 +12,34 @@ export const client = new Client({
       path: "blog",
       main: () => import("./routes/blog/main.tsx"),
       index: () => import("./routes/blog/index.tsx"),
+      serverIndex: {
+        loader: true,
+      },
       children: [
         {
+          path: "create",
+          main: () => import("./routes/blog/create.tsx"),
+          server: {
+            action: true,
+          },
+        },
+        {
           path: ":id",
-          main: () => import("./routes/blog/[id].tsx"),
+          index: () => import("./routes/blog/[id]/index.tsx"),
+          serverIndex: {
+            loader: true,
+            action: true,
+          },
+          children: [
+            {
+              path: "edit",
+              main: () => import("./routes/blog/[id]/edit.tsx"),
+              server: {
+                loader: true,
+                action: true,
+              },
+            },
+          ],
         },
       ],
     },
@@ -47,6 +71,92 @@ export const client = new Client({
               path: "loader",
               main: () => import("./routes/features/data/loader.tsx"),
             },
+            {
+              path: "server-actions",
+              children: [
+                {
+                  path: "client-calls-server",
+                  main: () =>
+                    import(
+                      "./routes/features/data/server-actions/client-calls-server.tsx"
+                    ),
+                  server: {
+                    action: true,
+                  },
+                },
+                {
+                  path: "object",
+                  main: () =>
+                    import("./routes/features/data/server-actions/object.tsx"),
+                  server: {
+                    action: true,
+                  },
+                },
+                {
+                  path: "redirect",
+                  main: () =>
+                    import(
+                      "./routes/features/data/server-actions/redirect.tsx"
+                    ),
+                  server: {
+                    action: true,
+                  },
+                },
+                {
+                  path: "response",
+                  main: () =>
+                    import(
+                      "./routes/features/data/server-actions/response.tsx"
+                    ),
+                  server: {
+                    action: true,
+                  },
+                },
+              ],
+            },
+            {
+              path: "server-loaders",
+              children: [
+                {
+                  path: "client-calls-server",
+                  main: () =>
+                    import(
+                      "./routes/features/data/server-loaders/client-calls-server.tsx"
+                    ),
+                  server: {
+                    loader: true,
+                  },
+                },
+                {
+                  path: "object",
+                  main: () =>
+                    import("./routes/features/data/server-loaders/object.tsx"),
+                  server: {
+                    loader: true,
+                  },
+                },
+                {
+                  path: "redirect",
+                  main: () =>
+                    import(
+                      "./routes/features/data/server-loaders/redirect.tsx"
+                    ),
+                  server: {
+                    loader: true,
+                  },
+                },
+                {
+                  path: "response",
+                  main: () =>
+                    import(
+                      "./routes/features/data/server-loaders/response.tsx"
+                    ),
+                  server: {
+                    loader: true,
+                  },
+                },
+              ],
+            },
           ],
         },
         {
@@ -60,6 +170,9 @@ export const client = new Client({
             {
               path: "ssr",
               main: () => import("./routes/features/errors/ssr.tsx"),
+              server: {
+                loader: true,
+              },
             },
           ],
         },

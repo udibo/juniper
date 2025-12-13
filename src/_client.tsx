@@ -1,16 +1,21 @@
 import { HttpError } from "@udibo/http-error";
 import {
-  type ActionFunctionArgs,
   Await,
-  type HydrationState,
-  type LoaderFunctionArgs,
-  type RouterContextProvider,
+  redirect,
   useActionData,
   useLoaderData,
   useLocation,
   useNavigate,
   useParams,
   useRouteError,
+} from "react-router";
+import type {
+  ActionFunction,
+  ActionFunctionArgs,
+  HydrationState,
+  LoaderFunction,
+  LoaderFunctionArgs,
+  RouterContextProvider,
 } from "react-router";
 import SuperJSON from "superjson";
 import type { SuperJSONResult } from "superjson";
@@ -20,10 +25,51 @@ import type { ComponentType } from "react";
 import type {
   AnyParams,
   ErrorBoundaryProps,
-  LoaderFunction,
   RouteModule,
   RouteProps,
 } from "@udibo/juniper";
+
+export interface ServerFlags {
+  loader?: boolean;
+  action?: boolean;
+}
+
+const FORM_DATA_CACHE = Symbol("juniperFormDataCache");
+
+type RequestWithFormDataCache = Request & {
+  [FORM_DATA_CACHE]?: Promise<FormData>;
+};
+
+function getCachedFormData(
+  request: RequestWithFormDataCache,
+): Promise<FormData> {
+  const cached = request[FORM_DATA_CACHE];
+  if (cached) return cached;
+  const promise = Request.prototype.formData.call(request) as Promise<FormData>;
+  request[FORM_DATA_CACHE] = promise;
+  return promise;
+}
+
+function withCachedRequest(request: Request): RequestWithFormDataCache {
+  const requestWithCache = request as RequestWithFormDataCache;
+  if (requestWithCache[FORM_DATA_CACHE]) return requestWithCache;
+
+  return new Proxy(requestWithCache, {
+    get(target, prop, _receiver) {
+      if (prop === "formData") {
+        return () => getCachedFormData(target);
+      }
+      if (prop === FORM_DATA_CACHE) {
+        return target[FORM_DATA_CACHE];
+      }
+      const value = Reflect.get(target, prop, target);
+      if (typeof value === "function" && prop !== "constructor") {
+        return value.bind(target);
+      }
+      return value;
+    },
+  }) as RequestWithFormDataCache;
+}
 
 /** A serialized error. */
 export type SerializedError = {
@@ -209,6 +255,52 @@ export function App({ children }: { children: React.ReactNode }) {
   );
 }
 
+async function fetchServerData(
+  request: Request,
+  method: "GET" | "POST",
+  routeId: string,
+): Promise<unknown> {
+  const headers: Record<string, string> = {
+    "Accept": "application/json",
+    "X-Juniper-Route-Id": routeId,
+  };
+
+  const fetchOptions: RequestInit = { method, headers };
+  if (method === "POST") {
+    fetchOptions.body = await request.formData();
+  }
+
+  const response = await fetch(request.url, fetchOptions);
+
+  if (!response.ok) {
+    throw await HttpError.from(response);
+  }
+
+  const responseType = response.headers.get("X-Juniper");
+  if (responseType === "serialized") {
+    return SuperJSON.deserialize(await response.json());
+  } else if (responseType === "redirect") {
+    const location = (await response.json()).location;
+    return redirect(location);
+  }
+
+  return response;
+}
+
+function fetchServerLoader(
+  request: Request,
+  routeId: string,
+): Promise<unknown> {
+  return fetchServerData(request, "GET", routeId);
+}
+
+function fetchServerAction(
+  request: Request,
+  routeId: string,
+): Promise<unknown> {
+  return fetchServerData(request, "POST", routeId);
+}
+
 export type Route<
   Context extends RouterContextProvider = RouterContextProvider,
 > = {
@@ -238,21 +330,52 @@ export type LazyRoute<
  *
  * @template Context - The router context type.
  * @param routeFile - The module exports for the route.
+ * @param serverFlags - Flags indicating whether the route has server-side loader/action.
+ * @param routeId - The route ID used for server data requests.
  * @returns A concrete `Route` instance.
  */
 export function createRoute<
   Context extends RouterContextProvider = RouterContextProvider,
 >(
   routeFile: RouteModule<AnyParams, unknown, unknown, Context>,
+  serverFlags?: ServerFlags,
+  routeId?: string,
 ): Route<Context> {
   const {
     ErrorBoundary: _ErrorBoundary,
     default: _Component,
     HydrateFallback: _HydrateFallback,
-    loader: _Loader,
+    loader: _loader,
+    action: _action,
   } = routeFile;
 
-  let loader: LoaderFunction<Context, unknown> | undefined;
+  const hasServerLoader = serverFlags?.loader === true;
+  const hasServerAction = serverFlags?.action === true;
+
+  function getServerLoader(request: Request) {
+    if (!hasServerLoader) {
+      throw new Error("Server loader not available for this route");
+    }
+    if (!routeId) {
+      throw new Error("Route ID is required to fetch server loader data");
+    }
+    return fetchServerLoader(request, routeId);
+  }
+
+  function getServerAction(request: Request) {
+    if (!hasServerAction) {
+      throw new Error("Server action not available for this route");
+    }
+    if (!routeId) {
+      throw new Error("Route ID is required to fetch server action data");
+    }
+    return fetchServerAction(request, routeId);
+  }
+
+  let loader:
+    | LoaderFunction<Context>
+    | undefined;
+
   let HydrateFallback: ComponentType | undefined;
   if (_HydrateFallback) {
     HydrateFallback = function HydrateFallback() {
@@ -268,12 +391,50 @@ export function createRoute<
         },
       );
     };
+    if (_loader) {
+      loader = function loader(args: LoaderFunctionArgs<Context>) {
+        const { context, params } = args;
+        const request = withCachedRequest(args.request);
+        const serverLoader = () => getServerLoader(request);
+        const result = _loader({ context, params, request, serverLoader });
+        if (result instanceof Promise) {
+          return { promise: result };
+        }
+        return result;
+      };
+    }
+  } else if (_loader) {
     loader = function loader(args: LoaderFunctionArgs<Context>) {
-      return { promise: Promise.resolve(_Loader?.(args)) };
+      const { context, params } = args;
+      const request = withCachedRequest(args.request);
+      const serverLoader = () => getServerLoader(request);
+      return _loader({ context, params, request, serverLoader });
     };
-  } else {
-    loader = _Loader;
+  } else if (hasServerLoader) {
+    loader = function loader(args: LoaderFunctionArgs<Context>) {
+      return getServerLoader(args.request);
+    };
   }
+
+  let action:
+    | ActionFunction<Context>
+    | undefined;
+
+  if (_action) {
+    action = function action(args: ActionFunctionArgs<Context>) {
+      const { context, params } = args;
+      const request = withCachedRequest(args.request);
+      const serverAction = () => getServerAction(request);
+      return _action({ context, params, request, serverAction });
+    };
+  } else if (hasServerAction) {
+    action = function action(args: ActionFunctionArgs<Context>) {
+      const request = withCachedRequest(args.request);
+      return getServerAction(request);
+    };
+  }
+
+  const hasClientLoader = !!_loader;
 
   let Component: ComponentType | undefined;
   if (_Component) {
@@ -282,20 +443,32 @@ export function createRoute<
       const loaderData = useLoaderData();
       const actionData = useActionData();
 
-      if (HydrateFallback) {
-        return (
-          <Suspense fallback={<HydrateFallback />}>
-            <Await resolve={loaderData.promise}>
-              {(resolvedLoaderData) => (
-                <_Component
-                  params={params}
-                  loaderData={resolvedLoaderData}
-                  actionData={actionData}
-                />
-              )}
-            </Await>
-          </Suspense>
-        );
+      if (hasClientLoader) {
+        if (loaderData == null) {
+          if (HydrateFallback) {
+            return <HydrateFallback />;
+          }
+          return null;
+        }
+        if (HydrateFallback) {
+          const hasPromise = typeof loaderData === "object" &&
+            "promise" in loaderData;
+          if (hasPromise) {
+            return (
+              <Suspense fallback={<HydrateFallback />}>
+                <Await resolve={loaderData.promise}>
+                  {(resolvedLoaderData) => (
+                    <_Component
+                      params={params}
+                      loaderData={resolvedLoaderData}
+                      actionData={actionData}
+                    />
+                  )}
+                </Await>
+              </Suspense>
+            );
+          }
+        }
       }
 
       return React.createElement(
@@ -339,8 +512,9 @@ export function createRoute<
   return {
     Component,
     ErrorBoundary,
+    HydrateFallback,
     loader,
-    action: routeFile.action,
+    action,
   };
 }
 
@@ -349,6 +523,8 @@ export function createRoute<
  *
  * @template Context - The router context type.
  * @param lazyRouteFile - The lazy route file to create a lazy route object from.
+ * @param serverFlags - Flags indicating whether the route has server-side loader/action.
+ * @param routeId - The route ID used for server data requests.
  * @returns A lazy route object.
  */
 export function createLazyRoute<
@@ -357,10 +533,12 @@ export function createLazyRoute<
   lazyRouteFile: () => Promise<
     RouteModule<AnyParams, unknown, unknown, Context>
   >,
+  serverFlags?: ServerFlags,
+  routeId?: string,
 ): LazyRoute<Context> {
   return async (): Promise<Route<Context>> => {
     const routeFile = await lazyRouteFile();
-    return createRoute(routeFile);
+    return createRoute(routeFile, serverFlags, routeId);
   };
 }
 

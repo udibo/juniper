@@ -2,11 +2,19 @@ import { sortBy } from "@std/collections/sort-by";
 import { walk } from "@std/fs";
 import * as path from "@std/path";
 
+export interface ServerFlags {
+  loader?: boolean;
+  action?: boolean;
+}
+
 export interface GeneratedRoute {
   path: string;
   main?: string;
   index?: string;
   catchall?: string;
+  server?: ServerFlags;
+  serverIndex?: ServerFlags;
+  serverCatchall?: ServerFlags;
   children?: GeneratedRoute[];
 }
 
@@ -87,6 +95,32 @@ export function isRegularClientFileModule(fileName: string): boolean {
     !isClientDynamicRoute(fileName) &&
     !fileName.startsWith("_") &&
     !fileName.includes(".test");
+}
+
+export function getServerRouteFileName(clientFileName: string): string {
+  return clientFileName.replace(/\.tsx$/, ".ts");
+}
+
+export async function getServerFlags(
+  absoluteFilePath: string,
+): Promise<ServerFlags | undefined> {
+  try {
+    const content = await Deno.readTextFile(absoluteFilePath);
+    const hasLoader = /export\s+(async\s+)?function\s+loader\b/.test(content) ||
+      /export\s+const\s+loader(\s|=|:)/.test(content);
+    const hasAction = /export\s+(async\s+)?function\s+action\b/.test(content) ||
+      /export\s+const\s+action(\s|=|:)/.test(content);
+
+    if (hasLoader || hasAction) {
+      const flags: ServerFlags = {};
+      if (hasLoader) flags.loader = true;
+      if (hasAction) flags.action = true;
+      return flags;
+    }
+  } catch {
+    // File doesn't exist or can't be read
+  }
+  return undefined;
 }
 
 export async function processDirectory(
@@ -193,12 +227,18 @@ export async function processDirectory(
   return properties;
 }
 
+export interface ClientDirRouteProperties extends DirRouteProperties {
+  serverMain?: ServerFlags;
+  serverIndex?: ServerFlags;
+  serverCatchall?: ServerFlags;
+}
+
 export async function processClientDirectory(
   absoluteDirPath: string,
   importPathBase: string,
   isRootLevel: boolean,
-): Promise<DirRouteProperties> {
-  const properties: DirRouteProperties = {
+): Promise<ClientDirRouteProperties> {
+  const properties: ClientDirRouteProperties = {
     fileModuleChildren: [],
     parameterizedChildren: [],
     directoryChildren: [],
@@ -240,24 +280,35 @@ export async function processClientDirectory(
     const directImport = `await import("${currentFileImportPath}")`;
 
     if (entry.isFile && entry.name.endsWith(".tsx")) {
+      const serverFileName = getServerRouteFileName(entry.name);
+      const serverFilePath = path.join(absoluteDirPath, serverFileName);
+      const serverFlags = await getServerFlags(serverFilePath);
+
       if (isClientMainRoute(entry.name)) {
         properties.main = isRootLevel ? directImport : lazyImport;
+        if (serverFlags) properties.serverMain = serverFlags;
       } else if (isClientIndexRoute(entry.name)) {
         properties.index = lazyImport;
+        if (serverFlags) properties.serverIndex = serverFlags;
       } else if (isClientCatchallRoute(entry.name)) {
         properties.catchall = lazyImport;
+        if (serverFlags) properties.serverCatchall = serverFlags;
       } else if (isClientDynamicRoute(entry.name)) {
         const paramName = getClientDynamicRouteParam(entry.name);
-        properties.parameterizedChildren.push({
+        const route: GeneratedRoute = {
           path: `:${paramName}`,
           main: lazyImport,
-        });
+        };
+        if (serverFlags) route.server = serverFlags;
+        properties.parameterizedChildren.push(route);
       } else if (isRegularClientFileModule(entry.name)) {
         const routeName = entry.name.slice(0, -4);
-        properties.fileModuleChildren.push({
+        const route: GeneratedRoute = {
           path: routeName,
           main: lazyImport,
-        });
+        };
+        if (serverFlags) route.server = serverFlags;
+        properties.fileModuleChildren.push(route);
       }
     } else if (entry.isDirectory) {
       if (entry.name.startsWith("_")) continue;
@@ -290,8 +341,15 @@ export async function processClientDirectory(
         path: routePathSegment,
       };
       if (subDirProps.main) dirRoute.main = subDirProps.main;
+      if (subDirProps.serverMain) dirRoute.server = subDirProps.serverMain;
       if (subDirProps.index) dirRoute.index = subDirProps.index;
+      if (subDirProps.serverIndex) {
+        dirRoute.serverIndex = subDirProps.serverIndex;
+      }
       if (subDirProps.catchall) dirRoute.catchall = subDirProps.catchall;
+      if (subDirProps.serverCatchall) {
+        dirRoute.serverCatchall = subDirProps.serverCatchall;
+      }
       if (children.length > 0) dirRoute.children = children;
 
       if (isDynamicDir) {
@@ -305,12 +363,15 @@ export async function processClientDirectory(
 }
 
 export function generatedRouteObjectToString(
-  obj: GeneratedRoute | string | GeneratedRoute[],
+  obj: GeneratedRoute | ServerFlags | string | boolean | GeneratedRoute[],
   indentLevel: number = 0,
 ): string {
   const indent = "  ".repeat(indentLevel);
   const nextIndent = "  ".repeat(indentLevel + 1);
 
+  if (typeof obj === "boolean") {
+    return obj.toString();
+  }
   if (typeof obj === "string") {
     if (obj.startsWith("await import(") || obj.startsWith("() => import(")) {
       return obj;

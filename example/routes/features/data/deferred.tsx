@@ -7,6 +7,7 @@ import { CodeBlock } from "@/components/CodeBlock.tsx";
 import { FeatureBadge } from "@/components/FeatureBadge.tsx";
 import { InfoBox } from "@/components/InfoBox.tsx";
 import { LoadingPlaceholder } from "@/components/LoadingPlaceholder.tsx";
+import { Spinner } from "@/components/Spinner.tsx";
 
 interface DeferredLoaderData {
   fastData: string;
@@ -111,6 +112,15 @@ export function loader(args: RouteLoaderArgs) {
   </Await>
 </Suspense>`}
       </CodeBlock>
+    </div>
+  );
+}
+
+export function HydrateFallback() {
+  return (
+    <div className="flex flex-col items-center justify-center h-64 gap-4">
+      <Spinner size="lg" />
+      <p className="text-slate-400">Loading deferred data...</p>
     </div>
   );
 }

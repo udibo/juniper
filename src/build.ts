@@ -292,11 +292,20 @@ if (import.meta.main) {
       if (rootDirProperties.main) {
         finalRoutesConfig.main = rootDirProperties.main;
       }
+      if (rootDirProperties.serverMain) {
+        finalRoutesConfig.server = rootDirProperties.serverMain;
+      }
       if (rootDirProperties.index) {
         finalRoutesConfig.index = rootDirProperties.index;
       }
+      if (rootDirProperties.serverIndex) {
+        finalRoutesConfig.serverIndex = rootDirProperties.serverIndex;
+      }
       if (rootDirProperties.catchall) {
         finalRoutesConfig.catchall = rootDirProperties.catchall;
+      }
+      if (rootDirProperties.serverCatchall) {
+        finalRoutesConfig.serverCatchall = rootDirProperties.serverCatchall;
       }
       if (allRootChildren.length > 0) {
         finalRoutesConfig.children = allRootChildren;

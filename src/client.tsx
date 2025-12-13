@@ -21,6 +21,7 @@ import type {
   LazyRoute,
   SerializedError,
   SerializedHydrationData,
+  ServerFlags,
 } from "./_client.tsx";
 import { env } from "./utils/_env.ts";
 
@@ -70,6 +71,19 @@ export interface ClientRoute<Context extends DefaultContext = DefaultContext> {
    * Must resolve to a `RouteModule`.
    */
   catchall?: RouteModuleLoader<Context>;
+  /**
+   * Flags indicating whether the route has server-side loader/action.
+   * Set by the build system when server route files export loader/action.
+   */
+  server?: ServerFlags;
+  /**
+   * Flags indicating whether the index route has server-side loader/action.
+   */
+  serverIndex?: ServerFlags;
+  /**
+   * Flags indicating whether the catchall route has server-side loader/action.
+   */
+  serverCatchall?: ServerFlags;
   /** The route's children. */
   children?: ClientRoute<Context>[];
 }
@@ -164,7 +178,11 @@ export class Client<Context extends DefaultContext = DefaultContext> {
       const routeObject = routeObjectStack.pop()!;
 
       if (typeof route.main === "function") {
-        routeObject.lazy = createLazyRoute<Context>(route.main);
+        routeObject.lazy = createLazyRoute<Context>(
+          route.main,
+          route.server,
+          routeId,
+        );
       } else if (route.main) {
         const {
           Component,
@@ -172,7 +190,7 @@ export class Client<Context extends DefaultContext = DefaultContext> {
           HydrateFallback,
           loader,
           action,
-        } = createRoute(route.main);
+        } = createRoute(route.main, route.server, routeId);
         routeObject.Component = Component;
         routeObject.ErrorBoundary = ErrorBoundary;
         routeObject.HydrateFallback = HydrateFallback;
@@ -183,13 +201,17 @@ export class Client<Context extends DefaultContext = DefaultContext> {
       const routeObjectChildren: RouteObject[] = [];
 
       if (route.index) {
+        const indexRouteId = `${routeId}-0`;
         const indexRouteObject = {
           index: true,
-          lazy: createLazyRoute<Context>(route.index),
+          lazy: createLazyRoute<Context>(
+            route.index,
+            route.serverIndex,
+            indexRouteId,
+          ),
         };
         routeObjectChildren.push(indexRouteObject);
 
-        const indexRouteId = `${routeId}-0`;
         this.routeFileMap.set(indexRouteId, route.index);
         this.routeObjectMap.set(indexRouteId, indexRouteObject);
       }
@@ -208,13 +230,17 @@ export class Client<Context extends DefaultContext = DefaultContext> {
       }
 
       if (route.catchall) {
+        const catchallRouteId = `${routeId}-${routeObjectChildren.length}`;
         const catchallRouteObject = {
           path: "*",
-          lazy: createLazyRoute<Context>(route.catchall),
+          lazy: createLazyRoute<Context>(
+            route.catchall,
+            route.serverCatchall,
+            catchallRouteId,
+          ),
         };
         routeObjectChildren.push(catchallRouteObject);
 
-        const catchallRouteId = `${routeId}-${routeObjectChildren.length - 1}`;
         this.routeFileMap.set(catchallRouteId, route.catchall);
         this.routeObjectMap.set(catchallRouteId, catchallRouteObject);
       }
