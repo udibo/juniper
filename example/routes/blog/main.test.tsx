@@ -1,20 +1,34 @@
-import { assertEquals, assertStringIncludes } from "@std/assert";
+import "global-jsdom/register";
+
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, it } from "@std/testing/bdd";
+import { assertEquals } from "@std/assert";
 
-import { server } from "@/main.ts";
-import { postService } from "@/services/post.ts";
+import { createRoutesStub } from "@udibo/juniper/utils/testing";
 
-describe("GET /blog", () => {
-  afterEach(() => {
-    postService.close();
+import * as blogMain from "./main.tsx";
+
+describe("Blog layout route", () => {
+  afterEach(cleanup);
+
+  it("should render the Blog heading", () => {
+    const Stub = createRoutesStub([{
+      ...blogMain,
+      path: "/blog",
+    }]);
+    render(<Stub />);
+
+    screen.getByRole("heading", { name: "Blog" });
   });
 
-  it("should return HTML from blog layout", async () => {
-    const res = await server.request("http://localhost/blog");
-    assertEquals(res.status, 200);
-    assertEquals(res.headers.get("content-type"), "text/html; charset=utf-8");
-    const html = await res.text();
-    assertStringIncludes(html, "<!DOCTYPE html>");
-    assertStringIncludes(html, "Blog");
+  it("should have a link back to home", () => {
+    const Stub = createRoutesStub([{
+      ...blogMain,
+      path: "/blog",
+    }]);
+    render(<Stub />);
+
+    const link = screen.getByRole("link", { name: "← Home" });
+    assertEquals(link.getAttribute("href"), "/");
   });
 });

@@ -1,67 +1,154 @@
-import { assertEquals, assertStringIncludes } from "@std/assert";
-import { afterAll, beforeAll, describe, it } from "@std/testing/bdd";
-import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
+import "global-jsdom/register";
 
-import { server } from "@/main.ts";
-import { postService } from "@/services/post.ts";
-import type { NewPost, Post } from "@/services/post.ts";
+import { assertEquals } from "@std/assert";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, it } from "@std/testing/bdd";
 
-describe("GET /blog/:id", () => {
-  let testAuthorId: string;
-  let testPost: Post;
+import { createRoutesStub } from "@udibo/juniper/utils/testing";
 
-  beforeAll(async () => {
-    testAuthorId = generateUUIDv7();
+import * as blogPostRoute from "./[id]/index.tsx";
 
-    const testPostData: NewPost = {
-      title: "Individual Test Blog Post",
-      content:
-        "This is the full content of a test blog post that should be displayed on the individual post page.",
-      authorId: testAuthorId,
-    };
+describe("Blog post route", () => {
+  afterEach(cleanup);
 
-    testPost = await postService.create(testPostData);
+  it("should render blog post title", async () => {
+    const Stub = createRoutesStub([{
+      ...blogPostRoute,
+      path: "/blog/:id",
+      loader() {
+        return {
+          post: {
+            id: "test-post-id",
+            title: "Test Blog Post Title",
+            content: "This is the test blog post content.",
+            authorId: "test-author-id",
+            createdAt: new Date("2025-01-15").getTime(),
+            updatedAt: new Date("2025-01-15").getTime(),
+          },
+        };
+      },
+    }]);
+    render(<Stub initialEntries={["/blog/test-post-id"]} />);
+
+    await waitFor(() => {
+      screen.getByRole("heading", { name: "Test Blog Post Title" });
+    });
   });
 
-  afterAll(async () => {
-    try {
-      await postService.delete(testPost.id);
-    } catch {
-      // ignore cleanup errors
-    }
-    postService.close();
+  it("should render blog post content", async () => {
+    const Stub = createRoutesStub([{
+      ...blogPostRoute,
+      path: "/blog/:id",
+      loader() {
+        return {
+          post: {
+            id: "test-post-id",
+            title: "Test Post",
+            content: "This is the detailed content of the blog post.",
+            authorId: "test-author-id",
+            createdAt: new Date("2025-01-15").getTime(),
+            updatedAt: new Date("2025-01-15").getTime(),
+          },
+        };
+      },
+    }]);
+    render(<Stub initialEntries={["/blog/test-post-id"]} />);
+
+    await waitFor(() => {
+      screen.getByText("This is the detailed content of the blog post.");
+    });
   });
 
-  it("should return HTML with individual blog post", async () => {
-    const res = await server.request(`http://localhost/blog/${testPost.id}`);
-    assertEquals(res.status, 200);
-    assertEquals(res.headers.get("content-type"), "text/html; charset=utf-8");
-    const html = await res.text();
+  it("should have back to blog link", async () => {
+    const Stub = createRoutesStub([{
+      ...blogPostRoute,
+      path: "/blog/:id",
+      loader() {
+        return {
+          post: {
+            id: "test-post-id",
+            title: "Test Post",
+            content: "Content",
+            authorId: "test-author-id",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          },
+        };
+      },
+    }]);
+    render(<Stub initialEntries={["/blog/test-post-id"]} />);
 
-    assertStringIncludes(html, "<!DOCTYPE html>");
-    assertStringIncludes(html, "Individual Test Blog Post");
-    assertStringIncludes(html, "This is the full content of a test blog post");
-  });
-
-  it("should include navigation back to blog listing", async () => {
-    const res = await server.request(`http://localhost/blog/${testPost.id}`);
-    const html = await res.text();
-
-    assertStringIncludes(html, "← Back to Blog");
-  });
-
-  it("should return 404 for non-existent blog post", async () => {
-    const nonExistentId = generateUUIDv7();
-    const res = await server.request(`http://localhost/blog/${nonExistentId}`);
-    assertEquals(res.status, 404);
+    await waitFor(() => {
+      screen.getByRole("link", { name: "← Back to Blog" });
+    });
+    const link = screen.getByRole("link", { name: "← Back to Blog" });
+    assertEquals(link.getAttribute("href"), "/blog");
   });
 
   it("should display post metadata", async () => {
-    const res = await server.request(`http://localhost/blog/${testPost.id}`);
-    const html = await res.text();
+    const Stub = createRoutesStub([{
+      ...blogPostRoute,
+      path: "/blog/:id",
+      loader() {
+        return {
+          post: {
+            id: "unique-post-123",
+            title: "Test Post",
+            content: "Content",
+            authorId: "author-456",
+            createdAt: new Date("2025-01-15").getTime(),
+            updatedAt: new Date("2025-01-15").getTime(),
+          },
+        };
+      },
+    }]);
+    render(<Stub initialEntries={["/blog/unique-post-123"]} />);
 
-    assertStringIncludes(html, "Published:");
-    assertStringIncludes(html, testPost.id);
-    assertStringIncludes(html, testAuthorId);
+    await waitFor(() => {
+      screen.getByText(/Published:/);
+    });
+    screen.getByText(/Post ID: unique-post-123/);
+    screen.getByText(/Author: author-456/);
+  });
+
+  it("should have edit and delete buttons", async () => {
+    const Stub = createRoutesStub([{
+      ...blogPostRoute,
+      path: "/blog/:id",
+      loader() {
+        return {
+          post: {
+            id: "test-post-id",
+            title: "Test Post",
+            content: "Content",
+            authorId: "test-author-id",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          },
+        };
+      },
+    }]);
+    render(<Stub initialEntries={["/blog/test-post-id"]} />);
+
+    await waitFor(() => {
+      screen.getByRole("link", { name: "Edit" });
+    });
+    screen.getByRole("button", { name: "Delete" });
+  });
+
+  it("should render error boundary for missing post", async () => {
+    const Stub = createRoutesStub([{
+      ...blogPostRoute,
+      path: "/blog/:id",
+      loader() {
+        throw new Error("Post not found");
+      },
+    }]);
+    render(<Stub initialEntries={["/blog/non-existent-id"]} />);
+
+    await waitFor(() => {
+      screen.getByRole("heading", { name: "Blog Post Not Found" });
+    });
+    screen.getByText(/we couldn't find a blog post with ID "non-existent-id"/);
   });
 });

@@ -21,7 +21,8 @@ import type {
   SerializedError,
 } from "@udibo/juniper/client";
 import type { RouteModule } from "@udibo/juniper";
-import { simulateBrowser } from "@udibo/juniper/utils/testing";
+
+import { simulateBrowser } from "./utils/testing.internal.ts";
 
 import {
   createLazyRoute,

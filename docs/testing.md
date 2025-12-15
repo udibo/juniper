@@ -23,9 +23,6 @@ control:
   to write custom snapshot files.
 - `simulateEnvironment()` – temporarily overrides environment values for the
   duration of a callback. Great for tests that change `APP_ENV` or secrets.
-- `simulateBrowser()` – serializes hydration data and injects it into
-  `globalThis` for the duration of a callback, allowing you to run client-side
-  hooks in a simulated browser context (without JSDOM).
 
 Example:
 
@@ -65,8 +62,6 @@ entire server to test JSON endpoints.
 
 - Use React Testing Library with `render(<RouteComponent loaderData={...} />)`
   to verify markup.
-- For more realistic tests, combine `simulateBrowser()` with
-  `client.routeObjects` to hydrate the router in-memory.
 - Snapshot streaming output when necessary, but prefer testing UI behavior
   (text, aria attributes) to avoid brittle snapshots.
 
