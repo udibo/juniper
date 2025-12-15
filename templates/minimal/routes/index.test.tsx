@@ -12,7 +12,7 @@ describe("Home route", () => {
   afterEach(cleanup);
 
   it("should render loader data", async () => {
-    using _time = new FakeTime(new Date("2025-01-15T12:00:00.000Z"));
+    using _time = new FakeTime("2025-01-15T12:00:00.000Z");
     const Stub = createRoutesStub([indexRoute]);
     render(<Stub />);
 
