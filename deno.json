@@ -98,7 +98,7 @@
     }
   },
   "imports": {
-    "react": "npm:react@^19.2.1",
+    "react": "npm:react@^19.2.3",
     "@types/react": "npm:@types/react@^19.2.7"
   },
   "compilerOptions": {

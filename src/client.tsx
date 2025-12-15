@@ -25,7 +25,7 @@ import type {
 } from "./_client.tsx";
 import { env } from "./utils/_env.ts";
 
-export type { DefaultContext, HydrationData, SerializedError };
+export type { DefaultContext, HydrationData, SerializedError, ServerFlags };
 
 /**
  * Loads a non-root route module on demand.

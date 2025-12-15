@@ -4,10 +4,19 @@
  * @module utils/testing
  */
 
-import "global-jsdom/register";
 import { AsyncLocalStorage } from "node:async_hooks";
 
+import React from "react";
+import { createMemoryRouter, RouterProvider } from "react-router";
+import type { HydrationState, RouteObject } from "react-router";
+
+import type { AnyParams, RouteModule } from "@udibo/juniper";
+
+import { createRoute } from "../_client.tsx";
+import type { ServerFlags } from "../_client.tsx";
 import { env } from "./_env.ts";
+
+export type { ServerFlags };
 
 interface EnvironmentStore {
   overrides: Record<string, string | null>;
@@ -133,4 +142,110 @@ export function simulateEnvironment<T extends void | Promise<void>>(
 
     return environmentStorage.run(store, () => callback());
   });
+}
+
+export interface RouteStub extends RouteModule<AnyParams, unknown, unknown> {
+  path?: string;
+  serverFlags?: ServerFlags;
+  routeId?: string;
+}
+
+export interface RoutesStubProps {
+  initialEntries?: string[];
+  hydrationData?: HydrationState;
+}
+
+/**
+ * Creates a stub component for testing Juniper route modules.
+ *
+ * This helper uses Juniper's `createRoute` to convert route modules into
+ * React Router route objects, then renders them in a memory router. This ensures
+ * your tests run through the same adaptation layer as production.
+ *
+ * @example Testing a route with a loader
+ * ```tsx
+ * import "global-jsdom/register";
+ * import { afterEach, describe, it } from "@std/testing/bdd";
+ * import { cleanup, render, screen, waitFor } from "@testing-library/react";
+ * import { createRoutesStub } from "@udibo/juniper/utils/testing";
+ *
+ * import * as loaderRoute from "./loader.tsx";
+ *
+ * describe("LoaderDemo route", () => {
+ *   afterEach(cleanup);
+ *
+ *   it("should render loaded data", async () => {
+ *     const Stub = createRoutesStub([loaderRoute]);
+ *     render(<Stub />);
+ *
+ *     await waitFor(() => {
+ *       screen.getByText("Data loaded successfully!");
+ *     });
+ *   });
+ * });
+ * ```
+ *
+ * @example Testing with a stubbed loader
+ * ```tsx
+ * import "global-jsdom/register";
+ * import { afterEach, describe, it } from "@std/testing/bdd";
+ * import { cleanup, render, screen, waitFor } from "@testing-library/react";
+ * import { createRoutesStub } from "@udibo/juniper/utils/testing";
+ *
+ * import * as loaderRoute from "./loader.tsx";
+ *
+ * describe("LoaderDemo route", () => {
+ *   afterEach(cleanup);
+ *
+ *   it("should render with stubbed loader data", async () => {
+ *     const Stub = createRoutesStub([{
+ *       ...loaderRoute,
+ *       loader() {
+ *         return {
+ *           timestamp: "2025-01-01T00:00:00.000Z",
+ *           randomNumber: 42,
+ *           message: "Stubbed data!",
+ *         };
+ *       },
+ *     }]);
+ *     render(<Stub />);
+ *
+ *     await waitFor(() => {
+ *       screen.getByText("Stubbed data!");
+ *     });
+ *   });
+ * });
+ * ```
+ *
+ * @param routes - Array of route modules to stub. Each can optionally include a `path`, `serverFlags`, and `routeId`.
+ * @returns A React component that renders the stubbed routes in a memory router. The `initialEntries` prop defaults to the first route's path.
+ */
+export function createRoutesStub(
+  routes: RouteStub[],
+): React.ComponentType<RoutesStubProps> {
+  const firstPath = routes[0]?.path ?? "/";
+  const routeObjects: RouteObject[] = routes.map((routeStub) => {
+    const { path = "/", serverFlags, routeId, ...routeModule } = routeStub;
+    const route = createRoute(routeModule, serverFlags, routeId);
+
+    return {
+      path,
+      Component: route.Component,
+      ErrorBoundary: route.ErrorBoundary,
+      HydrateFallback: route.HydrateFallback,
+      loader: route.loader,
+      action: route.action,
+    };
+  });
+
+  return function RoutesStub(
+    { initialEntries, hydrationData }: RoutesStubProps,
+  ) {
+    const router = createMemoryRouter(routeObjects, {
+      initialEntries: initialEntries ?? [firstPath],
+      hydrationData,
+    });
+
+    return React.createElement(RouterProvider, { router });
+  };
 }

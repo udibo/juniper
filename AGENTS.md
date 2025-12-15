@@ -31,6 +31,8 @@
 - Use `describe` and `it` from `@std/testing/bdd` instead of `Deno.test`.
 - If spys, stubs, fakes, or simulated time is needed, use `@std/testing/mock`
   and `@std/testing/time` instead of implementing your own.
+- For making assertions, prefer using `@std/assert` when possible. Use assertion
+  functions rather than using if statements that throw.
 
 ## Style
 

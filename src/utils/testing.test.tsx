@@ -1,6 +1,9 @@
-import { assertEquals, assertRejects } from "@std/assert";
+import "global-jsdom/register";
+
+import { assertEquals, assertExists, assertRejects } from "@std/assert";
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { delay } from "@std/async/delay";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 
 import {
   getEnv,
@@ -9,7 +12,10 @@ import {
   isServer,
   isTest,
 } from "@udibo/juniper/utils/env";
-import { simulateEnvironment } from "@udibo/juniper/utils/testing";
+import {
+  createRoutesStub,
+  simulateEnvironment,
+} from "@udibo/juniper/utils/testing";
 
 import { simulateBrowser } from "./testing.internal.ts";
 
@@ -416,5 +422,231 @@ describe("simulateBrowser", () => {
         assertEquals(getEnv("OTHER_VAR"), undefined);
       },
     )();
+  });
+});
+
+describe("createRoutesStub", () => {
+  afterEach(cleanup);
+
+  it("should render a simple route module", () => {
+    const routeModule = {
+      default: () => <div>Hello World</div>,
+    };
+
+    const Stub = createRoutesStub([routeModule]);
+    render(<Stub />);
+
+    screen.getByText("Hello World");
+  });
+
+  it("should render a route module with a custom path", () => {
+    const routeModule = {
+      path: "/custom",
+      default: () => <div>Custom Path Route</div>,
+    };
+
+    const Stub = createRoutesStub([routeModule]);
+    render(<Stub />);
+
+    screen.getByText("Custom Path Route");
+  });
+
+  it("should use first route's path as default initialEntries", () => {
+    const routeModule = {
+      path: "/about",
+      default: () => <div>About Page</div>,
+    };
+
+    const Stub = createRoutesStub([routeModule]);
+    render(<Stub />);
+
+    screen.getByText("About Page");
+  });
+
+  it("should allow overriding initialEntries", () => {
+    const routeModule = {
+      path: "/page",
+      default: () => <div>Page Content</div>,
+    };
+
+    const Stub = createRoutesStub([routeModule]);
+    render(<Stub initialEntries={["/page"]} />);
+
+    screen.getByText("Page Content");
+  });
+
+  it("should render a route with a loader", async () => {
+    const routeModule = {
+      loader() {
+        return { message: "Loaded data" };
+      },
+      default: (props: { loaderData: unknown }) => {
+        const data = props.loaderData as { message: string };
+        return <div>{data.message}</div>;
+      },
+    };
+
+    const Stub = createRoutesStub([routeModule]);
+    render(<Stub />);
+
+    await waitFor(() => {
+      screen.getByText("Loaded data");
+    });
+  });
+
+  it("should allow stubbing/overriding a loader", async () => {
+    const routeModule = {
+      loader() {
+        return { value: 100 };
+      },
+      default: (props: { loaderData: unknown }) => {
+        const data = props.loaderData as { value: number };
+        return <div>Value: {data.value}</div>;
+      },
+    };
+
+    const Stub = createRoutesStub([{
+      ...routeModule,
+      loader() {
+        return { value: 42 };
+      },
+    }]);
+    render(<Stub />);
+
+    await waitFor(() => {
+      screen.getByText("Value: 42");
+    });
+  });
+
+  it("should render a route with an action", () => {
+    const routeModule = {
+      action() {
+        return { submitted: true };
+      },
+      default: () => <div>Action Route</div>,
+    };
+
+    const Stub = createRoutesStub([routeModule]);
+    render(<Stub />);
+
+    screen.getByText("Action Route");
+  });
+
+  it("should render a route with ErrorBoundary", () => {
+    const routeModule = {
+      default: () => <div>Normal Content</div>,
+      ErrorBoundary: () => <div>Error occurred</div>,
+    };
+
+    const Stub = createRoutesStub([routeModule]);
+    render(<Stub />);
+
+    screen.getByText("Normal Content");
+  });
+
+  it("should render HydrateFallback then switch to default after loader completes", async () => {
+    let resolveLoader: (value: { message: string }) => void;
+    const loaderPromise = new Promise<{ message: string }>((resolve) => {
+      resolveLoader = resolve;
+    });
+
+    const routeModule = {
+      async loader() {
+        return await loaderPromise;
+      },
+      default: (props: { loaderData: unknown }) => {
+        const data = props.loaderData as { message: string };
+        return <div>Loaded: {data.message}</div>;
+      },
+      HydrateFallback: () => <div>Loading...</div>,
+    };
+
+    const Stub = createRoutesStub([routeModule]);
+    render(<Stub />);
+
+    await waitFor(() => {
+      screen.getByText("Loading...");
+    });
+
+    resolveLoader!({ message: "Complete" });
+
+    await waitFor(() => {
+      screen.getByText("Loaded: Complete");
+    });
+  });
+
+  it("should support multiple routes", () => {
+    const route1 = {
+      path: "/",
+      default: () => <div>Home</div>,
+    };
+    const route2 = {
+      path: "/about",
+      default: () => <div>About</div>,
+    };
+
+    const Stub = createRoutesStub([route1, route2]);
+    render(<Stub initialEntries={["/"]} />);
+
+    screen.getByText("Home");
+  });
+
+  it("should support parameterized routes", async () => {
+    const routeModule = {
+      path: "/users/:userId/posts/:postId",
+      loader(args: { params: Record<string, string | undefined> }) {
+        return {
+          userId: args.params.userId,
+          postId: args.params.postId,
+        };
+      },
+      default: (props: { loaderData: unknown }) => {
+        const data = props.loaderData as { userId: string; postId: string };
+        return (
+          <div>
+            <span>User: {data.userId}</span>
+            <span>Post: {data.postId}</span>
+          </div>
+        );
+      },
+    };
+
+    const Stub = createRoutesStub([routeModule]);
+    render(<Stub initialEntries={["/users/123/posts/456"]} />);
+
+    await waitFor(() => {
+      screen.getByText("User: 123");
+    });
+    screen.getByText("Post: 456");
+  });
+
+  it("should return a React component type", () => {
+    const routeModule = {
+      default: () => <div>Test</div>,
+    };
+
+    const Stub = createRoutesStub([routeModule]);
+    assertExists(Stub);
+    assertEquals(typeof Stub, "function");
+  });
+
+  it("should handle route with both loader and HydrateFallback", async () => {
+    const routeModule = {
+      loader() {
+        return { data: "Resolved" };
+      },
+      default: (props: { loaderData: unknown }) => {
+        const data = props.loaderData as { data: string };
+        return <div>{data.data}</div>;
+      },
+      HydrateFallback: () => <div>Hydrating...</div>,
+    };
+
+    const Stub = createRoutesStub([routeModule]);
+    render(<Stub />);
+
+    await waitFor(() => {
+      screen.getByText("Resolved");
+    });
   });
 });
