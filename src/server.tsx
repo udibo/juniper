@@ -1,14 +1,17 @@
 import * as path from "@std/path";
 import { HttpError } from "@udibo/http-error";
 import { Hono } from "hono";
-import type { Env, Schema } from "hono";
+import type { Schema } from "hono";
 import { trimTrailingSlash } from "hono/trailing-slash";
 
 import type { Client } from "@udibo/juniper/client";
 import { getInstance } from "@udibo/juniper/utils/otel";
 
 import { buildApp, createHandlers, mergeServerRoutes } from "./_server.tsx";
-import type { Route } from "./_server.tsx";
+import type { AppEnv, Route } from "./_server.tsx";
+import { RouterContextProvider } from "react-router";
+
+export type { AppEnv };
 
 /**
  * Creates a Hono application server with the provided route configuration.
@@ -55,7 +58,7 @@ import type { Route } from "./_server.tsx";
  * @returns A configured Hono application instance
  */
 export function createServer<
-  E extends Env = Env,
+  E extends AppEnv = AppEnv,
   S extends Schema = Schema,
   BasePath extends string = "/",
 >(
@@ -65,6 +68,11 @@ export function createServer<
 ): Hono<E, S, BasePath> {
   const projectRoot = path.dirname(path.fromFileUrl(moduleUrl));
   const appWrapper = new Hono<E, S, BasePath>({ strict: true });
+
+  appWrapper.use(async (c, next) => {
+    c.set("context", new RouterContextProvider());
+    await next();
+  });
 
   appWrapper.onError((cause) => {
     const error = HttpError.from(cause);

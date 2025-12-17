@@ -83,7 +83,8 @@ describe("createServer", () => {
       ],
     });
 
-    const testApp = new (await import("hono")).Hono();
+    const { Hono } = await import("hono");
+    const testApp = new Hono<{ Variables: { test: string } }>();
     testApp.get("/", (c) => c.text("Server Route"));
 
     const server = createServer(import.meta.url, client, {
