@@ -1,8 +1,9 @@
 import * as path from "@std/path";
 import { HttpError } from "@udibo/http-error";
 import { Hono } from "hono";
-import type { Schema } from "hono";
+import type { Schema, TypedResponse } from "hono";
 import { trimTrailingSlash } from "hono/trailing-slash";
+import type { RedirectStatusCode } from "hono/utils/http-status";
 
 import type { Client } from "@udibo/juniper/client";
 import { getInstance } from "@udibo/juniper/utils/otel";
@@ -71,6 +72,20 @@ export function createServer<
 
   appWrapper.use(async (c, next) => {
     c.set("context", new RouterContextProvider());
+    const originalRedirect = c.redirect;
+    c.redirect = function redirect<T extends RedirectStatusCode = 302>(
+      location: string | URL,
+      status?: T,
+    ): Response & TypedResponse<undefined, T, "redirect"> {
+      if (c.req.header("X-Juniper-Route-Id")) {
+        c.header("Vary", "Accept");
+        c.header("X-Juniper", "redirect");
+        return c.json({ location }) as unknown as
+          & Response
+          & TypedResponse<undefined, T, "redirect">;
+      }
+      return (originalRedirect<T>).call(c, location, status);
+    };
     await next();
   });
 
