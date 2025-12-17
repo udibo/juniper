@@ -261,7 +261,6 @@ async function fetchServerData(
   routeId: string,
 ): Promise<unknown> {
   const headers: Record<string, string> = {
-    "Accept": "application/json",
     "X-Juniper-Route-Id": routeId,
   };
 

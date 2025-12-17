@@ -129,7 +129,7 @@ describe("createServer", () => {
     assertStringIncludes(html, "<div>Home</div>");
   });
 
-  it("should return JSON for data requests when Accept is application/json", async () => {
+  it("should return JSON for data requests when X-Juniper-Route-Id is present", async () => {
     const client = new Client({
       path: "/",
       main: {
@@ -144,7 +144,7 @@ describe("createServer", () => {
       },
     });
     const res = await server.request("http://localhost/", {
-      headers: { accept: "application/json" },
+      headers: { "X-Juniper-Route-Id": "0" },
     });
     assertEquals(res.status, 200);
     const ct = res.headers.get("content-type");

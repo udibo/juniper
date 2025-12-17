@@ -487,7 +487,7 @@ export function createHandlers<
   return factory.createHandlers(
     async function handleDocumentRequest(c, next) {
       return await startActiveSpan("handleDocumentRequest", async (_span) => {
-        if (c.req.header("accept")?.includes("application/json")) {
+        if (c.req.header("X-Juniper-Route-Id")) {
           return next();
         }
 
