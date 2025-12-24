@@ -8,7 +8,7 @@ import {
 } from "@std/assert";
 import { beforeAll, beforeEach, describe, it } from "@std/testing/bdd";
 import { assertSpyCalls, stub } from "@std/testing/mock";
-import { HttpError } from "@udibo/http-error";
+import { HttpError } from "@udibo/juniper";
 import { Outlet } from "react-router";
 import type { ActionFunctionArgs } from "react-router";
 import SuperJSON from "superjson";

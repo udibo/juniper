@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, Outlet } from "react-router";
+import { HttpError } from "@udibo/juniper";
 import type { ErrorBoundaryProps } from "@udibo/juniper";
 
 function Shell({ children }: { children: ReactNode }) {
@@ -65,9 +66,7 @@ export function ErrorBoundary(
             Something went wrong
           </h1>
           <p className="text-slate-300 mb-6">
-            {error instanceof Error
-              ? error.message
-              : "An unexpected error occurred"}
+            {error instanceof HttpError && !error.expose ? "Server error" : (error instanceof Error ? error.message : String(error))}
           </p>
           <form>
             <button

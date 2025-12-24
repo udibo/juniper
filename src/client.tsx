@@ -166,7 +166,7 @@ export class Client<Context extends DefaultContext = DefaultContext> {
   constructor(rootRoute: RootClientRoute<Context>) {
     this.rootRoute = rootRoute;
     this.routeFileMap = new Map();
-    this.routeObjects = [{ path: rootRoute.path }];
+    this.routeObjects = [{ id: "0", path: rootRoute.path }];
     this.routeObjectMap = new Map();
 
     const routeIdStack: string[] = ["0"];
@@ -203,6 +203,7 @@ export class Client<Context extends DefaultContext = DefaultContext> {
       if (route.index) {
         const indexRouteId = `${routeId}-0`;
         const indexRouteObject = {
+          id: indexRouteId,
           index: true,
           lazy: createLazyRoute<Context>(
             route.index,
@@ -220,7 +221,7 @@ export class Client<Context extends DefaultContext = DefaultContext> {
         const offset = route.index ? 1 : 0;
         for (const [childIndex, childRoute] of route.children.entries()) {
           const childRouteId = `${routeId}-${childIndex + offset}`;
-          const childRouteObject = { path: childRoute.path };
+          const childRouteObject = { id: childRouteId, path: childRoute.path };
           routeObjectChildren.push(childRouteObject);
 
           routeIdStack.push(childRouteId);
@@ -232,6 +233,7 @@ export class Client<Context extends DefaultContext = DefaultContext> {
       if (route.catchall) {
         const catchallRouteId = `${routeId}-${routeObjectChildren.length}`;
         const catchallRouteObject = {
+          id: catchallRouteId,
           path: "*",
           lazy: createLazyRoute<Context>(
             route.catchall,

@@ -1,5 +1,8 @@
 import type { ReactElement } from "react";
 import type { RouterContextProvider } from "react-router";
+import { HttpError } from "@udibo/http-error";
+
+export { HttpError };
 
 export type AnyParams = Record<string, string | undefined>;
 
@@ -374,7 +377,7 @@ export type RouteErrorBoundary<
  *
  * @example Loader that throws errors
  * ```tsx
- * import { HttpError } from "@udibo/http-error";
+ * import { HttpError } from "@udibo/juniper";
  * import type { RouteLoaderArgs } from "@udibo/juniper";
  *
  * export async function loader({ params }: RouteLoaderArgs) {

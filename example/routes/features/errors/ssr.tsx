@@ -120,12 +120,14 @@ export default function Page() {
   return <div>{loaderData.message}</div>;
 }
 
+import { HttpError } from "@udibo/juniper";
+
 // Parent route (main.tsx)
 export function ErrorBoundary({ error }: ErrorBoundaryProps) {
   return (
     <div>
       <h1>Server Error</h1>
-      <p>{error.message}</p>
+      <p>{error instanceof HttpError && !error.expose ? "Server error" : (error instanceof Error ? error.message : String(error))}</p>
     </div>
   );
 }`}

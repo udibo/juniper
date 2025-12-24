@@ -1,5 +1,5 @@
 import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
-import { HttpError } from "@udibo/http-error";
+import { HttpError } from "@udibo/juniper";
 import { z } from "zod";
 
 import { isTest } from "@udibo/juniper/utils/env";

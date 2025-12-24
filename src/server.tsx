@@ -1,16 +1,16 @@
 import * as path from "@std/path";
-import { HttpError } from "@udibo/http-error";
+import { HttpError } from "@udibo/juniper";
 import { Hono } from "hono";
 import type { Schema, TypedResponse } from "hono";
 import { trimTrailingSlash } from "hono/trailing-slash";
 import type { RedirectStatusCode } from "hono/utils/http-status";
+import { RouterContextProvider } from "react-router";
 
 import type { Client } from "@udibo/juniper/client";
 import { getInstance } from "@udibo/juniper/utils/otel";
 
 import { buildApp, createHandlers, mergeServerRoutes } from "./_server.tsx";
 import type { AppEnv, Route } from "./_server.tsx";
-import { RouterContextProvider } from "react-router";
 
 export type { AppEnv };
 
@@ -89,7 +89,19 @@ export function createServer<
     await next();
   });
 
+  appWrapper.use(trimTrailingSlash());
+
   appWrapper.onError((cause) => {
+    if (
+      !(cause instanceof HttpError) &&
+      cause !== null &&
+      typeof cause === "object" &&
+      "getResponse" in cause &&
+      typeof cause.getResponse === "function"
+    ) {
+      console.error(cause);
+      return cause.getResponse();
+    }
     const error = HttpError.from(cause);
     if (!error.instance) {
       const instance = getInstance();
@@ -100,11 +112,17 @@ export function createServer<
     console.error(error);
     return error.getResponse();
   });
-  appWrapper.use(trimTrailingSlash());
 
   const serverRoutes = mergeServerRoutes(route, client.routeObjects);
-  const handlers = createHandlers(route, serverRoutes);
-  const app = buildApp(route, client.rootRoute, handlers, projectRoot);
+  const { handlers, errorHandler } = createHandlers(route, serverRoutes);
+  const app = buildApp(
+    route,
+    client.rootRoute,
+    handlers,
+    projectRoot,
+    "0",
+    errorHandler,
+  );
 
   appWrapper.route("/", app);
   return appWrapper;

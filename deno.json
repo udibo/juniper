@@ -3,7 +3,8 @@
     "./src",
     "./example",
     "./templates/minimal",
-    "./templates/tailwindcss"
+    "./templates/tailwindcss",
+    "./templates/tanstack"
   ],
   "unstable": ["kv"],
   "nodeModulesDir": "auto",
@@ -20,6 +21,10 @@
       "description": "Runs the tailwindcss template server in development mode.",
       "command": "deno task --cwd=templates/tailwindcss serve"
     },
+    "serve:tanstack": {
+      "description": "Runs the tanstack template server in development mode.",
+      "command": "deno task --cwd=templates/tanstack serve"
+    },
     "serve-prod": {
       "description": "Runs the example server in production mode.",
       "command": "deno task --cwd=example serve-prod"
@@ -27,6 +32,14 @@
     "serve-prod:minimal": {
       "description": "Runs the minimal template server in production mode.",
       "command": "deno task --cwd=templates/minimal serve-prod"
+    },
+    "serve-prod:tailwindcss": {
+      "description": "Runs the tailwindcss template server in production mode.",
+      "command": "deno task --cwd=templates/tailwindcss serve-prod"
+    },
+    "serve-prod:tanstack": {
+      "description": "Runs the tanstack template server in production mode.",
+      "command": "deno task --cwd=templates/tanstack serve-prod"
     },
     "build": {
       "description": "Builds the example application for development.",
@@ -40,6 +53,10 @@
       "description": "Builds the tailwindcss template application for development.",
       "command": "deno task --cwd=templates/tailwindcss build"
     },
+    "build:tanstack": {
+      "description": "Builds the tanstack template application for development.",
+      "command": "deno task --cwd=templates/tanstack build"
+    },
     "build-prod": {
       "description": "Builds the example application for production.",
       "command": "deno task --cwd=example build-prod"
@@ -52,6 +69,10 @@
       "description": "Builds the tailwindcss template application for production.",
       "command": "deno task --cwd=templates/tailwindcss build-prod"
     },
+    "build-prod:tanstack": {
+      "description": "Builds the tanstack template application for production.",
+      "command": "deno task --cwd=templates/tanstack build-prod"
+    },
     "dev": {
       "description": "Runs the example development server.",
       "command": "deno task --cwd=example dev"
@@ -63,6 +84,10 @@
     "dev:tailwindcss": {
       "description": "Runs the tailwindcss template development server.",
       "command": "deno task --cwd=templates/tailwindcss dev"
+    },
+    "dev:tanstack": {
+      "description": "Runs the tanstack template development server.",
+      "command": "deno task --cwd=templates/tanstack dev"
     },
     "test": {
       "description": "Runs all of the Juniper tests.",
@@ -79,6 +104,10 @@
     "test:tailwindcss": {
       "description": "Runs all of the tailwindcss template tests.",
       "command": "deno task --cwd=templates/tailwindcss test"
+    },
+    "test:tanstack": {
+      "description": "Runs all of the tanstack template tests.",
+      "command": "deno task --cwd=templates/tanstack test"
     },
     "check": {
       "description": "Checks the formatting and runs the linter.",

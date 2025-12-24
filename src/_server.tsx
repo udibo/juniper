@@ -1,9 +1,11 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import * as path from "@std/path";
 import { parseArgs } from "@std/cli/parse-args";
-import { HttpError } from "@udibo/http-error";
+import { HttpError } from "@udibo/juniper";
 import { SpanStatusCode } from "@opentelemetry/api";
 import { Hono } from "hono";
-import type { Env, Schema } from "hono";
+import type { Context, Env, Schema } from "hono";
 import { createFactory } from "hono/factory";
 import { serveStatic } from "hono/deno";
 import { stream } from "hono/streaming";
@@ -18,7 +20,11 @@ import {
   createStaticRouter,
   StaticRouterProvider,
 } from "react-router";
-import type { RouterContextProvider } from "react-router";
+import type {
+  DataRouteObject,
+  RouterContextProvider,
+  StaticHandlerContext,
+} from "react-router";
 import type { RouteObject } from "react-router";
 import { StrictMode, Suspense, use } from "react";
 import { renderToReadableStream } from "react-dom/server";
@@ -45,6 +51,17 @@ import type { ActionFunction, LoaderFunction } from "@udibo/juniper";
 const args = parseArgs(Deno.args, {
   boolean: ["hot-reload"],
 });
+
+interface RouteContext {
+  routeId: string;
+  isClientRoute: boolean;
+}
+
+const routeContextStorage = new AsyncLocalStorage<RouteContext>();
+
+export function getRouteContext(): RouteContext | undefined {
+  return routeContextStorage.getStore();
+}
 
 /**
  * The default environment type for the Juniper application.
@@ -103,6 +120,29 @@ interface ServerMainRouteModule extends ServerRouteModule {
 }
 
 export const DEFAULT_PUBLIC_ENV_KEYS = ["APP_NAME", "APP_ENV", "NODE_ENV"];
+
+type SerializeErrorFn = (error: unknown) => SerializedError | unknown;
+
+function getSerializeError<
+  E extends AppEnv = AppEnv,
+  S extends Schema = Schema,
+  BasePath extends string = "/",
+>(route: Route<E, S, BasePath>): SerializeErrorFn {
+  return route.main?.serializeError ?? (() => {});
+}
+
+function getAllPublicEnvKeys<
+  E extends AppEnv = AppEnv,
+  S extends Schema = Schema,
+  BasePath extends string = "/",
+>(route: Route<E, S, BasePath>): string[] {
+  return [
+    ...new Set([
+      ...DEFAULT_PUBLIC_ENV_KEYS,
+      ...(route.main?.publicEnvKeys ?? []),
+    ]),
+  ];
+}
 
 export interface Route<
   E extends AppEnv = AppEnv,
@@ -317,6 +357,255 @@ function getPublicEnv(allPublicEnvKeys: string[]): Record<string, string> {
   return publicEnv;
 }
 
+async function convertToHttpError(cause: unknown): Promise<HttpError> {
+  if (
+    cause !== null &&
+    typeof cause === "object" &&
+    !(cause instanceof HttpError) &&
+    "getResponse" in cause &&
+    typeof cause.getResponse === "function"
+  ) {
+    const response = cause.getResponse() as Response;
+    const status = response.status;
+    const headers = new Headers(response.headers);
+
+    let message: string | undefined;
+    const contentType = response.headers.get("content-type");
+    if (contentType?.includes("application/problem+json")) {
+      return HttpError.from({
+        status,
+        ...await response.json(),
+      });
+    } else {
+      message = await response.text();
+    }
+
+    const error = new HttpError(status, { message, headers });
+    error.headers = headers;
+    return error;
+  }
+  return HttpError.from(cause);
+}
+
+interface RenderOptions {
+  serializeError: SerializeErrorFn;
+  allPublicEnvKeys: string[];
+}
+
+interface RenderDocumentOptions {
+  context: StaticHandlerContext;
+  dataRoutes: DataRouteObject[];
+  renderOptions: RenderOptions;
+  request: Request;
+  waitForAllReady?: boolean;
+  presetError?: HttpError;
+}
+
+async function renderDocument(
+  c: Context<AppEnv>,
+  options: RenderDocumentOptions,
+): Promise<Response> {
+  const {
+    context,
+    dataRoutes,
+    renderOptions,
+    request,
+    waitForAllReady,
+    presetError,
+  } = options;
+  const { serializeError, allPublicEnvKeys } = renderOptions;
+
+  const router = createStaticRouter(dataRoutes, context);
+
+  let renderStream: Awaited<ReturnType<typeof renderToReadableStream>>;
+  let aborted = false;
+  let renderAttempts = 0;
+
+  async function render() {
+    renderAttempts += 1;
+    let retry = false;
+
+    await startActiveSpan("render.attempt", async (renderAttemptSpan) => {
+      renderAttemptSpan.setAttribute("render.attempt.index", renderAttempts);
+      try {
+        const hydrationData = {
+          publicEnv: getPublicEnv(allPublicEnvKeys),
+          matches: context.matches.map((match) => ({
+            id: match.route.id,
+          })),
+          errors: context.errors,
+          loaderData: context.loaderData,
+          actionData: context.actionData,
+        };
+
+        const serializedHydrationData = serializeHydrationData(
+          hydrationData,
+          { serializeError },
+        ).then((data) =>
+          `import { client } from "/build/main.js"; window.__juniperHydrationData = ${
+            serialize(data, { isJSON: true })
+          }; await client.hydrate();`
+        );
+
+        const bootstrapScripts: string[] = [];
+        if (args["hot-reload"]) {
+          bootstrapScripts.push("/dev-client.js");
+        }
+
+        renderStream = await renderToReadableStream(
+          <StrictMode>
+            <App>
+              <StaticRouterProvider
+                router={router}
+                context={context}
+                hydrate={false}
+              />
+              <Suspense fallback={null}>
+                <HydrationScript
+                  serializedHydrationData={serializedHydrationData}
+                />
+              </Suspense>
+            </App>
+          </StrictMode>,
+          {
+            bootstrapModules: ["/build/main.js"],
+            bootstrapScripts,
+            signal: request.signal,
+            onError: (renderError: unknown) => {
+              const abortError = renderError instanceof Error &&
+                renderError.name === "AbortError";
+              if (aborted && abortError) return;
+              console.error("render onError", renderError);
+              if (abortError) {
+                aborted = true;
+              }
+            },
+          },
+        );
+
+        if (waitForAllReady) {
+          await renderStream.allReady;
+        }
+      } catch (error) {
+        if (
+          request.signal.aborted ||
+          (error instanceof Error && error.name === "AbortError")
+        ) {
+          throw error;
+        }
+        if (!context.errors) context.errors = {};
+        if (
+          context._deepestRenderedBoundaryId &&
+          !(context._deepestRenderedBoundaryId in context.errors)
+        ) {
+          context.errors[context._deepestRenderedBoundaryId] = error;
+          retry = true;
+        } else {
+          throw error;
+        }
+      }
+    });
+
+    if (retry) {
+      await render();
+    }
+  }
+
+  await startActiveSpan("render", async (renderSpan) => {
+    await render();
+    renderSpan.setAttribute("render.attempt.count", renderAttempts);
+  });
+
+  const deepestMatch = context.matches[context.matches.length - 1];
+  const actionHeaders = context.actionHeaders[deepestMatch.route.id];
+  const loaderHeaders = context.loaderHeaders[deepestMatch.route.id];
+
+  const statusCode: StatusCode = presetError?.status ??
+    Object.values(context.errors ?? {})
+      .find((value: unknown) =>
+        value instanceof Error && (value as HttpError).status
+      )
+      ?.status ??
+    context.statusCode ??
+    200;
+
+  c.status(statusCode);
+
+  for (const [key, value] of actionHeaders?.entries() ?? []) {
+    c.header(key, value);
+  }
+  for (const [key, value] of loaderHeaders?.entries() ?? []) {
+    c.header(key, value);
+  }
+
+  if (presetError?.headers) {
+    for (const [key, value] of presetError.headers.entries()) {
+      if (key.toLowerCase() !== "content-type") {
+        c.header(key, value);
+      }
+    }
+  }
+
+  c.header("Content-Type", "text/html; charset=utf-8");
+  c.header("Vary", "Accept");
+
+  return stream(c, async (streamInstance) => {
+    return await startActiveSpan("stream.pipe", async (streamSpan) => {
+      try {
+        await streamInstance.pipe(renderStream);
+      } catch (cause) {
+        if (typeof cause === "undefined" && request.signal.aborted) {
+          streamSpan.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: "Stream aborted",
+          });
+        } else {
+          throw cause;
+        }
+      }
+    });
+  });
+}
+
+async function createErrorContext(
+  error: Error,
+  dataRoutes: DataRouteObject[],
+  request: Request,
+  requestContext: RouterContextProvider,
+): Promise<StaticHandlerContext | Response> {
+  const { query } = createStaticHandler(dataRoutes as unknown as RouteObject[]);
+  const contextOrResponse = await query(request, { requestContext });
+
+  if (contextOrResponse instanceof Response) {
+    return contextOrResponse;
+  }
+
+  const context = contextOrResponse;
+  if (!context.errors) context.errors = {};
+
+  let errorRouteId = "0";
+  for (let i = context.matches.length - 1; i >= 0; i--) {
+    const match = context.matches[i];
+    const route = match.route;
+    if (route.hasErrorBoundary) {
+      errorRouteId = route.id ?? "0";
+      break;
+    }
+  }
+  context.errors[errorRouteId] = error;
+
+  if (context.loaderData) {
+    delete context.loaderData[errorRouteId];
+  }
+
+  return context;
+}
+
+type ErrorHandler = (
+  cause: unknown,
+  c: Context<AppEnv>,
+) => Response | Promise<Response>;
+
 function serverLoaderError() {
   throw new Error("Cannot call serverLoader from server");
 }
@@ -460,6 +749,15 @@ export function mergeServerRoutes<
   return processRouteObjects(serverRoute, clientRoutes);
 }
 
+type ReactHandlers = ReturnType<
+  ReturnType<typeof createFactory<AppEnv>>["createHandlers"]
+>;
+
+interface HandlersResult {
+  handlers: ReactHandlers;
+  errorHandler: ErrorHandler;
+}
+
 /**
  * Creates handlers for React Router.
  *
@@ -467,24 +765,24 @@ export function mergeServerRoutes<
  *
  * @param route - The route configuration
  * @param routes - The routes to create handlers for
- * @returns The handlers for the routes
+ * @returns An object containing handlers and errorHandler for client route error rendering
  */
 export function createHandlers<
   E extends AppEnv = AppEnv,
   S extends Schema = Schema,
   BasePath extends string = "/",
->(route: Route<E, S, BasePath>, routes: RouteObject[]) {
+>(route: Route<E, S, BasePath>, routes: RouteObject[]): HandlersResult {
   const factory = createFactory<AppEnv>();
-  const serializeError = route.main?.serializeError ?? (() => {});
-  const allPublicEnvKeys = [
-    ...new Set([
-      ...DEFAULT_PUBLIC_ENV_KEYS,
-      ...(route.main?.publicEnvKeys ?? []),
-    ]),
-  ];
+  const serializeError = getSerializeError(route);
+  const allPublicEnvKeys = getAllPublicEnvKeys(route);
   const { query, dataRoutes, queryRoute } = createStaticHandler(routes);
 
-  return factory.createHandlers(
+  const renderOptions: RenderOptions = {
+    serializeError,
+    allPublicEnvKeys,
+  };
+
+  const handlers = factory.createHandlers(
     async function handleDocumentRequest(c, next) {
       return await startActiveSpan("handleDocumentRequest", async (_span) => {
         if (c.req.header("X-Juniper-Route-Id")) {
@@ -495,152 +793,25 @@ export function createHandlers<
         const contextOrResponse = await startActiveSpan(
           "query",
           async (_querySpan) => {
-            return await query(c.req.raw, {
-              requestContext,
-            });
+            return await query(c.req.raw, { requestContext });
           },
         );
 
         if (contextOrResponse instanceof Response) {
           return contextOrResponse;
         }
-        const context = contextOrResponse;
 
-        const router = createStaticRouter(dataRoutes, context);
-
-        let renderStream: ReturnType<typeof renderToReadableStream>;
-        let aborted = false;
-        let renderAttempts = 0;
-        async function render() {
-          renderAttempts += 1;
-          let retry = false;
-          await startActiveSpan("render.attempt", async (renderAttemptSpan) => {
-            renderAttemptSpan.setAttribute(
-              "render.attempt.index",
-              renderAttempts,
-            );
-            try {
-              const hydrationData = {
-                publicEnv: getPublicEnv(allPublicEnvKeys),
-                matches: context.matches.map((match) => ({
-                  id: match.route.id,
-                })),
-                errors: context.errors,
-                loaderData: context.loaderData,
-                actionData: context.actionData,
-              };
-              const serializedHydrationData = serializeHydrationData(
-                hydrationData,
-                { serializeError },
-              ).then((data) =>
-                `import { client } from "/build/main.js"; window.__juniperHydrationData = ${
-                  serialize(data, { isJSON: true })
-                }; await client.hydrate();`
-              );
-              const bootstrapScripts: string[] = [];
-              if (args["hot-reload"]) {
-                bootstrapScripts.push("/dev-client.js");
-              }
-
-              renderStream = await renderToReadableStream(
-                <StrictMode>
-                  <App>
-                    <StaticRouterProvider
-                      router={router}
-                      context={context}
-                      hydrate={false}
-                    />
-                    <Suspense fallback={null}>
-                      <HydrationScript
-                        serializedHydrationData={serializedHydrationData}
-                      />
-                    </Suspense>
-                  </App>
-                </StrictMode>,
-                {
-                  bootstrapModules: ["/build/main.js"],
-                  bootstrapScripts,
-                  signal: c.req.raw.signal,
-                  onError: (error: unknown) => {
-                    const abortError = error instanceof Error &&
-                      error.name === "AbortError";
-                    if (aborted && abortError) return;
-                    console.error("render onError", error);
-                    if (abortError) {
-                      aborted = true;
-                    }
-                  },
-                },
-              );
-              if (isbot(c.req.header("user-agent"))) {
-                await renderStream.allReady;
-              }
-            } catch (error) {
-              if (
-                c.req.raw.signal.aborted ||
-                (error instanceof Error && error.name === "AbortError")
-              ) {
-                throw error;
-              }
-              if (!context.errors) context.errors = {};
-              if (
-                context._deepestRenderedBoundaryId &&
-                !(context._deepestRenderedBoundaryId in context.errors)
-              ) {
-                context.errors[context._deepestRenderedBoundaryId] = error;
-                retry = true;
-              } else {
-                throw error;
-              }
-            }
-          });
-          if (retry) {
-            await render();
-          }
-        }
-        await startActiveSpan("render", async (renderSpan) => {
-          await render();
-          renderSpan.setAttribute("render.attempt.count", renderAttempts);
-        });
-
-        const deepestMatch = context.matches[context.matches.length - 1];
-        const actionHeaders = context.actionHeaders[deepestMatch.route.id];
-        const loaderHeaders = context.loaderHeaders[deepestMatch.route.id];
-
-        const statusCode: StatusCode = Object.values(context.errors ?? {})
-          .find((value: unknown) =>
-            value instanceof Error && (value as HttpError).status
-          )
-          ?.status ??
-          context.statusCode ??
-          200;
-
-        c.status(statusCode);
-
-        for (const [key, value] of actionHeaders?.entries() ?? []) {
-          c.header(key, value);
-        }
-        for (const [key, value] of loaderHeaders?.entries() ?? []) {
-          c.header(key, value);
-        }
-
-        c.header("Content-Type", "text/html; charset=utf-8");
-        c.header("Vary", "Accept");
-        return stream(c, async (streamInstance) => {
-          return await startActiveSpan("stream.pipe", async (streamSpan) => {
-            try {
-              await streamInstance.pipe(renderStream);
-            } catch (cause) {
-              if (typeof cause === "undefined" && c.req.raw.signal.aborted) {
-                streamSpan.setStatus({
-                  code: SpanStatusCode.ERROR,
-                  message: "Stream aborted",
-                });
-              } else {
-                throw cause;
-              }
-            }
-          });
+        Object.entries(contextOrResponse.errors ?? {}).forEach(
+          ([key, value]) => {
+            console.error(`Loader ${key} error:`, value);
+          },
+        );
+        return renderDocument(c, {
+          context: contextOrResponse,
+          dataRoutes,
+          renderOptions,
+          request: c.req.raw,
+          waitForAllReady: isbot(c.req.header("user-agent")),
         });
       });
     },
@@ -672,6 +843,63 @@ export function createHandlers<
       });
     },
   );
+
+  const errorHandler: ErrorHandler = async (cause, c) => {
+    const error = await convertToHttpError(cause);
+    if (!error.instance) {
+      const instance = getInstance();
+      if (instance) {
+        error.instance = instance;
+      }
+    }
+    console.error(error);
+
+    if (c.req.header("X-Juniper-Route-Id")) {
+      c.status(error.status as StatusCode);
+      c.header("Vary", "Accept");
+      c.header("X-Juniper", "serialized");
+      if (error.headers) {
+        for (const [key, value] of error.headers.entries()) {
+          if (key.toLowerCase() !== "content-type") {
+            c.header(key, value);
+          }
+        }
+      }
+      const serialized = serializeError(error) ?? serializeErrorDefault(error);
+      return c.json(SuperJSON.serialize(serialized));
+    }
+
+    try {
+      const requestContext = c.get("context");
+      const contextOrResponse = await createErrorContext(
+        error,
+        dataRoutes,
+        c.req.raw,
+        requestContext,
+      );
+
+      if (contextOrResponse instanceof Response) {
+        return contextOrResponse;
+      }
+
+      return renderDocument(c, {
+        context: contextOrResponse,
+        dataRoutes,
+        renderOptions,
+        request: c.req.raw,
+        waitForAllReady: true,
+        presetError: error,
+      });
+    } catch (renderError) {
+      console.error(
+        "Failed to render error page, falling back to JSON:",
+        renderError,
+      );
+      return error.getResponse();
+    }
+  };
+
+  return { handlers: handlers as unknown as ReactHandlers, errorHandler };
 }
 
 /**
@@ -686,6 +914,8 @@ export function createHandlers<
  * @param clientRoute - The client route configuration
  * @param reactHandlers - The React Router handlers for rendering pages
  * @param projectRoot - Optional project root for static file serving
+ * @param routeId - The route ID for this level (used for error assignment)
+ * @param errorHandler - Error handler for client routes that renders errors via React Router
  * @returns A configured Hono application
  */
 export function buildApp<
@@ -695,29 +925,100 @@ export function buildApp<
 >(
   serverRoute: Route<E, S, BasePath>,
   clientRoute: ClientRoute,
-  reactHandlers: ReturnType<typeof createHandlers>,
+  reactHandlers: ReactHandlers,
   projectRoot?: string,
+  routeId: string = "0",
+  errorHandler?: ErrorHandler,
 ): Hono<E, S, BasePath> {
   const notFound = createFactory().createMiddleware(() => {
     throw new HttpError(404, "Not found");
   });
 
-  const app = (serverRoute.main?.default ?? new Hono()) as Hono<E, S, BasePath>;
+  const isClientRoute = !!(
+    clientRoute.main || clientRoute.index || clientRoute.catchall
+  );
 
-  if (!clientRoute.index && clientRoute.main) {
-    app.get("/", ...reactHandlers);
-    app.post("/", ...reactHandlers);
+  function createClientRouteApp(
+    serverMiddleware: Hono<E, S, BasePath> | undefined,
+    currentRouteId: string,
+    addHandlers: boolean,
+  ): Hono<E, S, BasePath> {
+    const routeApp = new Hono<E, S, BasePath>({ strict: true });
+
+    if (errorHandler) {
+      routeApp.onError(
+        errorHandler as unknown as Parameters<typeof routeApp.onError>[0],
+      );
+    }
+
+    routeApp.use(async (_c, next) => {
+      await routeContextStorage.run(
+        { routeId: currentRouteId, isClientRoute: true },
+        async () => {
+          await next();
+        },
+      );
+    });
+
+    if (serverMiddleware) {
+      routeApp.route("/", serverMiddleware);
+    }
+
+    if (addHandlers) {
+      routeApp.get("/", ...reactHandlers);
+      routeApp.post("/", ...reactHandlers);
+    }
+
+    return routeApp;
+  }
+
+  function wrapServerOnlyApp(
+    serverApp: Hono<E, S, BasePath>,
+  ): Hono<E, S, BasePath> {
+    const wrapper = new Hono<E, S, BasePath>({ strict: true });
+    wrapper.onError(async (cause) => {
+      const error = await convertToHttpError(cause);
+      if (!error.instance) {
+        const instance = getInstance();
+        if (instance) {
+          error.instance = instance;
+        }
+      }
+      console.error(error);
+      return error.getResponse();
+    });
+    wrapper.route("/", serverApp);
+    return wrapper;
+  }
+
+  let app: Hono<E, S, BasePath>;
+
+  if (isClientRoute && errorHandler) {
+    const serverMiddleware = serverRoute.main?.default as
+      | Hono<E, S, BasePath>
+      | undefined;
+    const addHandlers = !clientRoute.index && !!clientRoute.main;
+    app = createClientRouteApp(serverMiddleware, routeId, addHandlers);
+  } else if (serverRoute.main?.default) {
+    app = wrapServerOnlyApp(serverRoute.main.default as Hono<E, S, BasePath>);
+  } else {
+    app = new Hono<E, S, BasePath>();
   }
 
   if (clientRoute.index || serverRoute.index) {
-    const indexApp = (serverRoute.index?.default ?? new Hono()) as Hono<
-      E,
-      S,
-      BasePath
-    >;
-    if (clientRoute.index) {
-      indexApp.get("/", ...reactHandlers);
-      indexApp.post("/", ...reactHandlers);
+    const indexRouteId = `${routeId}-0`;
+    let indexApp: Hono<E, S, BasePath>;
+    if (clientRoute.index && errorHandler) {
+      const serverMiddleware = serverRoute.index?.default as
+        | Hono<E, S, BasePath>
+        | undefined;
+      indexApp = createClientRouteApp(serverMiddleware, indexRouteId, true);
+    } else if (serverRoute.index?.default) {
+      indexApp = wrapServerOnlyApp(
+        serverRoute.index.default as Hono<E, S, BasePath>,
+      );
+    } else {
+      indexApp = new Hono<E, S, BasePath>();
     }
     app.route("/", indexApp);
   }
@@ -727,17 +1028,23 @@ export function buildApp<
     ...(clientRoute.children || []).map((r) => r.path),
   ]);
 
+  let childIndex = clientRoute.index ? 1 : 0;
   for (const childPath of allChildPaths) {
     const serverChild = serverRoute.children?.find((r) => r.path === childPath);
     const clientChild = clientRoute.children?.find((r) => r.path === childPath);
 
     if (serverChild || clientChild) {
+      const childRouteId = `${routeId}-${childIndex}`;
       const childApp = buildApp(
         serverChild || { path: childPath as BasePath },
         clientChild || { path: childPath },
         reactHandlers,
+        undefined,
+        childRouteId,
+        errorHandler,
       );
       app.route(`/${childPath}`, childApp);
+      childIndex++;
     }
   }
 
@@ -771,14 +1078,23 @@ export function buildApp<
   }
 
   if (clientRoute.catchall || serverRoute.catchall) {
-    const catchallApp = (serverRoute.catchall?.default ?? new Hono()) as Hono<
-      E,
-      S,
-      BasePath
-    >;
-    if (clientRoute.catchall) {
-      catchallApp.get("/", ...reactHandlers);
-      catchallApp.post("/", ...reactHandlers);
+    const catchallRouteId = `${routeId}-${childIndex}`;
+    let catchallApp: Hono<E, S, BasePath>;
+    if (clientRoute.catchall && errorHandler) {
+      const serverMiddleware = serverRoute.catchall?.default as
+        | Hono<E, S, BasePath>
+        | undefined;
+      catchallApp = createClientRouteApp(
+        serverMiddleware,
+        catchallRouteId,
+        true,
+      );
+    } else if (serverRoute.catchall?.default) {
+      catchallApp = wrapServerOnlyApp(
+        serverRoute.catchall.default as Hono<E, S, BasePath>,
+      );
+    } else {
+      catchallApp = new Hono<E, S, BasePath>();
     }
     app.route("/:*{.+}", catchallApp);
     app.route("*", catchallApp);

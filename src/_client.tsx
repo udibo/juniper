@@ -271,16 +271,20 @@ async function fetchServerData(
 
   const response = await fetch(request.url, fetchOptions);
 
-  if (!response.ok) {
-    throw await HttpError.from(response);
-  }
-
   const responseType = response.headers.get("X-Juniper");
   if (responseType === "serialized") {
-    return SuperJSON.deserialize(await response.json());
+    const deserialized = SuperJSON.deserialize(await response.json());
+    if (!response.ok) {
+      throw deserializeErrorDefault(deserialized);
+    }
+    return deserialized;
   } else if (responseType === "redirect") {
     const location = (await response.json()).location;
     return redirect(location);
+  }
+
+  if (!response.ok) {
+    throw await HttpError.from(response);
   }
 
   return response;

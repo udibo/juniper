@@ -69,10 +69,24 @@ const featureGroups: FeatureGroup[] = [
     ],
   },
   {
+    title: "Server Middleware",
+    features: [
+      { name: "Logging", path: "/features/middleware/logging" },
+      { name: "Basic Auth", path: "/features/middleware/basic-auth" },
+      { name: "Context Sharing", path: "/features/middleware/context-sharing" },
+    ],
+  },
+  {
     title: "Error Handling",
     features: [
       { name: "Error Boundary", path: "/features/errors/boundary" },
       { name: "SSR Errors", path: "/features/errors/ssr" },
+      { name: "Server Loader Error", path: "/features/errors/server-loader" },
+      {
+        name: "Server Middleware Error",
+        path: "/features/errors/server-middleware",
+      },
+      { name: "Nested Error", path: "/features/errors/nested" },
     ],
   },
 ];

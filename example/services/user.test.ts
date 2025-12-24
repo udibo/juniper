@@ -8,7 +8,7 @@ import { sortBy } from "@std/collections/sort-by";
 import { afterAll, beforeAll, describe, it } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
-import { HttpError } from "@udibo/http-error";
+import { HttpError } from "@udibo/juniper";
 
 import { UserService } from "./user.ts";
 import type { NewUser, User } from "./user.ts";

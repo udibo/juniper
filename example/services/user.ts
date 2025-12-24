@@ -1,5 +1,5 @@
 import { encodeHex } from "@std/encoding/hex";
-import { HttpError } from "@udibo/http-error";
+import { HttpError } from "@udibo/juniper";
 import { z } from "zod";
 import { isDevelopment } from "@udibo/juniper/utils/env";
 

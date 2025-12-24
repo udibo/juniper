@@ -10,7 +10,7 @@ import { assert, assertEquals, assertRejects } from "@std/assert";
 import { sortBy } from "@std/collections/sort-by";
 import { FakeTime } from "@std/testing/time";
 import { z } from "zod";
-import { HttpError } from "@udibo/http-error";
+import { HttpError } from "@udibo/juniper";
 import {
   generate as generateUUIDv7,
   validate as validateUUIDv7,

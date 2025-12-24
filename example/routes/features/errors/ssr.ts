@@ -1,4 +1,4 @@
-import { HttpError } from "@udibo/http-error";
+import { HttpError } from "@udibo/juniper";
 import type { RouteLoaderArgs } from "@udibo/juniper";
 
 export function loader(_args: RouteLoaderArgs) {

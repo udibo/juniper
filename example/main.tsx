@@ -168,11 +168,60 @@ export const client = new Client({
               main: () => import("./routes/features/errors/boundary.tsx"),
             },
             {
+              path: "server-loader",
+              main: () => import("./routes/features/errors/server-loader.tsx"),
+              server: {
+                loader: true,
+              },
+            },
+            {
+              path: "server-middleware",
+              main: () =>
+                import("./routes/features/errors/server-middleware.tsx"),
+            },
+            {
               path: "ssr",
               main: () => import("./routes/features/errors/ssr.tsx"),
               server: {
                 loader: true,
               },
+            },
+            {
+              path: "nested",
+              main: () => import("./routes/features/errors/nested/main.tsx"),
+              index: () => import("./routes/features/errors/nested/index.tsx"),
+              children: [
+                {
+                  path: "child",
+                  main: () =>
+                    import("./routes/features/errors/nested/child.tsx"),
+                },
+              ],
+            },
+          ],
+        },
+        {
+          path: "middleware",
+          index: () => import("./routes/features/middleware/index.tsx"),
+          children: [
+            {
+              path: "basic-auth",
+              main: () => import("./routes/features/middleware/basic-auth.tsx"),
+              server: {
+                loader: true,
+              },
+            },
+            {
+              path: "context-sharing",
+              main: () =>
+                import("./routes/features/middleware/context-sharing.tsx"),
+              server: {
+                loader: true,
+              },
+            },
+            {
+              path: "logging",
+              main: () => import("./routes/features/middleware/logging.tsx"),
             },
           ],
         },
