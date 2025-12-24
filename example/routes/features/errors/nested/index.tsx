@@ -24,9 +24,10 @@ export default function NestedErrorIndex() {
           <code className="px-1 py-0.5 bg-slate-700 rounded text-emerald-400">
             ErrorBoundary
           </code>
-          . The child route throws an error but does <strong>not</strong> have
-          its own ErrorBoundary. Click the button below to navigate to the child
-          route and see the error bubble up to this parent's ErrorBoundary.
+          . The child route throws an error but does <strong>not</strong>{" "}
+          have its own ErrorBoundary. Click the button below to navigate to the
+          child route and see the error bubble up to this parent's
+          ErrorBoundary.
         </p>
         <Link
           to="/features/errors/nested/child"
@@ -55,5 +56,3 @@ export default function Child() {
     </div>
   );
 }
-
-

@@ -55,6 +55,10 @@ export const server = createServer(import.meta.url, client, {
           path: "data",
           children: [
             {
+              path: "parent-data",
+              main: await import("./routes/features/data/parent-data/main.ts"),
+            },
+            {
               path: "server-actions",
               children: [
                 {

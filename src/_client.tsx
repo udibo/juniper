@@ -34,6 +34,35 @@ export interface ServerFlags {
   action?: boolean;
 }
 
+function normalizeSegmentForId(segment: string): string {
+  return segment.replace(/:(\w+)/g, "[$1]");
+}
+
+export function generateRouteId(
+  parentPath: string,
+  segment: string,
+  type: "main" | "index" | "catchall",
+): string {
+  const normalizedSegment = normalizeSegmentForId(segment);
+  let fullPath: string;
+  if (parentPath === "/") {
+    fullPath = normalizedSegment ? `/${normalizedSegment}` : "/";
+  } else {
+    fullPath = normalizedSegment
+      ? `${parentPath}/${normalizedSegment}`
+      : parentPath;
+  }
+
+  switch (type) {
+    case "index":
+      return fullPath === "/" ? "/index" : `${fullPath}/index`;
+    case "catchall":
+      return fullPath === "/" ? "/[...]" : `${fullPath}/[...]`;
+    default:
+      return fullPath;
+  }
+}
+
 const FORM_DATA_CACHE = Symbol("juniperFormDataCache");
 
 type RequestWithFormDataCache = Request & {

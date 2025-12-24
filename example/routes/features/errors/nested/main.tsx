@@ -54,7 +54,9 @@ export function ErrorBoundary({ error }: ErrorBoundaryProps) {
         </h3>
         <div className="bg-slate-900/50 rounded-lg p-4 mb-4">
           <p className="text-red-300 font-mono text-sm">
-            {error instanceof HttpError && !error.expose ? "Server error" : (error instanceof Error ? error.message : String(error))}
+            {error instanceof HttpError && !error.expose
+              ? "Server error"
+              : (error instanceof Error ? error.message : String(error))}
           </p>
         </div>
         <button
@@ -80,5 +82,3 @@ export function ErrorBoundary({ error }: ErrorBoundaryProps) {
     </div>
   );
 }
-
-

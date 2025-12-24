@@ -26,7 +26,7 @@ app.use(async (c, next) => {
 
 export default app;
 
-export async function loader({ context }: RouteLoaderArgs): Promise<LoaderData> {
+export function loader({ context }: RouteLoaderArgs): LoaderData {
   const requestInfo = context.get(requestInfoContext);
   console.log(`[Loader] Got request info: ${requestInfo.requestId}`);
   return {

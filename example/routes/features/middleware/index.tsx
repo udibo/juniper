@@ -57,14 +57,13 @@ export default function MiddlewareIndex() {
           How it works
         </h4>
         <p className="text-sm text-slate-400">
-          Create a <code className="text-emerald-400">.ts</code> file alongside
-          your route{" "}
-          <code className="text-emerald-400">.tsx</code> file and export a Hono
-          app as the default export. The middleware will run before the React
-          route handlers.
+          Create a <code className="text-emerald-400">.ts</code>{" "}
+          file alongside your route{" "}
+          <code className="text-emerald-400">.tsx</code>{" "}
+          file and export a Hono app as the default export. The middleware will
+          run before the React route handlers.
         </p>
       </div>
     </div>
   );
 }
-

@@ -14,6 +14,7 @@ import {
   createLazyRoute,
   createRoute,
   deserializeHydrationData,
+  generateRouteId,
 } from "./_client.tsx";
 import type {
   DefaultContext,
@@ -166,16 +167,18 @@ export class Client<Context extends DefaultContext = DefaultContext> {
   constructor(rootRoute: RootClientRoute<Context>) {
     this.rootRoute = rootRoute;
     this.routeFileMap = new Map();
-    this.routeObjects = [{ id: "0", path: rootRoute.path }];
+    const rootRouteId = "/";
+    this.routeObjects = [{ id: rootRouteId, path: rootRoute.path }];
     this.routeObjectMap = new Map();
 
-    const routeIdStack: string[] = ["0"];
+    const parentPathStack: string[] = ["/"];
     const routeStack: ClientRoute<Context>[] = [rootRoute];
     const routeObjectStack: RouteObject[] = [...this.routeObjects];
-    while (routeIdStack.length > 0) {
-      const routeId = routeIdStack.pop()!;
+    while (parentPathStack.length > 0) {
+      const currentPath = parentPathStack.pop()!;
       const route = routeStack.pop()!;
       const routeObject = routeObjectStack.pop()!;
+      const routeId = routeObject.id!;
 
       if (typeof route.main === "function") {
         routeObject.lazy = createLazyRoute<Context>(
@@ -201,7 +204,7 @@ export class Client<Context extends DefaultContext = DefaultContext> {
       const routeObjectChildren: RouteObject[] = [];
 
       if (route.index) {
-        const indexRouteId = `${routeId}-0`;
+        const indexRouteId = generateRouteId(currentPath, "", "index");
         const indexRouteObject = {
           id: indexRouteId,
           index: true,
@@ -218,20 +221,23 @@ export class Client<Context extends DefaultContext = DefaultContext> {
       }
 
       if (route.children) {
-        const offset = route.index ? 1 : 0;
-        for (const [childIndex, childRoute] of route.children.entries()) {
-          const childRouteId = `${routeId}-${childIndex + offset}`;
+        for (const childRoute of route.children) {
+          const childRouteId = generateRouteId(
+            currentPath,
+            childRoute.path,
+            "main",
+          );
           const childRouteObject = { id: childRouteId, path: childRoute.path };
           routeObjectChildren.push(childRouteObject);
 
-          routeIdStack.push(childRouteId);
+          parentPathStack.push(childRouteId);
           routeStack.push(childRoute);
           routeObjectStack.push(childRouteObject);
         }
       }
 
       if (route.catchall) {
-        const catchallRouteId = `${routeId}-${routeObjectChildren.length}`;
+        const catchallRouteId = generateRouteId(currentPath, "", "catchall");
         const catchallRouteObject = {
           id: catchallRouteId,
           path: "*",

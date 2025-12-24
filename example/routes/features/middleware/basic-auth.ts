@@ -15,7 +15,7 @@ app.use(basicAuth({
 
 export default app;
 
-export async function loader(_args: RouteLoaderArgs): Promise<LoaderData> {
+export function loader(_args: RouteLoaderArgs): LoaderData {
   return {
     authenticatedAt: new Date().toISOString(),
   };

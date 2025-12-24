@@ -66,7 +66,9 @@ export function ErrorBoundary(
             Something went wrong
           </h1>
           <p className="text-slate-300 mb-6">
-            {error instanceof HttpError && !error.expose ? "Server error" : (error instanceof Error ? error.message : String(error))}
+            {error instanceof HttpError && !error.expose
+              ? "Server error"
+              : (error instanceof Error ? error.message : String(error))}
           </p>
           <form>
             <button

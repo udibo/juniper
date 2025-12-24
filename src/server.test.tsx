@@ -1,9 +1,4 @@
-import {
-  assertEquals,
-  assertExists,
-  assertObjectMatch,
-  assertStringIncludes,
-} from "@std/assert";
+import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
 import { Outlet, useLoaderData, useParams } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
@@ -144,7 +139,7 @@ describe("createServer", () => {
       },
     });
     const res = await server.request("http://localhost/", {
-      headers: { "X-Juniper-Route-Id": "0" },
+      headers: { "X-Juniper-Route-Id": "/" },
     });
     assertEquals(res.status, 200);
     const ct = res.headers.get("content-type");

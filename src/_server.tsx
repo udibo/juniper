@@ -42,6 +42,7 @@ import { getInstance } from "@udibo/juniper/utils/otel";
 
 import {
   App,
+  generateRouteId,
   type SerializedHydrationData,
   type SerializedHydrationDataPromises,
 } from "./_client.tsx";
@@ -583,12 +584,12 @@ async function createErrorContext(
   const context = contextOrResponse;
   if (!context.errors) context.errors = {};
 
-  let errorRouteId = "0";
+  let errorRouteId = "/";
   for (let i = context.matches.length - 1; i >= 0; i--) {
     const match = context.matches[i];
     const route = match.route;
     if (route.hasErrorBoundary) {
-      errorRouteId = route.id ?? "0";
+      errorRouteId = route.id ?? "/";
       break;
     }
   }
@@ -914,7 +915,7 @@ export function createHandlers<
  * @param clientRoute - The client route configuration
  * @param reactHandlers - The React Router handlers for rendering pages
  * @param projectRoot - Optional project root for static file serving
- * @param routeId - The route ID for this level (used for error assignment)
+ * @param parentPath - The parent path for generating route IDs
  * @param errorHandler - Error handler for client routes that renders errors via React Router
  * @returns A configured Hono application
  */
@@ -927,7 +928,7 @@ export function buildApp<
   clientRoute: ClientRoute,
   reactHandlers: ReactHandlers,
   projectRoot?: string,
-  routeId: string = "0",
+  parentPath: string = "/",
   errorHandler?: ErrorHandler,
 ): Hono<E, S, BasePath> {
   const notFound = createFactory().createMiddleware(() => {
@@ -991,6 +992,7 @@ export function buildApp<
     return wrapper;
   }
 
+  const routeId = parentPath;
   let app: Hono<E, S, BasePath>;
 
   if (isClientRoute && errorHandler) {
@@ -1006,7 +1008,7 @@ export function buildApp<
   }
 
   if (clientRoute.index || serverRoute.index) {
-    const indexRouteId = `${routeId}-0`;
+    const indexRouteId = generateRouteId(parentPath, "", "index");
     let indexApp: Hono<E, S, BasePath>;
     if (clientRoute.index && errorHandler) {
       const serverMiddleware = serverRoute.index?.default as
@@ -1028,23 +1030,21 @@ export function buildApp<
     ...(clientRoute.children || []).map((r) => r.path),
   ]);
 
-  let childIndex = clientRoute.index ? 1 : 0;
   for (const childPath of allChildPaths) {
     const serverChild = serverRoute.children?.find((r) => r.path === childPath);
     const clientChild = clientRoute.children?.find((r) => r.path === childPath);
 
     if (serverChild || clientChild) {
-      const childRouteId = `${routeId}-${childIndex}`;
+      const childParentPath = generateRouteId(parentPath, childPath, "main");
       const childApp = buildApp(
         serverChild || { path: childPath as BasePath },
         clientChild || { path: childPath },
         reactHandlers,
         undefined,
-        childRouteId,
+        childParentPath,
         errorHandler,
       );
       app.route(`/${childPath}`, childApp);
-      childIndex++;
     }
   }
 
@@ -1078,7 +1078,7 @@ export function buildApp<
   }
 
   if (clientRoute.catchall || serverRoute.catchall) {
-    const catchallRouteId = `${routeId}-${childIndex}`;
+    const catchallRouteId = generateRouteId(parentPath, "", "catchall");
     let catchallApp: Hono<E, S, BasePath>;
     if (clientRoute.catchall && errorHandler) {
       const serverMiddleware = serverRoute.catchall?.default as

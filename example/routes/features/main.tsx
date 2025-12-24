@@ -23,6 +23,7 @@ const featureGroups: FeatureGroup[] = [
       { name: "Client Loader", path: "/features/data/loader" },
       { name: "Deferred Data", path: "/features/data/deferred" },
       { name: "Hydrate Fallback", path: "/features/data/hydrate-fallback" },
+      { name: "Parent Route Data", path: "/features/data/parent-data" },
     ],
   },
   {

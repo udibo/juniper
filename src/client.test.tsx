@@ -119,29 +119,29 @@ describe("Client", () => {
       "path": "/",
     });
     assertExists(routeObject.children);
-    assertEquals(client.routeFileMap.get("0"), routes.main);
-    assertEquals(client.routeObjectMap.get("0"), routeObject);
+    assertEquals(client.routeFileMap.get("/"), routes.main);
+    assertEquals(client.routeObjectMap.get("/"), routeObject);
 
     assertObjectMatch(routeObject.children[0], {
       "index": true,
     });
     assertExists(routeObject.children[0].lazy);
-    assertEquals(client.routeFileMap.get("0-0"), routes.index);
-    assertEquals(client.routeObjectMap.get("0-0"), routeObject.children[0]);
+    assertEquals(client.routeFileMap.get("/index"), routes.index);
+    assertEquals(client.routeObjectMap.get("/index"), routeObject.children[0]);
 
     assertObjectMatch(routeObject.children[1], {
       "path": "about",
     });
     assertExists(routeObject.children[1].lazy);
-    assertEquals(client.routeFileMap.get("0-1"), routes.children[0].main);
-    assertEquals(client.routeObjectMap.get("0-1"), routeObject.children[1]);
+    assertEquals(client.routeFileMap.get("/about"), routes.children[0].main);
+    assertEquals(client.routeObjectMap.get("/about"), routeObject.children[1]);
 
     assertObjectMatch(routeObject.children[2], {
       "path": "blog",
     });
     assertExists(routeObject.children[2].lazy);
-    assertEquals(client.routeFileMap.get("0-2"), routes.children[1].main);
-    assertEquals(client.routeObjectMap.get("0-2"), routeObject.children[2]);
+    assertEquals(client.routeFileMap.get("/blog"), routes.children[1].main);
+    assertEquals(client.routeObjectMap.get("/blog"), routeObject.children[2]);
 
     assertExists(routeObject.children[2].children);
     assertObjectMatch(routeObject.children[2].children[0], {
@@ -149,11 +149,11 @@ describe("Client", () => {
     });
     assertExists(routeObject.children[2].children[0].lazy);
     assertEquals(
-      client.routeFileMap.get("0-2-0"),
+      client.routeFileMap.get("/blog/index"),
       routes.children[1].index,
     );
     assertEquals(
-      client.routeObjectMap.get("0-2-0"),
+      client.routeObjectMap.get("/blog/index"),
       routeObject.children[2].children[0],
     );
 
@@ -162,11 +162,11 @@ describe("Client", () => {
     });
     assertExists(routeObject.children[2].children[1].lazy);
     assertEquals(
-      client.routeFileMap.get("0-2-1"),
+      client.routeFileMap.get("/blog/create"),
       routes.children[1].children?.[0].main,
     );
     assertEquals(
-      client.routeObjectMap.get("0-2-1"),
+      client.routeObjectMap.get("/blog/create"),
       routeObject.children[2].children[1],
     );
 
@@ -175,11 +175,11 @@ describe("Client", () => {
     });
     assertExists(routeObject.children[2].children[2].lazy);
     assertEquals(
-      client.routeFileMap.get("0-2-2"),
+      client.routeFileMap.get("/blog/[id]"),
       routes.children[1].children?.[1].main,
     );
     assertEquals(
-      client.routeObjectMap.get("0-2-2"),
+      client.routeObjectMap.get("/blog/[id]"),
       routeObject.children[2].children[2],
     );
 
@@ -188,10 +188,10 @@ describe("Client", () => {
     });
     assertExists(routeObject.children[3].lazy);
     assertEquals(
-      client.routeFileMap.get("0-3"),
+      client.routeFileMap.get("/[...]"),
       routes.catchall,
     );
-    assertEquals(client.routeObjectMap.get("0-3"), routeObject.children[3]);
+    assertEquals(client.routeObjectMap.get("/[...]"), routeObject.children[3]);
   });
 });
 
@@ -455,10 +455,10 @@ describe("getHydrationData", () => {
   const errorHydrationData: HydrationData = {
     matches: [],
     errors: {
-      "0": new Error("Oops"),
-      "0-1": new TypeError("Wrong type"),
-      "0-1-0": new HttpError(400, "Bad request"),
-      "0-1-0-1": new CustomError("Custom error", "Custom detail"),
+      "/": new Error("Oops"),
+      "/about": new TypeError("Wrong type"),
+      "/blog": new HttpError(400, "Bad request"),
+      "/blog/create": new CustomError("Custom error", "Custom detail"),
     },
     loaderData: {},
   };
@@ -473,15 +473,15 @@ describe("getHydrationData", () => {
           loaderData: {},
         });
         assertExists(data.errors);
-        assertIsError(data.errors["0"], Error, "Oops");
-        assertIsError(data.errors["0-1"], TypeError, "Wrong type");
+        assertIsError(data.errors["/"], Error, "Oops");
+        assertIsError(data.errors["/about"], TypeError, "Wrong type");
 
-        assertIsError(data.errors["0-1-0"], HttpError, "Bad request");
-        assertEquals(data.errors["0-1-0"].name, "BadRequestError");
-        assertEquals(data.errors["0-1-0"].status, 400);
+        assertIsError(data.errors["/blog"], HttpError, "Bad request");
+        assertEquals(data.errors["/blog"].name, "BadRequestError");
+        assertEquals(data.errors["/blog"].status, 400);
 
-        assertIsError(data.errors["0-1-0-1"], Error, "Custom error");
-        assertEquals(data.errors["0-1-0-1"] instanceof CustomError, false);
+        assertIsError(data.errors["/blog/create"], Error, "Custom error");
+        assertEquals(data.errors["/blog/create"] instanceof CustomError, false);
       }),
     );
 
@@ -500,15 +500,15 @@ describe("getHydrationData", () => {
           loaderData: {},
         });
         assertExists(data.errors);
-        assertIsError(data.errors["0"], Error, "Oops");
-        assertIsError(data.errors["0-1"], TypeError, "Wrong type");
+        assertIsError(data.errors["/"], Error, "Oops");
+        assertIsError(data.errors["/about"], TypeError, "Wrong type");
 
-        assertIsError(data.errors["0-1-0"], HttpError, "Bad request");
-        assertEquals(data.errors["0-1-0"].name, "BadRequestError");
-        assertEquals(data.errors["0-1-0"].status, 400);
+        assertIsError(data.errors["/blog"], HttpError, "Bad request");
+        assertEquals(data.errors["/blog"].name, "BadRequestError");
+        assertEquals(data.errors["/blog"].status, 400);
 
-        assertIsError(data.errors["0-1-0-1"], CustomError, "Custom error");
-        assertEquals(data.errors["0-1-0-1"].detail, "Custom detail");
+        assertIsError(data.errors["/blog/create"], CustomError, "Custom error");
+        assertEquals(data.errors["/blog/create"].detail, "Custom detail");
       }),
     );
   });
@@ -520,17 +520,17 @@ describe("getHydrationData", () => {
         matches: [],
         errors: undefined,
         loaderData: {
-          "0": {
+          "/": {
             user: { name: "John", age: 30 },
             settings: { theme: "dark" },
           },
-          "0-1": {
+          "/about": {
             posts: [{ id: 1, title: "Hello" }],
             asyncData: Promise.resolve("resolved data"),
           },
         },
         actionData: {
-          "0": {
+          "/": {
             result: "success",
             data: { id: 1 },
           },
@@ -542,21 +542,21 @@ describe("getHydrationData", () => {
         assertExists(data.loaderData);
         assertExists(data.actionData);
 
-        assertEquals(data.loaderData["0"], {
+        assertEquals(data.loaderData["/"], {
           user: { name: "John", age: 30 },
           settings: { theme: "dark" },
         });
 
-        assertExists(data.loaderData["0-1"]);
+        assertExists(data.loaderData["/about"]);
 
-        const loaderData = data.loaderData["0-1"];
+        const loaderData = data.loaderData["/about"];
         assertExists(loaderData);
         assertExists(loaderData.posts);
         assertExists(loaderData.asyncData);
         assert(loaderData.asyncData instanceof Promise);
         assertEquals(await loaderData.asyncData, "resolved data");
 
-        assertEquals(data.actionData["0"], {
+        assertEquals(data.actionData["/"], {
           result: "success",
           data: { id: 1 },
         });
@@ -568,12 +568,12 @@ describe("getHydrationData", () => {
         matches: [],
         errors: undefined,
         loaderData: {
-          "0-1-0": {
+          "/blog": {
             error: Promise.reject(new Error("Loader failed")),
           },
         },
         actionData: {
-          "0-1": {
+          "/about": {
             error: Promise.reject(new HttpError(422, "Validation failed")),
           },
         },
@@ -583,13 +583,13 @@ describe("getHydrationData", () => {
         const data = client.getHydrationData();
 
         await assertRejects(
-          () => data.loaderData!["0-1-0"].error,
+          () => data.loaderData!["/blog"].error,
           Error,
           "Loader failed",
         );
 
         const error = await assertRejects(
-          () => data.actionData!["0-1"].error,
+          () => data.actionData!["/about"].error,
           HttpError,
           "Validation failed",
         );
@@ -615,7 +615,7 @@ describe("getHydrationData", () => {
       simulateBrowser({
         matches: [],
         loaderData: {
-          "0": { data: "test" },
+          "/": { data: "test" },
         },
         actionData: null,
       }, () => {
@@ -645,34 +645,27 @@ describe("getHydrationData", () => {
 
       const client = new Client(routes);
 
-      // Manually add lazy route to simulate the scenario
-      const route = client.routeObjectMap.get("0-1");
+      const route = client.routeObjectMap.get("/about");
 
       if (route) route.lazy = mockLazyRouteFile;
 
-      await client.loadLazyMatches([{ id: "0-1" }]);
+      await client.loadLazyMatches([{ id: "/about" }]);
 
-      // Verify that lazy route was loaded and lazy property was removed
       if (route) {
         assertEquals(route.lazy, undefined);
-        // The properties should be set by the loadLazyMatches method
-        // Note: We're not checking the specific properties as they may not be set
-        // in the test environment, but the method should run without error
       }
     });
 
     it("should handle routes without lazy property", async () => {
       const client = new Client(routes);
-      const route = client.routeObjectMap.get("0");
+      const route = client.routeObjectMap.get("/");
 
-      // Ensure the route doesn't have lazy property
       if (route) {
         delete route.lazy;
       }
 
-      await client.loadLazyMatches([{ id: "0" }]);
+      await client.loadLazyMatches([{ id: "/" }]);
 
-      // Should not throw and route should remain unchanged
       if (route) {
         assertEquals(route.lazy, undefined);
       }
@@ -681,21 +674,18 @@ describe("getHydrationData", () => {
     it("should handle missing matches in hydration data", async () => {
       const client = new Client(routes);
 
-      // Should not throw
       await client.loadLazyMatches([]);
     });
 
     it("should handle empty matches array", async () => {
       const client = new Client(routes);
 
-      // Should not throw
       await client.loadLazyMatches([]);
     });
 
     it("should handle missing hydration data", async () => {
       const client = new Client(routes);
 
-      // Should not throw
       await client.loadLazyMatches([]);
     });
 
@@ -704,12 +694,12 @@ describe("getHydrationData", () => {
         Promise.reject(new Error("Lazy load failed"));
 
       const client = new Client(routes);
-      const route = client.routeObjectMap.get("0-1");
+      const route = client.routeObjectMap.get("/about");
 
       if (route) route.lazy = mockLazyRouteFile;
 
       try {
-        await client.loadLazyMatches([{ id: "0-1" }]);
+        await client.loadLazyMatches([{ id: "/about" }]);
         assertEquals(true, false, "Should have thrown an error");
       } catch (error) {
         assertIsError(error, Error, "Lazy load failed");
@@ -724,29 +714,24 @@ describe("getHydrationData", () => {
         Promise.resolve({
           default: mockComponent,
           loader: mockLoader,
-          // No ErrorBoundary or action
         });
 
       const client = new Client(routes);
-      const route = client.routeObjectMap.get("0-1");
+      const route = client.routeObjectMap.get("/about");
 
       if (route) route.lazy = mockLazyRouteFile;
 
-      await client.loadLazyMatches([{ id: "0-1" }]);
+      await client.loadLazyMatches([{ id: "/about" }]);
 
       if (route) {
         assertEquals(route.lazy, undefined);
-        // The properties should be set by the loadLazyMatches method
-        // Note: We're not checking the specific properties as they may not be set
-        // in the test environment, but the method should run without error
       }
     });
 
     it("should handle non-existent route IDs in matches", async () => {
       const client = new Client(routes);
 
-      // Should not throw
-      await client.loadLazyMatches([{ id: "non-existent-route" }]);
+      await client.loadLazyMatches([{ id: "/non-existent-route" }]);
     });
   });
 });
@@ -757,18 +742,18 @@ describe("HydrationData serialization and deserialization", () => {
   beforeAll(async () => {
     hydrationData = {
       publicEnv: { APP_ENV: "test", APP_NAME: "TestApp" },
-      matches: [{ id: "0" }, { id: "0-4" }, { id: "0-4-0" }],
+      matches: [{ id: "/" }, { id: "/blog" }, { id: "/blog/index" }],
       errors: {
-        "0": new Error("Oops"),
-        "0-4": new TypeError("Wrong type"),
-        "0-4-0": new HttpError(400, "Bad request"),
+        "/": new Error("Oops"),
+        "/blog": new TypeError("Wrong type"),
+        "/blog/index": new HttpError(400, "Bad request"),
       },
       loaderData: {
-        "0": {
+        "/": {
           user: Promise.resolve({ name: "John", age: 30 }),
           settings: { theme: "dark" },
         },
-        "0-4": {
+        "/blog": {
           posts: [{ id: 1, title: "Hello" }],
           comments: Promise.resolve([{ id: 1, content: "Comment" }]),
           regexp: /hello/g,
@@ -788,11 +773,11 @@ describe("HydrationData serialization and deserialization", () => {
         },
       },
       actionData: {
-        "0": {
+        "/": {
           user: Promise.resolve({ name: "John", age: 30 }),
           settings: { theme: "dark" },
         },
-        "0-4": {
+        "/blog": {
           posts: [{ id: 1, title: "Hello" }],
           comments: Promise.resolve([{ id: 1, content: "Comment" }]),
           regexp: /hello/g,
@@ -836,23 +821,23 @@ describe("HydrationData serialization and deserialization", () => {
   });
 
   it("errors are the same", () => {
-    assertIsError(deserializedHydrationData.errors!["0"], Error, "Oops");
+    assertIsError(deserializedHydrationData.errors!["/"], Error, "Oops");
     assertIsError(
-      deserializedHydrationData.errors!["0-4"],
+      deserializedHydrationData.errors!["/blog"],
       TypeError,
       "Wrong type",
     );
 
     assertIsError(
-      deserializedHydrationData.errors!["0-4-0"],
+      deserializedHydrationData.errors!["/blog/index"],
       HttpError,
       "Bad request",
     );
     assertEquals(
-      deserializedHydrationData.errors!["0-4-0"].name,
+      deserializedHydrationData.errors!["/blog/index"].name,
       "BadRequestError",
     );
-    assertEquals(deserializedHydrationData.errors!["0-4-0"].status, 400);
+    assertEquals(deserializedHydrationData.errors!["/blog/index"].status, 400);
   });
 
   async function assertRouteDataErrors(
@@ -860,19 +845,19 @@ describe("HydrationData serialization and deserialization", () => {
     routeData: HydrationData["loaderData"] | HydrationData["actionData"],
   ) {
     await assertRejects(
-      () => routeData!["0-4"].error,
+      () => routeData!["/blog"].error,
       Error,
       `${messagePrefix} failed`,
     );
 
     await assertRejects(
-      () => routeData!["0-4"].typeError,
+      () => routeData!["/blog"].typeError,
       TypeError,
       `${messagePrefix} wrong type`,
     );
 
     const httpError = await assertRejects(
-      () => routeData!["0-4"].httpError,
+      () => routeData!["/blog"].httpError,
       HttpError,
       `${messagePrefix} bad request`,
     );
@@ -880,7 +865,7 @@ describe("HydrationData serialization and deserialization", () => {
     assertEquals(httpError.status, 400);
 
     const customError = await assertRejects(
-      () => routeData!["0-4"].customError,
+      () => routeData!["/blog"].customError,
       CustomError,
       `${messagePrefix} custom error`,
     );

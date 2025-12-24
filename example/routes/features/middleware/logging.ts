@@ -5,5 +5,3 @@ const app = new Hono();
 app.use(logger());
 
 export default app;
-
-

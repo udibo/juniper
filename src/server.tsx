@@ -120,7 +120,7 @@ export function createServer<
     client.rootRoute,
     handlers,
     projectRoot,
-    "0",
+    "/",
     errorHandler,
   );
 

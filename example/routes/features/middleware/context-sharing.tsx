@@ -61,12 +61,14 @@ export default function ContextSharingExample({
       </div>
 
       <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-        <h4 className="text-sm font-semibold text-slate-300 mb-2">How it works</h4>
+        <h4 className="text-sm font-semibold text-slate-300 mb-2">
+          How it works
+        </h4>
         <ol className="text-sm text-slate-400 space-y-2 list-decimal list-inside">
           <li>
             Create a context with{" "}
-            <code className="text-emerald-400">createContext()</code> from
-            react-router
+            <code className="text-emerald-400">createContext()</code>{" "}
+            from react-router
           </li>
           <li>
             In middleware, get the router context via{" "}

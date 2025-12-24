@@ -72,6 +72,15 @@ export const client = new Client({
               main: () => import("./routes/features/data/loader.tsx"),
             },
             {
+              path: "parent-data",
+              main: () => import("./routes/features/data/parent-data/main.tsx"),
+              server: {
+                loader: true,
+              },
+              index: () =>
+                import("./routes/features/data/parent-data/index.tsx"),
+            },
+            {
               path: "server-actions",
               children: [
                 {
