@@ -1,6 +1,6 @@
 import { assert, assertEquals } from "@std/assert";
 import { afterAll, afterEach, beforeAll, describe, it } from "@std/testing/bdd";
-import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
+import { generate as generateUUIDv7 } from "@std/uuid/v7";
 
 import { postService } from "@/services/post.ts";
 import type { NewPost, Post } from "@/services/post.ts";

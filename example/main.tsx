@@ -221,6 +221,28 @@ export const client = new Client({
               },
             },
             {
+              path: "client-middleware",
+              main: await import(
+                "./routes/features/middleware/client-middleware.tsx"
+              ),
+              server: {
+                loader: true,
+              },
+            },
+            {
+              path: "client-redirect",
+              main: await import(
+                "./routes/features/middleware/client-redirect.tsx"
+              ),
+            },
+            {
+              path: "combined",
+              main: await import("./routes/features/middleware/combined.tsx"),
+              server: {
+                loader: true,
+              },
+            },
+            {
               path: "context-sharing",
               main: () =>
                 import("./routes/features/middleware/context-sharing.tsx"),

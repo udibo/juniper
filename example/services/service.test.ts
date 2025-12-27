@@ -14,7 +14,7 @@ import { HttpError } from "@udibo/juniper";
 import {
   generate as generateUUIDv7,
   validate as validateUUIDv7,
-} from "@std/uuid/unstable-v7";
+} from "@std/uuid/v7";
 
 import { Service } from "./service.ts";
 

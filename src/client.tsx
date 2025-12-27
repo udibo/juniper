@@ -3,9 +3,13 @@
  *
  * @module
  */
-import { startTransition, StrictMode } from "react";
+import { startTransition, StrictMode, useState } from "react";
 import { hydrateRoot } from "react-dom/client";
-import { createBrowserRouter, RouterProvider } from "react-router";
+import {
+  createBrowserRouter,
+  RouterContextProvider,
+  RouterProvider,
+} from "react-router";
 import type { RouteObject } from "react-router";
 import type { AnyParams, RootRouteModule, RouteModule } from "@udibo/juniper";
 
@@ -15,6 +19,7 @@ import {
   createRoute,
   deserializeHydrationData,
   generateRouteId,
+  JuniperContextProvider,
 } from "./_client.tsx";
 import type {
   DefaultContext,
@@ -193,19 +198,23 @@ export class Client<Context extends DefaultContext = DefaultContext> {
           HydrateFallback,
           loader,
           action,
+          middleware,
         } = createRoute(route.main, route.server, routeId);
         routeObject.Component = Component;
         routeObject.ErrorBoundary = ErrorBoundary;
         routeObject.HydrateFallback = HydrateFallback;
         routeObject.loader = loader;
         routeObject.action = action;
+        if (middleware) {
+          (routeObject as { middleware: unknown }).middleware = middleware;
+        }
       }
 
       const routeObjectChildren: RouteObject[] = [];
 
       if (route.index) {
         const indexRouteId = generateRouteId(currentPath, "", "index");
-        const indexRouteObject = {
+        const indexRouteObject: RouteObject = {
           id: indexRouteId,
           index: true,
           lazy: createLazyRoute<Context>(
@@ -238,7 +247,7 @@ export class Client<Context extends DefaultContext = DefaultContext> {
 
       if (route.catchall) {
         const catchallRouteId = generateRouteId(currentPath, "", "catchall");
-        const catchallRouteObject = {
+        const catchallRouteObject: RouteObject = {
           id: catchallRouteId,
           path: "*",
           lazy: createLazyRoute<Context>(
@@ -320,17 +329,30 @@ export class Client<Context extends DefaultContext = DefaultContext> {
 
     await this.loadLazyMatches(matches);
 
-    const router = createBrowserRouter(this.routeObjects, { hydrationData });
+    const context = new RouterContextProvider();
+    const router = createBrowserRouter(this.routeObjects, {
+      hydrationData,
+      getContext: () => context,
+    });
+
+    function HydratedApp() {
+      const [routerContext] = useState(() => context);
+      return (
+        <StrictMode>
+          <App>
+            <JuniperContextProvider context={routerContext}>
+              <RouterProvider router={router} />
+            </JuniperContextProvider>
+          </App>
+        </StrictMode>
+      );
+    }
 
     function hydrate() {
       startTransition(() => {
         hydrateRoot(
           document,
-          <StrictMode>
-            <App>
-              <RouterProvider router={router} />
-            </App>
-          </StrictMode>,
+          <HydratedApp />,
           {
             onUncaughtError: (error: unknown) => {
               console.error("hydrate onUncaughtError", error);

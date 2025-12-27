@@ -78,6 +78,20 @@ const featureGroups: FeatureGroup[] = [
     ],
   },
   {
+    title: "Client Middleware",
+    features: [
+      {
+        name: "Client Middleware",
+        path: "/features/middleware/client-middleware",
+      },
+      {
+        name: "Client Redirect",
+        path: "/features/middleware/client-redirect",
+      },
+      { name: "Combined Middleware", path: "/features/middleware/combined" },
+    ],
+  },
+  {
     title: "Error Handling",
     features: [
       { name: "Error Boundary", path: "/features/errors/boundary" },

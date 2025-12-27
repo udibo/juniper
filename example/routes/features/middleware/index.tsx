@@ -3,15 +3,18 @@ import { Link } from "react-router";
 export default function MiddlewareIndex() {
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-slate-100">Server Middleware</h2>
+      <h2 className="text-2xl font-bold text-slate-100">Middleware</h2>
       <p className="text-slate-300">
-        Juniper supports Hono middleware on server routes. This allows you to
-        add authentication, logging, rate limiting, and other cross-cutting
-        concerns to your routes.
+        Juniper supports both server-side middleware (using Hono) and
+        client-side middleware (using React Router's middleware API). This
+        allows you to add authentication, logging, rate limiting, and other
+        cross-cutting concerns to your routes.
       </p>
 
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-slate-200">Examples</h3>
+        <h3 className="text-lg font-semibold text-slate-200">
+          Server Middleware Examples
+        </h3>
         <ul className="space-y-2">
           <li>
             <Link
@@ -47,6 +50,50 @@ export default function MiddlewareIndex() {
             {" - "}
             <span className="text-slate-400">
               Share data between middleware and loaders
+            </span>
+          </li>
+        </ul>
+      </div>
+
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-slate-200">
+          Client Middleware Examples
+        </h3>
+        <ul className="space-y-2">
+          <li>
+            <Link
+              to="/features/middleware/client-middleware"
+              className="text-emerald-400 hover:text-emerald-300"
+            >
+              Client Middleware
+            </Link>
+            {" - "}
+            <span className="text-slate-400">
+              Run middleware during client-side navigation
+            </span>
+          </li>
+          <li>
+            <Link
+              to="/features/middleware/client-redirect"
+              className="text-emerald-400 hover:text-emerald-300"
+            >
+              Client Redirect
+            </Link>
+            {" - "}
+            <span className="text-slate-400">
+              Redirect from middleware by throwing a redirect
+            </span>
+          </li>
+          <li>
+            <Link
+              to="/features/middleware/combined"
+              className="text-emerald-400 hover:text-emerald-300"
+            >
+              Combined Middleware
+            </Link>
+            {" - "}
+            <span className="text-slate-400">
+              Use both server and client middleware on the same route
             </span>
           </li>
         </ul>

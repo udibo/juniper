@@ -649,4 +649,24 @@ describe("createRoutesStub", () => {
       screen.getByText("Resolved");
     });
   });
+
+  it("should provide context to route components", async () => {
+    const routeModule = {
+      default: function TestComponent({ context }: { context: unknown }) {
+        return (
+          <div data-testid="context-test">
+            {context ? "has context" : "no context"}
+          </div>
+        );
+      },
+    };
+
+    const Stub = createRoutesStub([routeModule]);
+    render(<Stub />);
+
+    await waitFor(() => {
+      const element = screen.getByTestId("context-test");
+      assertEquals(element.textContent, "has context");
+    });
+  });
 });

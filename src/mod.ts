@@ -93,6 +93,83 @@ export interface RouteActionArgs<
 }
 
 /**
+ * The argument shape provided to route middleware.
+ *
+ * @template Context - The router context type.
+ * @template Params - The type of route params. Defaults to `AnyParams`.
+ *
+ * @example Middleware accessing context
+ * ```tsx
+ * import type { RouteMiddlewareArgs } from "@udibo/juniper";
+ *
+ * export const middleware = [
+ *   async ({ context, request }: RouteMiddlewareArgs, next: () => Promise<void>) => {
+ *     const session = await getSession(request);
+ *     context.set(userContext, session.user);
+ *     await next();
+ *   },
+ * ];
+ * ```
+ */
+export interface RouteMiddlewareArgs<
+  Context extends RouterContextProvider = RouterContextProvider,
+  Params extends AnyParams = AnyParams,
+> {
+  context: Context;
+  params: Params;
+  request: Request;
+}
+
+/**
+ * A middleware function exported by a route module.
+ * Receives the same "data" arguments as a loader/action (request, params, context)
+ * as the first parameter and a next function as the second parameter which will
+ * call downstream handlers and then complete middlewares from the bottom-up.
+ *
+ * @template Context - The router context type.
+ * @template Params - The type of route params. Defaults to `AnyParams`.
+ *
+ * @example Authentication middleware
+ * ```tsx
+ * import { redirect } from "react-router";
+ * import type { MiddlewareFunction } from "@udibo/juniper";
+ *
+ * const authMiddleware: MiddlewareFunction = async ({ context, request }, next) => {
+ *   const session = await getSession(request);
+ *   if (!session.userId) {
+ *     throw redirect("/login");
+ *   }
+ *   const user = await getUserById(session.userId);
+ *   context.set(userContext, user);
+ *   await next();
+ * };
+ *
+ * export const middleware = [authMiddleware];
+ * ```
+ *
+ * @example Logging middleware
+ * ```tsx
+ * import type { MiddlewareFunction } from "@udibo/juniper";
+ *
+ * const loggingMiddleware: MiddlewareFunction = async ({ request }, next) => {
+ *   console.log(`[${new Date().toISOString()}] ${request.method} ${request.url}`);
+ *   const start = performance.now();
+ *   await next();
+ *   console.log(`[${new Date().toISOString()}] Completed in ${performance.now() - start}ms`);
+ * };
+ *
+ * export const middleware = [loggingMiddleware];
+ * ```
+ */
+export type MiddlewareFunction<
+  Context extends RouterContextProvider = RouterContextProvider,
+  Params extends AnyParams = AnyParams,
+> = (
+  args: RouteMiddlewareArgs<Context, Params>,
+  next: () => Promise<Context>,
+) => Promise<void> | void;
+
+/**
  * The props that are common to route components and error boundaries.
  *
  * @template Params - The type of route params. Defaults to `AnyParams`.
@@ -166,11 +243,22 @@ export interface RouteActionArgs<
  *   return <form><input type="text" /></form>;
  * }
  * ```
+ *
+ * @example Route component accessing context
+ * ```tsx
+ * import type { RouteProps } from "@udibo/juniper";
+ *
+ * export default function Dashboard({ context }: RouteProps) {
+ *   const user = context.get(userContext);
+ *   return <div>Welcome, {user.name}</div>;
+ * }
+ * ```
  */
 export interface RouteProps<
   Params extends AnyParams = AnyParams,
   LoaderData = unknown,
   ActionData = unknown,
+  Context extends RouterContextProvider = RouterContextProvider,
 > {
   /** The params of the route. */
   params: Params;
@@ -178,6 +266,8 @@ export interface RouteProps<
   loaderData: LoaderData;
   /** The action data of the route. */
   actionData: ActionData;
+  /** The router context shared by middleware, loaders, actions, and components. */
+  context: Context;
 }
 
 /**
@@ -186,6 +276,7 @@ export interface RouteProps<
  * @template Params - The type of route params. Defaults to `AnyParams`.
  * @template LoaderData - The type of loader data. Defaults to `unknown`.
  * @template ActionData - The type of action data. Defaults to `unknown`.
+ * @template Context - The router context type. Defaults to `RouterContextProvider`.
  *
  * @example Basic error boundary
  * ```tsx
@@ -240,7 +331,8 @@ export interface ErrorBoundaryProps<
   Params extends AnyParams = AnyParams,
   LoaderData = unknown,
   ActionData = unknown,
-> extends RouteProps<Params, LoaderData, ActionData> {
+  Context extends RouterContextProvider = RouterContextProvider,
+> extends RouteProps<Params, LoaderData, ActionData, Context> {
   /** The error that was thrown. */
   error: unknown;
   /** A function to reset the error boundary. */
@@ -258,6 +350,7 @@ type BivariantComponent<Props> = {
  * @template Params - The type of route params. Defaults to `AnyParams`.
  * @template LoaderData - The type of loader data. Defaults to `unknown`.
  * @template ActionData - The type of action data. Defaults to `unknown`.
+ * @template Context - The router context type. Defaults to `RouterContextProvider`.
  *
  * @example Simple route component
  * ```tsx
@@ -302,7 +395,8 @@ export type RouteComponent<
   Params extends AnyParams = AnyParams,
   LoaderData = unknown,
   ActionData = unknown,
-> = BivariantComponent<RouteProps<Params, LoaderData, ActionData>>;
+  Context extends RouterContextProvider = RouterContextProvider,
+> = BivariantComponent<RouteProps<Params, LoaderData, ActionData, Context>>;
 
 /**
  * A React component type used for a route's error boundary export.
@@ -310,6 +404,7 @@ export type RouteComponent<
  * @template Params - The type of route params. Defaults to `AnyParams`.
  * @template LoaderData - The type of loader data. Defaults to `unknown`.
  * @template ActionData - The type of action data. Defaults to `unknown`.
+ * @template Context - The router context type. Defaults to `RouterContextProvider`.
  *
  * @example Error boundary component
  * ```tsx
@@ -344,7 +439,10 @@ export type RouteErrorBoundary<
   Params extends AnyParams = AnyParams,
   LoaderData = unknown,
   ActionData = unknown,
-> = BivariantComponent<ErrorBoundaryProps<Params, LoaderData, ActionData>>;
+  Context extends RouterContextProvider = RouterContextProvider,
+> = BivariantComponent<
+  ErrorBoundaryProps<Params, LoaderData, ActionData, Context>
+>;
 
 /**
  * A loader function exported by a route module.
@@ -524,15 +622,17 @@ export interface RouteModule<
   Context extends RouterContextProvider = RouterContextProvider,
 > {
   /** The route's component. */
-  default?: RouteComponent<Params, LoaderData, ActionData>;
+  default?: RouteComponent<Params, LoaderData, ActionData, Context>;
   /** The route's error boundary component. */
-  ErrorBoundary?: RouteErrorBoundary<Params, LoaderData, ActionData>;
+  ErrorBoundary?: RouteErrorBoundary<Params, LoaderData, ActionData, Context>;
   /** The route's hydration fallback component. */
-  HydrateFallback?: RouteComponent<Params, LoaderData, ActionData>;
+  HydrateFallback?: RouteComponent<Params, LoaderData, ActionData, Context>;
   /** The loader function. */
   loader?: LoaderFunction<Context, Params, LoaderData>;
   /** The action function. */
   action?: ActionFunction<Context, Params, ActionData>;
+  /** The middleware functions that run before loaders and actions. */
+  middleware?: MiddlewareFunction<Context, Params>[];
 }
 
 /**

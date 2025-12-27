@@ -6,32 +6,33 @@
     "jsr:@marvinh-test/fresh-island@*": "0.0.3",
     "jsr:@std/assert@^1.0.15": "1.0.16",
     "jsr:@std/assert@^1.0.16": "1.0.16",
-    "jsr:@std/async@^1.0.15": "1.0.15",
+    "jsr:@std/async@^1.0.15": "1.0.16",
+    "jsr:@std/async@^1.0.16": "1.0.16",
     "jsr:@std/bytes@^1.0.6": "1.0.6",
-    "jsr:@std/cli@^1.0.24": "1.0.24",
+    "jsr:@std/cli@^1.0.25": "1.0.25",
     "jsr:@std/collections@^1.1.3": "1.1.3",
     "jsr:@std/crypto@^1.0.5": "1.0.5",
     "jsr:@std/data-structures@^1.0.9": "1.0.9",
     "jsr:@std/encoding@^1.0.10": "1.0.10",
-    "jsr:@std/fs@^1.0.19": "1.0.20",
-    "jsr:@std/fs@^1.0.20": "1.0.20",
+    "jsr:@std/fs@^1.0.19": "1.0.21",
+    "jsr:@std/fs@^1.0.21": "1.0.21",
     "jsr:@std/http@1": "1.0.21",
     "jsr:@std/internal@^1.0.12": "1.0.12",
-    "jsr:@std/path@^1.1.1": "1.1.3",
-    "jsr:@std/path@^1.1.2": "1.1.3",
-    "jsr:@std/path@^1.1.3": "1.1.3",
-    "jsr:@std/streams@^1.0.14": "1.0.14",
+    "jsr:@std/path@^1.1.1": "1.1.4",
+    "jsr:@std/path@^1.1.2": "1.1.4",
+    "jsr:@std/path@^1.1.4": "1.1.4",
+    "jsr:@std/streams@^1.0.16": "1.0.16",
     "jsr:@std/testing@^1.0.16": "1.0.16",
-    "jsr:@std/uuid@^1.0.9": "1.0.9",
+    "jsr:@std/uuid@^1.1.0": "1.1.0",
     "jsr:@udibo/esbuild-plugin-postcss@0.3.0": "0.3.0",
     "jsr:@udibo/http-error@0.10": "0.10.0",
     "npm:@babel/core@*": "7.28.5",
     "npm:@babel/core@^7.28.5": "7.28.5",
-    "npm:@modelcontextprotocol/sdk@^1.24.3": "1.24.3_zod@3.25.76_ajv@8.17.1_express@5.2.1",
+    "npm:@modelcontextprotocol/sdk@^1.25.1": "1.25.1_zod@3.25.76_hono@4.11.2_ajv@8.17.1_express@5.2.1",
     "npm:@opentelemetry/api@^1.9.0": "1.9.0",
     "npm:@preact/signals@2": "2.5.1_preact@10.28.0",
     "npm:@tailwindcss/postcss@^4.1.18": "4.1.18",
-    "npm:@testing-library/react@^16.3.0": "16.3.0_@testing-library+dom@10.4.1_@types+react@19.2.7_react@19.2.3_react-dom@19.2.3__react@19.2.3",
+    "npm:@testing-library/react@^16.3.1": "16.3.1_@testing-library+dom@10.4.1_@types+react@19.2.7_react@19.2.3_react-dom@19.2.3__react@19.2.3",
     "npm:@types/node@*": "24.2.0",
     "npm:@types/react@^19.2.7": "19.2.7",
     "npm:babel-plugin-react-compiler@*": "1.0.0",
@@ -39,7 +40,7 @@
     "npm:esbuild@~0.25.12": "0.25.12",
     "npm:esbuild@~0.25.5": "0.25.12",
     "npm:global-jsdom@27": "27.0.0_jsdom@27.1.0",
-    "npm:hono@^4.11.0": "4.11.0",
+    "npm:hono@^4.11.2": "4.11.2",
     "npm:isbot@^5.1.32": "5.1.32",
     "npm:less@^4.4.2": "4.5.1",
     "npm:playwright@^1.57.0": "1.57.0",
@@ -48,9 +49,9 @@
     "npm:quick-lru@^7.3.0": "7.3.0",
     "npm:react-dom@^19.2.3": "19.2.3_react@19.2.3",
     "npm:react-error-boundary@^4.1.2": "4.1.2_react@19.2.3",
-    "npm:react-router@^7.10.1": "7.10.1_react@19.2.3_react-dom@19.2.3__react@19.2.3",
+    "npm:react-router@^7.11.0": "7.11.0_react@19.2.3_react-dom@19.2.3__react@19.2.3",
     "npm:react@^19.2.3": "19.2.3",
-    "npm:sass@^1.93.3": "1.96.0",
+    "npm:sass@^1.93.3": "1.97.1",
     "npm:serialize-javascript@^6.0.2": "6.0.2",
     "npm:stylus@0.64": "0.64.0",
     "npm:superjson@^2.2.6": "2.2.6",
@@ -81,14 +82,14 @@
         "jsr:@std/internal"
       ]
     },
-    "@std/async@1.0.15": {
-      "integrity": "55d1d9d04f99403fe5730ab16bdcc3c47f658a6bf054cafb38a50f046238116e"
+    "@std/async@1.0.16": {
+      "integrity": "6c9e43035313b67b5de43e2b3ee3eadb39a488a0a0a3143097f112e025d3ee9a"
     },
     "@std/bytes@1.0.6": {
       "integrity": "f6ac6adbd8ccd99314045f5703e23af0a68d7f7e58364b47d2c7f408aeb5820a"
     },
-    "@std/cli@1.0.24": {
-      "integrity": "b655a5beb26aa94f98add6bc8889f5fb9bc3ee2cc3fc954e151201f4c4200a5e",
+    "@std/cli@1.0.25": {
+      "integrity": "1f85051b370c97a7a9dfc6ba626e7ed57a91bea8c081597276d1e78d929d8c91",
       "dependencies": [
         "jsr:@std/internal"
       ]
@@ -105,11 +106,11 @@
     "@std/encoding@1.0.10": {
       "integrity": "8783c6384a2d13abd5e9e87a7ae0520a30e9f56aeeaa3bdf910a3eaaf5c811a1"
     },
-    "@std/fs@1.0.20": {
-      "integrity": "e953206aae48d46ee65e8783ded459f23bec7dd1f3879512911c35e5484ea187",
+    "@std/fs@1.0.21": {
+      "integrity": "d720fe1056d78d43065a4d6e0eeb2b19f34adb8a0bc7caf3a4dbf1d4178252cd",
       "dependencies": [
         "jsr:@std/internal",
-        "jsr:@std/path@^1.1.3"
+        "jsr:@std/path@^1.1.4"
       ]
     },
     "@std/http@1.0.21": {
@@ -118,14 +119,14 @@
     "@std/internal@1.0.12": {
       "integrity": "972a634fd5bc34b242024402972cd5143eac68d8dffaca5eaa4dba30ce17b027"
     },
-    "@std/path@1.1.3": {
-      "integrity": "b015962d82a5e6daea980c32b82d2c40142149639968549c649031a230b1afb3",
+    "@std/path@1.1.4": {
+      "integrity": "1d2d43f39efb1b42f0b1882a25486647cb851481862dc7313390b2bb044314b5",
       "dependencies": [
         "jsr:@std/internal"
       ]
     },
-    "@std/streams@1.0.14": {
-      "integrity": "c0df6cdd73bd4bbcbe4baa89e323b88418c90ceb2d926f95aa99bdcdbfca2411",
+    "@std/streams@1.0.16": {
+      "integrity": "85030627befb1767c60d4f65cb30fa2f94af1d6ee6e5b2515b76157a542e89c4",
       "dependencies": [
         "jsr:@std/bytes"
       ]
@@ -134,15 +135,15 @@
       "integrity": "a917ffdeb5924c9be436dc78bc32e511760e14d3a96e49c607fc5ecca86d0092",
       "dependencies": [
         "jsr:@std/assert@^1.0.15",
-        "jsr:@std/async",
+        "jsr:@std/async@^1.0.15",
         "jsr:@std/data-structures",
         "jsr:@std/fs@^1.0.19",
         "jsr:@std/internal",
         "jsr:@std/path@^1.1.2"
       ]
     },
-    "@std/uuid@1.0.9": {
-      "integrity": "44b627bf2d372fe1bd099e2ad41b2be41a777fc94e62a3151006895a037f1642",
+    "@std/uuid@1.1.0": {
+      "integrity": "6268db2ccf172849c9be80763354ca305d49ef4af41fe995623d44fcc3f7457c",
       "dependencies": [
         "jsr:@std/bytes",
         "jsr:@std/crypto"
@@ -483,6 +484,12 @@
       "os": ["win32"],
       "cpu": ["x64"]
     },
+    "@hono/node-server@1.19.7_hono@4.11.2": {
+      "integrity": "sha512-vUcD0uauS7EU2caukW8z5lJKtoGMokxNbJtBiwHgpqxEXokaHCBkQUmCHhjFB1VUTWdqj25QoMkMKzgjq+uhrw==",
+      "dependencies": [
+        "hono"
+      ]
+    },
     "@isaacs/cliui@8.0.2": {
       "integrity": "sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==",
       "dependencies": [
@@ -521,9 +528,10 @@
         "@jridgewell/sourcemap-codec"
       ]
     },
-    "@modelcontextprotocol/sdk@1.24.3_zod@3.25.76_ajv@8.17.1_express@5.2.1": {
-      "integrity": "sha512-YgSHW29fuzKKAHTGe9zjNoo+yF8KaQPzDC2W9Pv41E7/57IfY+AMGJ/aDFlgTLcVVELoggKE4syABCE75u3NCw==",
+    "@modelcontextprotocol/sdk@1.25.1_zod@3.25.76_hono@4.11.2_ajv@8.17.1_express@5.2.1": {
+      "integrity": "sha512-yO28oVFFC7EBoiKdAn+VqRm+plcfv4v0xp6osG/VsCB0NlPZWi87ajbCZZ8f/RvOFLEu7//rSRmuZZ7lMoe3gQ==",
       "dependencies": [
+        "@hono/node-server",
         "ajv",
         "ajv-formats",
         "content-type",
@@ -534,6 +542,7 @@
         "express",
         "express-rate-limit",
         "jose",
+        "json-schema-typed",
         "pkce-challenge",
         "raw-body",
         "zod",
@@ -757,8 +766,8 @@
         "pretty-format"
       ]
     },
-    "@testing-library/react@16.3.0_@testing-library+dom@10.4.1_@types+react@19.2.7_react@19.2.3_react-dom@19.2.3__react@19.2.3": {
-      "integrity": "sha512-kFSyxiEDwv1WLl2fgsq6pPBbw5aWKrsY2/noi1Id0TK0UParSF62oFQFGHXIyaG4pp2tEub/Zlel+fjjZILDsw==",
+    "@testing-library/react@16.3.1_@testing-library+dom@10.4.1_@types+react@19.2.7_react@19.2.3_react-dom@19.2.3__react@19.2.3": {
+      "integrity": "sha512-gr4KtAWqIOQoucWYD/f6ki+j5chXfcPc74Col/6poTyqTmn7zRmodWahWRCp8tYd+GMqBonw6hstNzqjbs6gjw==",
       "dependencies": [
         "@babel/runtime",
         "@testing-library/dom",
@@ -1175,8 +1184,8 @@
     "fast-deep-equal@3.1.3": {
       "integrity": "sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q=="
     },
-    "fast-uri@3.0.6": {
-      "integrity": "sha512-Atfo14OibSv5wAp4VWNsFYE1AchQRTv9cBGWET4pZWHzYshFSS9NQI6I57rdKn9croWVMbYFbLhJ+yJvmZIIHw=="
+    "fast-uri@3.1.0": {
+      "integrity": "sha512-iPeeDKJSWf4IEOasVVrknXpaBV0IApz/gp7S2bb7Z4Lljbl2MGJRqInZiUrQwV16cpzw/D3S5j5Julj/gT52AA=="
     },
     "fill-range@7.1.1": {
       "integrity": "sha512-YsGpe3WHLK8ZYi4tWDg2Jy3ebRz2rXowDxnld4bkQB00cc/1Zw9AWnC0i9ztDJitivtQvaI9KaLyKrc+hBW0yg==",
@@ -1280,8 +1289,8 @@
         "function-bind"
       ]
     },
-    "hono@4.11.0": {
-      "integrity": "sha512-Jg8uZzN2ul8/qlyid5FO8O624F3AK0wKtkgoeEON1qBum1rM1itYBxoMKu/1SPJC7F1+xlIZsJMmc4HHhJ1AWg=="
+    "hono@4.11.2": {
+      "integrity": "sha512-o+avdUAD1v94oHkjGBhiMhBV4WBHxhbu0+CUVH78hhphKy/OKQLxtKjkmmNcrMlbYAhAbsM/9F+l3KnYxyD3Lg=="
     },
     "html-encoding-sniffer@4.0.0": {
       "integrity": "sha512-Y22oTqIU4uuPgEemfz7NDJz6OeKf12Lsu+QC+s3BVpda64lTiMYCyGwg5ki4vFxkMwQdeZDl2adZoqUgdFuTgQ==",
@@ -1427,6 +1436,9 @@
     },
     "json-schema-traverse@1.0.0": {
       "integrity": "sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug=="
+    },
+    "json-schema-typed@8.0.2": {
+      "integrity": "sha512-fQhoXdcvc3V28x7C7BMs4P5+kNlgUURe2jmUT1T//oBRMDrqy1QPelJimwZGo7Hg9VPV3EQV5Bnq4hbFy2vetA=="
     },
     "json5@2.2.3": {
       "integrity": "sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==",
@@ -1826,8 +1838,8 @@
     "react-is@17.0.2": {
       "integrity": "sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w=="
     },
-    "react-router@7.10.1_react@19.2.3_react-dom@19.2.3__react@19.2.3": {
-      "integrity": "sha512-gHL89dRa3kwlUYtRQ+m8NmxGI6CgqN+k4XyGjwcFoQwwCWF6xXpOCUlDovkXClS0d0XJN/5q7kc5W3kiFEd0Yw==",
+    "react-router@7.11.0_react@19.2.3_react-dom@19.2.3__react@19.2.3": {
+      "integrity": "sha512-uI4JkMmjbWCZc01WVP2cH7ZfSzH91JAZUDd7/nIprDgWxBV1TkkmLToFh7EbMTcMak8URFRa2YoBL/W8GWnCTQ==",
       "dependencies": [
         "cookie@1.1.1",
         "react",
@@ -1863,8 +1875,8 @@
     "safer-buffer@2.1.2": {
       "integrity": "sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg=="
     },
-    "sass@1.96.0": {
-      "integrity": "sha512-8u4xqqUeugGNCYwr9ARNtQKTOj4KmYiJAVKXf2CTIivTCR51j96htbMKWDru8H5SaQWpyVgTfOF8Ylyf5pun1Q==",
+    "sass@1.97.1": {
+      "integrity": "sha512-uf6HoO8fy6ClsrShvMgaKUn14f2EHQLQRtpsZZLeU/Mv0Q1K5P0+x2uvH6Cub39TVVbWNSrraUhDAoFph6vh0A==",
       "dependencies": [
         "chokidar",
         "immutable",
@@ -1895,8 +1907,8 @@
       "integrity": "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==",
       "bin": true
     },
-    "send@1.2.0": {
-      "integrity": "sha512-uaW0WwXKpL9blXE2o0bRhoL2EGXIrZxQ2ZQ4mgcfoBxdFmQold+qWsD2jLrfZ0trjKL6vOw0j//eAwcALFjKSw==",
+    "send@1.2.1": {
+      "integrity": "sha512-1gnZf7DFcoIcajTjTwjwuDjzuz4PPcY2StKPlsGAQ1+YH20IRVrBaXSWmdjowTJ6u8Rc01PoYOGHXfP1mYcZNQ==",
       "dependencies": [
         "debug",
         "encodeurl",
@@ -1917,8 +1929,8 @@
         "randombytes"
       ]
     },
-    "serve-static@2.2.0": {
-      "integrity": "sha512-61g9pCh0Vnh7IutZjtLGGpTA355+OPn2TyDv/6ivP2h/AdAVX9azsoxmg2/M6nZeQZNYBEwIcsne1mJd9oQItQ==",
+    "serve-static@2.2.1": {
+      "integrity": "sha512-xRXBn0pPqQTVQiC8wyQrKs2MOlX24zQ0POGaj0kultvoOCstBQM5yvOhAVSUwOMjQtTvsPWoNCHfPGwaaQJhTw==",
       "dependencies": [
         "encodeurl",
         "escape-html",
@@ -2200,23 +2212,23 @@
       "example": {
         "dependencies": [
           "jsr:@std/assert@^1.0.16",
-          "jsr:@std/async@^1.0.15",
+          "jsr:@std/async@^1.0.16",
           "jsr:@std/collections@^1.1.3",
           "jsr:@std/encoding@^1.0.10",
-          "jsr:@std/path@^1.1.3",
-          "jsr:@std/streams@^1.0.14",
+          "jsr:@std/path@^1.1.4",
+          "jsr:@std/streams@^1.0.16",
           "jsr:@std/testing@^1.0.16",
-          "jsr:@std/uuid@^1.0.9",
+          "jsr:@std/uuid@^1.1.0",
           "jsr:@udibo/esbuild-plugin-postcss@0.3.0",
           "jsr:@udibo/juniper@^0.0.1",
           "npm:@opentelemetry/api@^1.9.0",
           "npm:@tailwindcss/postcss@^4.1.18",
-          "npm:@testing-library/react@^16.3.0",
+          "npm:@testing-library/react@^16.3.1",
           "npm:@types/react@^19.2.7",
           "npm:global-jsdom@27",
-          "npm:hono@^4.11.0",
+          "npm:hono@^4.11.2",
           "npm:playwright@^1.57.0",
-          "npm:react-router@^7.10.1",
+          "npm:react-router@^7.11.0",
           "npm:react@^19.2.3",
           "npm:tailwindcss@^4.1.18",
           "npm:zod@^3.25.76"
@@ -2226,28 +2238,28 @@
         "dependencies": [
           "jsr:@deno/esbuild-plugin@^1.2.1",
           "jsr:@std/assert@^1.0.16",
-          "jsr:@std/async@^1.0.15",
-          "jsr:@std/cli@^1.0.24",
+          "jsr:@std/async@^1.0.16",
+          "jsr:@std/cli@^1.0.25",
           "jsr:@std/collections@^1.1.3",
-          "jsr:@std/fs@^1.0.20",
-          "jsr:@std/path@^1.1.3",
-          "jsr:@std/streams@^1.0.14",
+          "jsr:@std/fs@^1.0.21",
+          "jsr:@std/path@^1.1.4",
+          "jsr:@std/streams@^1.0.16",
           "jsr:@std/testing@^1.0.16",
           "jsr:@udibo/http-error@0.10",
           "npm:@babel/core@^7.28.5",
-          "npm:@modelcontextprotocol/sdk@^1.24.3",
+          "npm:@modelcontextprotocol/sdk@^1.25.1",
           "npm:@opentelemetry/api@^1.9.0",
-          "npm:@testing-library/react@^16.3.0",
+          "npm:@testing-library/react@^16.3.1",
           "npm:@types/react@^19.2.7",
           "npm:babel-plugin-react-compiler@1",
           "npm:esbuild@~0.25.12",
           "npm:global-jsdom@27",
-          "npm:hono@^4.11.0",
+          "npm:hono@^4.11.2",
           "npm:isbot@^5.1.32",
           "npm:quick-lru@^7.3.0",
           "npm:react-dom@^19.2.3",
           "npm:react-error-boundary@^4.1.2",
-          "npm:react-router@^7.10.1",
+          "npm:react-router@^7.11.0",
           "npm:react@^19.2.3",
           "npm:serialize-javascript@^6.0.2",
           "npm:superjson@^2.2.6",
@@ -2257,34 +2269,34 @@
       "templates/minimal": {
         "dependencies": [
           "jsr:@std/assert@^1.0.16",
-          "jsr:@std/path@^1.1.3",
-          "jsr:@std/streams@^1.0.14",
+          "jsr:@std/path@^1.1.4",
+          "jsr:@std/streams@^1.0.16",
           "jsr:@std/testing@^1.0.16",
           "jsr:@udibo/juniper@^0.0.1",
           "npm:@opentelemetry/api@^1.9.0",
-          "npm:@testing-library/react@^16.3.0",
+          "npm:@testing-library/react@^16.3.1",
           "npm:@types/react@^19.2.7",
           "npm:global-jsdom@27",
-          "npm:hono@^4.11.0",
-          "npm:react-router@^7.10.1",
+          "npm:hono@^4.11.2",
+          "npm:react-router@^7.11.0",
           "npm:react@^19.2.3"
         ]
       },
       "templates/tailwindcss": {
         "dependencies": [
           "jsr:@std/assert@^1.0.16",
-          "jsr:@std/path@^1.1.3",
-          "jsr:@std/streams@^1.0.14",
+          "jsr:@std/path@^1.1.4",
+          "jsr:@std/streams@^1.0.16",
           "jsr:@std/testing@^1.0.16",
           "jsr:@udibo/esbuild-plugin-postcss@0.3.0",
           "jsr:@udibo/juniper@^0.0.1",
           "npm:@opentelemetry/api@^1.9.0",
           "npm:@tailwindcss/postcss@^4.1.18",
-          "npm:@testing-library/react@^16.3.0",
+          "npm:@testing-library/react@^16.3.1",
           "npm:@types/react@^19.2.7",
           "npm:global-jsdom@27",
-          "npm:hono@^4.11.0",
-          "npm:react-router@^7.10.1",
+          "npm:hono@^4.11.2",
+          "npm:react-router@^7.11.0",
           "npm:react@^19.2.3",
           "npm:tailwindcss@^4.1.18"
         ]
@@ -2292,16 +2304,16 @@
       "templates/tanstack": {
         "dependencies": [
           "jsr:@std/assert@^1.0.16",
-          "jsr:@std/path@^1.1.3",
-          "jsr:@std/streams@^1.0.14",
+          "jsr:@std/path@^1.1.4",
+          "jsr:@std/streams@^1.0.16",
           "jsr:@std/testing@^1.0.16",
           "jsr:@udibo/juniper@^0.0.1",
           "npm:@opentelemetry/api@^1.9.0",
-          "npm:@testing-library/react@^16.3.0",
+          "npm:@testing-library/react@^16.3.1",
           "npm:@types/react@^19.2.7",
           "npm:global-jsdom@27",
-          "npm:hono@^4.11.0",
-          "npm:react-router@^7.10.1",
+          "npm:hono@^4.11.2",
+          "npm:react-router@^7.11.0",
           "npm:react@^19.2.3"
         ]
       }

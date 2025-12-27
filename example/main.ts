@@ -148,6 +148,16 @@ export const server = createServer(import.meta.url, client, {
               main: await import("./routes/features/middleware/basic-auth.ts"),
             },
             {
+              path: "client-middleware",
+              main: await import(
+                "./routes/features/middleware/client-middleware.ts"
+              ),
+            },
+            {
+              path: "combined",
+              main: await import("./routes/features/middleware/combined.ts"),
+            },
+            {
               path: "context-sharing",
               main: await import(
                 "./routes/features/middleware/context-sharing.ts"

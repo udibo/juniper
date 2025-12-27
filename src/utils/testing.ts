@@ -7,12 +7,16 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import React from "react";
-import { createMemoryRouter, RouterProvider } from "react-router";
+import {
+  createMemoryRouter,
+  RouterContextProvider,
+  RouterProvider,
+} from "react-router";
 import type { HydrationState, RouteObject } from "react-router";
 
 import type { AnyParams, RouteModule } from "@udibo/juniper";
 
-import { createRoute } from "../_client.tsx";
+import { createRoute, JuniperContextProvider } from "../_client.tsx";
 import type { ServerFlags } from "../_client.tsx";
 import { env } from "./_env.ts";
 
@@ -241,11 +245,16 @@ export function createRoutesStub(
   return function RoutesStub(
     { initialEntries, hydrationData }: RoutesStubProps,
   ) {
+    const context = React.useMemo(() => new RouterContextProvider(), []);
     const router = createMemoryRouter(routeObjects, {
       initialEntries: initialEntries ?? [firstPath],
       hydrationData,
+      getContext: () => context,
     });
 
-    return React.createElement(RouterProvider, { router });
+    return React.createElement(
+      JuniperContextProvider,
+      { context, children: React.createElement(RouterProvider, { router }) },
+    );
   };
 }

@@ -43,6 +43,7 @@ import { getInstance } from "@udibo/juniper/utils/otel";
 import {
   App,
   generateRouteId,
+  JuniperContextProvider,
   type SerializedHydrationData,
   type SerializedHydrationDataPromises,
 } from "./_client.tsx";
@@ -395,6 +396,7 @@ interface RenderOptions {
 
 interface RenderDocumentOptions {
   context: StaticHandlerContext;
+  requestContext: RouterContextProvider;
   dataRoutes: DataRouteObject[];
   renderOptions: RenderOptions;
   request: Request;
@@ -408,6 +410,7 @@ async function renderDocument(
 ): Promise<Response> {
   const {
     context,
+    requestContext,
     dataRoutes,
     renderOptions,
     request,
@@ -456,11 +459,13 @@ async function renderDocument(
         renderStream = await renderToReadableStream(
           <StrictMode>
             <App>
-              <StaticRouterProvider
-                router={router}
-                context={context}
-                hydrate={false}
-              />
+              <JuniperContextProvider context={requestContext}>
+                <StaticRouterProvider
+                  router={router}
+                  context={context}
+                  hydrate={false}
+                />
+              </JuniperContextProvider>
               <Suspense fallback={null}>
                 <HydrationScript
                   serializedHydrationData={serializedHydrationData}
@@ -619,14 +624,19 @@ type LazyRouteFunction = () => Promise<
   Omit<RouteObject, "children" | "index" | "path">
 >;
 
-function wrapLazyToStripLoaderAndAction(
+function wrapLazyToStripClientRouteHandlers(
   lazy: RouteObject["lazy"],
 ): RouteObject["lazy"] {
   if (!lazy || typeof lazy !== "function") return lazy;
 
   const lazyFn = lazy as LazyRouteFunction;
   const wrappedLazy: LazyRouteFunction = async () => {
-    const { loader: _loader, action: _action, ...rest } = await lazyFn();
+    const {
+      loader: _loader,
+      action: _action,
+      middleware: _middleware,
+      ...rest
+    } = await lazyFn() as Record<string, unknown>;
     return rest;
   };
   return wrappedLazy as RouteObject["lazy"];
@@ -655,7 +665,8 @@ export function mergeServerRoutes<
   ): void {
     delete routeObj.loader;
     delete routeObj.action;
-    routeObj.lazy = wrapLazyToStripLoaderAndAction(routeObj.lazy);
+    delete routeObj.middleware;
+    routeObj.lazy = wrapLazyToStripClientRouteHandlers(routeObj.lazy);
 
     if (serverModule?.loader) {
       const serverLoader = serverModule.loader;
@@ -809,6 +820,7 @@ export function createHandlers<
         );
         return renderDocument(c, {
           context: contextOrResponse,
+          requestContext,
           dataRoutes,
           renderOptions,
           request: c.req.raw,
@@ -885,6 +897,7 @@ export function createHandlers<
 
       return renderDocument(c, {
         context: contextOrResponse,
+        requestContext,
         dataRoutes,
         renderOptions,
         request: c.req.raw,

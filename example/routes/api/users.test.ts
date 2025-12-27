@@ -2,7 +2,7 @@ import { assert, assertEquals, assertExists } from "@std/assert";
 import { sortBy } from "@std/collections/sort-by";
 import { afterAll, beforeAll, describe, it } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
+import { generate as generateUUIDv7 } from "@std/uuid/v7";
 
 import { userService } from "@/services/user.ts";
 import type { NewUser, User } from "@/services/user.ts";
