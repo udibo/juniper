@@ -1,4 +1,4 @@
-import { redirect } from "react-router";
+import { redirect, useLocation } from "react-router";
 
 import type { MiddlewareFunction, RouteProps } from "@udibo/juniper";
 
@@ -22,10 +22,9 @@ export const middleware: MiddlewareFunction[] = [
 ];
 
 export default function ClientRedirectExample({}: RouteProps) {
-  const url = typeof window !== "undefined"
-    ? new URL(window.location.href)
-    : null;
-  const wasRedirected = url?.searchParams.get("redirected") === "true";
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const wasRedirected = searchParams.get("redirected") === "true";
 
   return (
     <div className="space-y-6">
