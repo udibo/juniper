@@ -163,10 +163,6 @@ export const server = createServer(import.meta.url, client, {
                 "./routes/features/middleware/context-sharing.ts"
               ),
             },
-            {
-              path: "logging",
-              main: await import("./routes/features/middleware/logging.ts"),
-            },
           ],
         },
         {
