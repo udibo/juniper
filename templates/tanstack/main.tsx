@@ -7,4 +7,43 @@ export const client = new Client({
   path: "/",
   main: await import("./routes/main.tsx"),
   index: () => import("./routes/index.tsx"),
+  serverIndex: {
+    loader: true,
+  },
+  children: [
+    {
+      path: "contacts",
+      index: () => import("./routes/contacts/index.tsx"),
+      serverIndex: {
+        loader: true,
+      },
+      children: [
+        {
+          path: "new",
+          main: () => import("./routes/contacts/new.tsx"),
+          server: {
+            action: true,
+          },
+        },
+        {
+          path: ":id",
+          index: () => import("./routes/contacts/[id]/index.tsx"),
+          serverIndex: {
+            loader: true,
+            action: true,
+          },
+          children: [
+            {
+              path: "edit",
+              main: () => import("./routes/contacts/[id]/edit.tsx"),
+              server: {
+                loader: true,
+                action: true,
+              },
+            },
+          ],
+        },
+      ],
+    },
+  ],
 });

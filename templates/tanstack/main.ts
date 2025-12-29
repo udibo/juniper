@@ -8,6 +8,39 @@ import { client } from "./main.tsx";
 export const server = createServer(import.meta.url, client, {
   path: "/",
   main: await import("./routes/main.ts"),
+  index: await import("./routes/index.ts"),
+  children: [
+    {
+      path: "api",
+      main: await import("./routes/api/main.ts"),
+      children: [
+        {
+          path: "contacts",
+          main: await import("./routes/api/contacts.ts"),
+        },
+      ],
+    },
+    {
+      path: "contacts",
+      index: await import("./routes/contacts/index.ts"),
+      children: [
+        {
+          path: "new",
+          main: await import("./routes/contacts/new.ts"),
+        },
+        {
+          path: ":id",
+          index: await import("./routes/contacts/[id]/index.ts"),
+          children: [
+            {
+              path: "edit",
+              main: await import("./routes/contacts/[id]/edit.ts"),
+            },
+          ],
+        },
+      ],
+    },
+  ],
 });
 
 if (import.meta.main) {

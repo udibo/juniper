@@ -32,7 +32,9 @@
     "npm:@opentelemetry/api@^1.9.0": "1.9.0",
     "npm:@preact/signals@2": "2.5.1_preact@10.28.0",
     "npm:@tailwindcss/postcss@^4.1.18": "4.1.18",
+    "npm:@tanstack/react-query@^5.90.12": "5.90.12_react@19.2.3",
     "npm:@testing-library/react@^16.3.1": "16.3.1_@testing-library+dom@10.4.1_@types+react@19.2.7_react@19.2.3_react-dom@19.2.3__react@19.2.3",
+    "npm:@testing-library/user-event@^14.6.1": "14.6.1_@testing-library+dom@10.4.1",
     "npm:@types/node@*": "24.2.0",
     "npm:@types/react@^19.2.7": "19.2.7",
     "npm:babel-plugin-react-compiler@*": "1.0.0",
@@ -153,6 +155,7 @@
       "integrity": "343e2abf96769655dba79eadf56fce003640607a488e1a07190e7887e0c3f478",
       "dependencies": [
         "jsr:@std/path@^1.1.2",
+        "npm:esbuild@~0.25.12",
         "npm:less",
         "npm:postcss",
         "npm:postcss-modules",
@@ -753,6 +756,16 @@
         "tailwindcss"
       ]
     },
+    "@tanstack/query-core@5.90.12": {
+      "integrity": "sha512-T1/8t5DhV/SisWjDnaiU2drl6ySvsHj1bHBCWNXd+/T+Hh1cf6JodyEYMd5sgwm+b/mETT4EV3H+zCVczCU5hg=="
+    },
+    "@tanstack/react-query@5.90.12_react@19.2.3": {
+      "integrity": "sha512-graRZspg7EoEaw0a8faiUASCyJrqjKPdqJ9EwuDRUF9mEYJ1YPczI9H+/agJ0mOJkPCJDk0lsz5QTrLZ/jQ2rg==",
+      "dependencies": [
+        "@tanstack/query-core",
+        "react"
+      ]
+    },
     "@testing-library/dom@10.4.1": {
       "integrity": "sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==",
       "dependencies": [
@@ -777,6 +790,12 @@
       ],
       "optionalPeers": [
         "@types/react"
+      ]
+    },
+    "@testing-library/user-event@14.6.1_@testing-library+dom@10.4.1": {
+      "integrity": "sha512-vq7fv0rnt+QTXgPxr5Hjc210p6YKq2kmdziLgnsZGgLJ9e6VAShx1pACLuRjd/AS/sr7phAR58OIIpf0LlmQNw==",
+      "dependencies": [
+        "@testing-library/dom"
       ]
     },
     "@types/aria-query@5.0.4": {
@@ -2224,6 +2243,7 @@
           "npm:@opentelemetry/api@^1.9.0",
           "npm:@tailwindcss/postcss@^4.1.18",
           "npm:@testing-library/react@^16.3.1",
+          "npm:@testing-library/user-event@^14.6.1",
           "npm:@types/react@^19.2.7",
           "npm:global-jsdom@27",
           "npm:hono@^4.11.2",
@@ -2304,12 +2324,15 @@
       "templates/tanstack": {
         "dependencies": [
           "jsr:@std/assert@^1.0.16",
+          "jsr:@std/async@^1.0.16",
           "jsr:@std/path@^1.1.4",
           "jsr:@std/streams@^1.0.16",
           "jsr:@std/testing@^1.0.16",
           "jsr:@udibo/juniper@^0.0.1",
           "npm:@opentelemetry/api@^1.9.0",
+          "npm:@tanstack/react-query@^5.90.12",
           "npm:@testing-library/react@^16.3.1",
+          "npm:@testing-library/user-event@^14.6.1",
           "npm:@types/react@^19.2.7",
           "npm:global-jsdom@27",
           "npm:hono@^4.11.2",

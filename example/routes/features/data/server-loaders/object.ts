@@ -1,11 +1,12 @@
 import type { RouteLoaderArgs } from "@udibo/juniper";
+import { delay } from "@std/async/delay";
 
 import type { ServerLoaderData } from "./object.tsx";
 
 export async function loader(
   _args: RouteLoaderArgs,
 ): Promise<ServerLoaderData> {
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  await delay(200);
   return {
     message: "Data loaded from the server!",
     timestamp: new Date().toISOString(),

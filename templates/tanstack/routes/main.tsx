@@ -1,5 +1,26 @@
-import { Outlet } from "react-router";
-import type { ErrorBoundaryProps } from "@udibo/juniper";
+import { Link, Outlet } from "react-router";
+import { QueryClientProvider } from "@tanstack/react-query";
+
+import type {
+  ErrorBoundaryProps,
+  MiddlewareFunction,
+  RouteProps,
+} from "@udibo/juniper";
+
+import { createQueryClient, queryClientContext } from "@/context/query.ts";
+
+export const middleware: MiddlewareFunction[] = [
+  async ({ context }, next) => {
+    let queryClient = undefined;
+    try {
+      queryClient = context.get(queryClientContext);
+    } catch {
+      queryClient = createQueryClient();
+      context.set(queryClientContext, queryClient);
+    }
+    await next();
+  },
+];
 
 function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -7,23 +28,28 @@ function Layout({ children }: { children: React.ReactNode }) {
       <meta charSet="utf-8" />
       <meta name="viewport" content="width=device-width,initial-scale=1.0" />
       <link rel="icon" href="/favicon.ico" />
-      <h1>Minimal Example</h1>
+      <h1>TanStack Query Example</h1>
+      <nav>
+        <Link to="/">Home</Link> | <Link to="/contacts">Contacts</Link>
+      </nav>
       {children}
     </main>
   );
 }
 
-export default function Main() {
+export default function Main({ context }: RouteProps) {
+  const queryClient = context.get(queryClientContext);
+
   return (
-    <Layout>
-      <Outlet />
-    </Layout>
+    <QueryClientProvider client={queryClient}>
+      <Layout>
+        <Outlet />
+      </Layout>
+    </QueryClientProvider>
   );
 }
 
-export function ErrorBoundary(
-  { error }: ErrorBoundaryProps,
-) {
+export function ErrorBoundary({ error }: ErrorBoundaryProps) {
   let name = "Error";
   let message = "An unexpected error occurred.";
   if (error instanceof Error) {

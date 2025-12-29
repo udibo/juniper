@@ -197,35 +197,58 @@ export function serializeErrorDefault(
 }
 
 /**
- * Processes a single route data object, resolving any Promises and tracking
+ * Processes a single route data object or array, resolving any Promises and tracking
  * which keys were resolved or rejected for later reconstruction.
  * Uses custom serializeError function if provided, otherwise falls back to default.
  */
 async function processRouteData(
-  routeData: Record<string, unknown>,
+  routeData: Record<string, unknown> | unknown[],
   serializeError?: (error: unknown) => unknown,
 ): Promise<{
-  resolvedData: Record<string, unknown>;
+  resolvedData: Record<string, unknown> | unknown[];
   resolvedKeys: string[];
   rejectedKeys: string[];
 }> {
-  const resolvedData: Record<string, unknown> = {};
   const resolvedKeys: string[] = [];
   const rejectedKeys: string[] = [];
+  let resolvedData: Record<string, unknown> | unknown[];
 
-  for (const [key, value] of Object.entries(routeData)) {
-    if (value instanceof Promise) {
-      try {
-        const resolvedValue = await Promise.resolve(value);
-        resolvedData[key] = resolvedValue;
-        resolvedKeys.push(key);
-      } catch (error) {
-        resolvedData[key] = serializeError?.(error) ??
-          serializeErrorDefault(error);
-        rejectedKeys.push(key);
+  if (Array.isArray(routeData)) {
+    resolvedData = [];
+
+    for (let i = 0; i < routeData.length; i++) {
+      const value = routeData[i];
+      if (value instanceof Promise) {
+        try {
+          const resolvedValue = await Promise.resolve(value);
+          resolvedData[i] = resolvedValue;
+          resolvedKeys.push(String(i));
+        } catch (error) {
+          resolvedData[i] = serializeError?.(error) ??
+            serializeErrorDefault(error);
+          rejectedKeys.push(String(i));
+        }
+      } else {
+        resolvedData[i] = value;
       }
-    } else {
-      resolvedData[key] = value;
+    }
+  } else {
+    resolvedData = {};
+
+    for (const [key, value] of Object.entries(routeData)) {
+      if (value instanceof Promise) {
+        try {
+          const resolvedValue = await Promise.resolve(value);
+          resolvedData[key] = resolvedValue;
+          resolvedKeys.push(key);
+        } catch (error) {
+          resolvedData[key] = serializeError?.(error) ??
+            serializeErrorDefault(error);
+          rejectedKeys.push(key);
+        }
+      } else {
+        resolvedData[key] = value;
+      }
     }
   }
 

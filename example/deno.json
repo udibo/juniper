@@ -51,6 +51,7 @@
     "@tailwindcss/postcss": "npm:@tailwindcss/postcss@^4.1.18",
     "zod": "npm:zod@^3.25.76",
     "@testing-library/react": "npm:@testing-library/react@^16.3.1",
+    "@testing-library/user-event": "npm:@testing-library/user-event@^14.6.1",
     "global-jsdom": "npm:global-jsdom@^27"
   },
   "permissions": {

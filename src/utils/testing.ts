@@ -13,6 +13,8 @@ import {
   RouterProvider,
 } from "react-router";
 import type { HydrationState, RouteObject } from "react-router";
+import { stub } from "@std/testing/mock";
+import type { Stub } from "@std/testing/mock";
 
 import type { AnyParams, RouteModule } from "@udibo/juniper";
 
@@ -159,6 +161,24 @@ export interface RoutesStubProps {
   hydrationData?: HydrationState;
 }
 
+export interface CreateRoutesStubOptions {
+  /**
+   * A function to set up initial context values before rendering.
+   * The context parameter is the RouterContextProvider that will be used for the routes.
+   * Use this to set up context values that routes depend on (e.g., QueryClient for TanStack Query loaders).
+   *
+   * @example Setting up a QueryClient for TanStack Query
+   * ```tsx
+   * const Stub = createRoutesStub([contactsRoute], {
+   *   getContext(context) {
+   *     context.set(queryClientContext, new QueryClient());
+   *   },
+   * });
+   * ```
+   */
+  getContext?: (context: RouterContextProvider) => void;
+}
+
 /**
  * Creates a stub component for testing Juniper route modules.
  *
@@ -221,11 +241,47 @@ export interface RoutesStubProps {
  * });
  * ```
  *
+ * @example Testing with initial context (e.g., TanStack Query)
+ * ```tsx
+ * import "global-jsdom/register";
+ * import { afterEach, describe, it } from "@std/testing/bdd";
+ * import { cleanup, render, screen, waitFor } from "@testing-library/react";
+ * import { QueryClient } from "@tanstack/react-query";
+ * import { createRoutesStub } from "@udibo/juniper/utils/testing";
+ *
+ * import { queryClientContext } from "@/context/query.ts";
+ * import * as contactsRoute from "./contacts/index.tsx";
+ *
+ * describe("Contacts route", () => {
+ *   afterEach(cleanup);
+ *
+ *   it("should render with QueryClient context", async () => {
+ *     const Stub = createRoutesStub([{
+ *       ...contactsRoute,
+ *       loader() {
+ *         return [{ id: "1", firstName: "John", lastName: "Doe", email: "john@example.com" }];
+ *       },
+ *     }], {
+ *       getContext(context) {
+ *         context.set(queryClientContext, new QueryClient());
+ *       },
+ *     });
+ *     render(<Stub />);
+ *
+ *     await waitFor(() => {
+ *       screen.getByText("John Doe");
+ *     });
+ *   });
+ * });
+ * ```
+ *
  * @param routes - Array of route modules to stub. Each can optionally include a `path`, `serverFlags`, and `routeId`.
+ * @param options - Optional configuration for the stub.
  * @returns A React component that renders the stubbed routes in a memory router. The `initialEntries` prop defaults to the first route's path.
  */
 export function createRoutesStub(
   routes: RouteStub[],
+  options?: CreateRoutesStubOptions,
 ): React.ComponentType<RoutesStubProps> {
   const firstPath = routes[0]?.path ?? "/";
   const routeObjects: RouteObject[] = routes.map((routeStub) => {
@@ -245,7 +301,11 @@ export function createRoutesStub(
   return function RoutesStub(
     { initialEntries, hydrationData }: RoutesStubProps,
   ) {
-    const context = React.useMemo(() => new RouterContextProvider(), []);
+    const context = React.useMemo(() => {
+      const ctx = new RouterContextProvider();
+      options?.getContext?.(ctx);
+      return ctx;
+    }, []);
     const router = createMemoryRouter(routeObjects, {
       initialEntries: initialEntries ?? [firstPath],
       hydrationData,
@@ -256,5 +316,263 @@ export function createRoutesStub(
       JuniperContextProvider,
       { context, children: React.createElement(RouterProvider, { router }) },
     );
+  };
+}
+
+/**
+ * A fake fetch function that returns controlled responses.
+ */
+export type FakeFetch = (
+  input: string | URL | Request,
+  init?: RequestInit,
+) => Response | Promise<Response>;
+
+/**
+ * Stubs the global `fetch` function to return controlled responses.
+ * Uses Deno's standard testing/mock library. The returned stub implements
+ * `Disposable` for automatic cleanup with the `using` keyword.
+ *
+ * @example Stubbing fetch with automatic cleanup using `using`
+ * ```ts
+ * import { stubFetch } from "@udibo/juniper/utils/testing";
+ * import { assertEquals } from "@std/assert";
+ * import { describe, it } from "@std/testing/bdd";
+ *
+ * describe("API tests", () => {
+ *   it("should handle successful response", async () => {
+ *     using fetchStub = stubFetch(Response.json({ id: "123", name: "John" }));
+ *
+ *     const response = await fetch("/api/users/123");
+ *     const data = await response.json();
+ *     assertEquals(data.name, "John");
+ *     assertEquals(fetchStub.calls.length, 1);
+ *   });
+ * });
+ * ```
+ *
+ * @example Stubbing fetch with manual cleanup
+ * ```ts
+ * import { stubFetch } from "@udibo/juniper/utils/testing";
+ * import { assertEquals } from "@std/assert";
+ * import { describe, it } from "@std/testing/bdd";
+ *
+ * describe("API tests", () => {
+ *   it("should handle successful response", async () => {
+ *     const fetchStub = stubFetch(Response.json({ id: "123", name: "John" }));
+ *
+ *     try {
+ *       const response = await fetch("/api/users/123");
+ *       const data = await response.json();
+ *       assertEquals(data.name, "John");
+ *     } finally {
+ *       fetchStub.restore();
+ *     }
+ *   });
+ * });
+ * ```
+ *
+ * @example Stubbing fetch with a dynamic response
+ * ```ts
+ * import { stubFetch } from "@udibo/juniper/utils/testing";
+ * import { describe, it } from "@std/testing/bdd";
+ *
+ * describe("API tests", () => {
+ *   it("should handle requests dynamically", async () => {
+ *     using fetchStub = stubFetch((input) => {
+ *       if (input.toString().includes("/users")) {
+ *         return Response.json([{ id: "1", name: "Alice" }]);
+ *       }
+ *       return new Response("Not Found", { status: 404 });
+ *     });
+ *
+ *     // Test code here
+ *   });
+ * });
+ * ```
+ *
+ * @param response - A Response object to return for all requests, or a function that receives the request and returns a Response.
+ * @returns A Deno `Stub` with `restore()` method, call monitoring via `calls`, and `Disposable` support.
+ */
+export function stubFetch(
+  response: Response | FakeFetch,
+): Stub<
+  typeof globalThis,
+  [input: URL | RequestInfo, init?: RequestInit | undefined],
+  Promise<Response>
+> {
+  return stub(
+    globalThis,
+    "fetch",
+    typeof response === "function"
+      ? (input: string | URL | Request, init?: RequestInit) =>
+        Promise.resolve(response(input, init))
+      : () => Promise.resolve(response.clone()),
+  );
+}
+
+/**
+ * A function that resolves a pending fetch request with the given response.
+ */
+export type ResolveFetch = (response: Response) => void;
+
+/**
+ * Creates a deferred fetch resolver for testing pending/loading states.
+ *
+ * This utility returns a tuple of `[resolveFetch, fakeFetch]` where:
+ * - `fakeFetch` is passed to `stubFetch` and will wait for resolution
+ * - `resolveFetch` is called with a Response to resolve the pending fetch
+ *
+ * This is useful for testing loading states, where you need to verify
+ * UI behavior while a request is in flight before resolving it.
+ *
+ * @example Testing a loading state
+ * ```ts
+ * import { fetchResolver, stubFetch } from "@udibo/juniper/utils/testing";
+ * import { render, screen, waitFor } from "@testing-library/react";
+ * import { userEvent } from "@testing-library/user-event";
+ * import { describe, it } from "@std/testing/bdd";
+ *
+ * describe("Form tests", () => {
+ *   it("should show loading state while submitting", async () => {
+ *     const [resolveFetch, fakeFetch] = fetchResolver();
+ *     using fetchStub = stubFetch(fakeFetch);
+ *     const user = userEvent.setup();
+ *
+ *     render(<MyForm />);
+ *     await user.click(screen.getByRole("button", { name: "Submit" }));
+ *
+ *     // Verify loading state is shown
+ *     await waitFor(() => {
+ *       screen.getByText("Loading...");
+ *     });
+ *
+ *     // Resolve the fetch to complete the request
+ *     resolveFetch(Response.json({ success: true }));
+ *
+ *     // Verify success state
+ *     await waitFor(() => {
+ *       screen.getByText("Success!");
+ *     });
+ *   });
+ * });
+ * ```
+ *
+ * @returns A tuple of `[resolveFetch, fakeFetch]`.
+ */
+export function fetchResolver(): [ResolveFetch, FakeFetch] {
+  let resolve: ResolveFetch | null = null;
+
+  const fakeFetch: FakeFetch = () =>
+    new Promise<Response>((res) => {
+      resolve = res;
+    });
+
+  const resolveFetch: ResolveFetch = (response: Response) => {
+    if (resolve) {
+      resolve(response);
+      resolve = null;
+    }
+  };
+
+  return [resolveFetch, fakeFetch];
+}
+
+/**
+ * A mock FormData class that works with JSDOM form elements in Deno.
+ *
+ * Deno's native FormData constructor doesn't accept JSDOM HTMLFormElement objects,
+ * which causes "Illegal constructor" errors when testing form submissions.
+ * This class provides the same interface but extracts form data manually.
+ */
+class MockFormData extends FormData {
+  constructor(form?: HTMLFormElement) {
+    super();
+    if (form) {
+      const inputs = form.querySelectorAll("input, textarea, select");
+      inputs.forEach((input) => {
+        const el = input as
+          | HTMLInputElement
+          | HTMLTextAreaElement
+          | HTMLSelectElement;
+        if (el.name) {
+          this.append(el.name, el.value);
+        }
+      });
+    }
+  }
+}
+
+/**
+ * A stub for the global `FormData` constructor that implements `Disposable`.
+ */
+export interface FormDataStub extends Disposable {
+  /** Restores the original `FormData` constructor. */
+  restore(): void;
+}
+
+/**
+ * Stubs the global `FormData` constructor to work with JSDOM form elements.
+ * Implements `Disposable` for automatic cleanup with the `using` keyword.
+ *
+ * This is necessary because Deno's native FormData constructor throws
+ * "Illegal constructor" when passed a JSDOM HTMLFormElement. This stub
+ * replaces FormData with a compatible implementation that manually extracts
+ * form field values.
+ *
+ * @example Testing form submission with automatic cleanup using `using`
+ * ```ts
+ * import { stubFormData } from "@udibo/juniper/utils/testing";
+ * import { render, screen } from "@testing-library/react";
+ * import { userEvent } from "@testing-library/user-event";
+ * import { describe, it } from "@std/testing/bdd";
+ *
+ * describe("Form tests", () => {
+ *   it("should submit form data", async () => {
+ *     using formDataStub = stubFormData();
+ *     const user = userEvent.setup();
+ *
+ *     render(<MyForm />);
+ *     await user.type(screen.getByLabelText("Name"), "John");
+ *     await user.click(screen.getByRole("button", { name: "Submit" }));
+ *     // Assert form submission behavior
+ *   });
+ * });
+ * ```
+ *
+ * @example Testing form submission with manual cleanup
+ * ```ts
+ * import { stubFormData } from "@udibo/juniper/utils/testing";
+ * import { render, screen } from "@testing-library/react";
+ * import { userEvent } from "@testing-library/user-event";
+ * import { describe, it } from "@std/testing/bdd";
+ *
+ * describe("Form tests", () => {
+ *   it("should submit form data", async () => {
+ *     const formDataStub = stubFormData();
+ *     const user = userEvent.setup();
+ *
+ *     try {
+ *       render(<MyForm />);
+ *       await user.type(screen.getByLabelText("Name"), "John");
+ *       await user.click(screen.getByRole("button", { name: "Submit" }));
+ *       // Assert form submission behavior
+ *     } finally {
+ *       formDataStub.restore();
+ *     }
+ *   });
+ * });
+ * ```
+ *
+ * @returns A `FormDataStub` with `restore()` method and `Disposable` support.
+ */
+export function stubFormData(): FormDataStub {
+  const OriginalFormData = globalThis.FormData;
+  globalThis.FormData = MockFormData as typeof FormData;
+  const restore = () => {
+    globalThis.FormData = OriginalFormData;
+  };
+  return {
+    restore,
+    [Symbol.dispose]: restore,
   };
 }

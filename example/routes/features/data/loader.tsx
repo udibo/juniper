@@ -6,6 +6,7 @@ import { FeatureBadge } from "@/components/FeatureBadge.tsx";
 import { InfoBox } from "@/components/InfoBox.tsx";
 import { Note } from "@/components/Note.tsx";
 import { Spinner } from "@/components/Spinner.tsx";
+import { delay } from "@std/async/delay";
 
 interface LoaderData {
   timestamp: string;
@@ -14,7 +15,7 @@ interface LoaderData {
 }
 
 export async function loader(_args: RouteLoaderArgs): Promise<LoaderData> {
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  await delay(500);
   return {
     timestamp: new Date().toISOString(),
     randomNumber: Math.floor(Math.random() * 1000),

@@ -153,6 +153,10 @@
   },
   "allowScripts": {
     "allow": [],
-    "deny": ["npm:@parcel/watcher@2.5.1", "npm:esbuild@0.25.12"]
+    "deny": [
+      "npm:@parcel/watcher@2.5.1",
+      "npm:esbuild@0.25.12",
+      "npm:less@4.5.1"
+    ]
   }
 }

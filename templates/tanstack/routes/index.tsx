@@ -1,12 +1,8 @@
 import type { AnyParams, RouteProps } from "@udibo/juniper";
 
-interface HomeLoaderData {
+export interface HomeLoaderData {
   message: string;
   now: Date;
-}
-
-export function loader(): HomeLoaderData {
-  return { message: "Hello, World!", now: new Date() };
 }
 
 export default function Home(

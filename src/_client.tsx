@@ -332,7 +332,9 @@ async function fetchServerData(
 
   const responseType = response.headers.get("X-Juniper");
   if (responseType === "serialized") {
-    const deserialized = SuperJSON.deserialize(await response.json());
+    const serializedData = await response.json();
+    const deserialized = SuperJSON.deserialize(serializedData);
+
     if (!response.ok) {
       throw deserializeErrorDefault(deserialized);
     }
@@ -440,10 +442,6 @@ export function createRoute<
     return fetchServerAction(request, routeId);
   }
 
-  let loader:
-    | LoaderFunction<Context>
-    | undefined;
-
   let HydrateFallback: ComponentType | undefined;
   if (_HydrateFallback) {
     HydrateFallback = function HydrateFallback() {
@@ -463,27 +461,25 @@ export function createRoute<
         },
       );
     };
-    if (_loader) {
-      loader = function loader(args: LoaderFunctionArgs<Context>) {
-        const { context, params } = args;
-        const request = withCachedRequest(args.request);
-        const serverLoader = () => getServerLoader(request);
-        const result = _loader({ context, params, request, serverLoader });
-        if (result instanceof Promise) {
-          return { promise: result };
-        }
-        return result;
-      };
-    }
-  } else if (_loader) {
+  }
+
+  let loader: LoaderFunction<Context> | undefined;
+  if (_loader) {
     loader = function loader(args: LoaderFunctionArgs<Context>) {
       const { context, params } = args;
       const request = withCachedRequest(args.request);
       const serverLoader = () => getServerLoader(request);
-      return _loader({ context, params, request, serverLoader });
+      const result = _loader({ context, params, request, serverLoader });
+      if (HydrateFallback && result instanceof Promise) {
+        return { promise: result };
+      }
+      return result;
     };
   } else if (hasServerLoader) {
     loader = function loader(args: LoaderFunctionArgs<Context>) {
+      if (HydrateFallback) {
+        return { promise: getServerLoader(args.request) };
+      }
       return getServerLoader(args.request);
     };
   }
@@ -507,6 +503,8 @@ export function createRoute<
   }
 
   const hasClientLoader = !!_loader;
+  const hasAsyncLoader = HydrateFallback &&
+    (hasClientLoader || hasServerLoader);
 
   let Component: ComponentType | undefined;
   if (_Component) {
@@ -516,32 +514,27 @@ export function createRoute<
       const actionData = useActionData();
       const context = useJuniperContext() as Context;
 
-      if (hasClientLoader) {
+      if (hasAsyncLoader && HydrateFallback) {
         if (loaderData == null) {
-          if (HydrateFallback) {
-            return <HydrateFallback />;
-          }
-          return null;
+          return <HydrateFallback />;
         }
-        if (HydrateFallback) {
-          const hasPromise = typeof loaderData === "object" &&
-            "promise" in loaderData;
-          if (hasPromise) {
-            return (
-              <Suspense fallback={<HydrateFallback />}>
-                <Await resolve={loaderData.promise}>
-                  {(resolvedLoaderData) => (
-                    <_Component
-                      params={params}
-                      loaderData={resolvedLoaderData}
-                      actionData={actionData}
-                      context={context}
-                    />
-                  )}
-                </Await>
-              </Suspense>
-            );
-          }
+        const hasPromise = typeof loaderData === "object" &&
+          "promise" in loaderData;
+        if (hasPromise) {
+          return (
+            <Suspense fallback={<HydrateFallback />}>
+              <Await resolve={loaderData.promise}>
+                {(resolvedLoaderData) => (
+                  <_Component
+                    params={params}
+                    loaderData={resolvedLoaderData}
+                    actionData={actionData}
+                    context={context}
+                  />
+                )}
+              </Await>
+            </Suspense>
+          );
         }
       }
 

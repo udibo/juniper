@@ -5,6 +5,7 @@ import { DataList, DataListItem } from "@/components/DataList.tsx";
 import { FeatureBadge } from "@/components/FeatureBadge.tsx";
 import { InfoBox } from "@/components/InfoBox.tsx";
 import { Note } from "@/components/Note.tsx";
+import { Spinner } from "@/components/Spinner.tsx";
 
 export interface ServerLoaderData {
   message: string;
@@ -82,6 +83,15 @@ export async function loader(
         field contains the server process ID, demonstrating access to
         server-only resources. This data is never bundled into the client.
       </Note>
+    </div>
+  );
+}
+
+export function HydrateFallback() {
+  return (
+    <div className="flex flex-col items-center justify-center h-64 gap-4">
+      <Spinner size="lg" color="amber" />
+      <p className="text-slate-400">Loading from server and client...</p>
     </div>
   );
 }
