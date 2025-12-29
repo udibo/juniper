@@ -11,7 +11,7 @@ import {
   RouterProvider,
 } from "react-router";
 import type { RouteObject } from "react-router";
-import type { AnyParams, RootRouteModule, RouteModule } from "@udibo/juniper";
+import type { RootRouteModule, RouteModule } from "@udibo/juniper";
 
 import {
   App,
@@ -22,7 +22,6 @@ import {
   JuniperContextProvider,
 } from "./_client.tsx";
 import type {
-  DefaultContext,
   HydrationData,
   LazyRoute,
   SerializedError,
@@ -31,52 +30,32 @@ import type {
 } from "./_client.tsx";
 import { env } from "./utils/_env.ts";
 
-export type { DefaultContext, HydrationData, SerializedError, ServerFlags };
+export type { HydrationData, SerializedError, ServerFlags };
 
-/**
- * Loads a non-root route module on demand.
- *
- * @template Context - The router context type.
- */
-type RouteModuleLoader<Context extends DefaultContext = DefaultContext> = () =>
-  Promise<
-    RouteModule<AnyParams, unknown, unknown, Context>
-  >;
+/** Loads a non-root route module on demand. */
+type RouteModuleLoader = () => Promise<RouteModule>;
 
-/**
- * Loads the root route module on demand.
- *
- * @template Context - The router context type.
- */
-type RootRouteModuleLoader<Context extends DefaultContext = DefaultContext> =
-  () => Promise<
-    RootRouteModule<AnyParams, unknown, unknown, Context>
-  >;
+/** Loads the root route module on demand. */
+type RootRouteModuleLoader = () => Promise<RootRouteModule>;
 
-/**
- * A client route definition used by the generated `main.tsx`.
- *
- * @template Context - The router context type.
- */
-export interface ClientRoute<Context extends DefaultContext = DefaultContext> {
+/** A client route definition used by the generated `main.tsx`. */
+export interface ClientRoute {
   path: string;
   /**
    * The route's module.
    * Provide a `RouteModule` directly or a lazy loader that resolves to one.
    */
-  main?:
-    | RouteModule<AnyParams, unknown, unknown, Context>
-    | RouteModuleLoader<Context>;
+  main?: RouteModule | RouteModuleLoader;
   /**
    * The route's index module.
    * Must resolve to a `RouteModule`.
    */
-  index?: RouteModuleLoader<Context>;
+  index?: RouteModuleLoader;
   /**
    * The route's catchall module.
    * Must resolve to a `RouteModule`.
    */
-  catchall?: RouteModuleLoader<Context>;
+  catchall?: RouteModuleLoader;
   /**
    * Flags indicating whether the route has server-side loader/action.
    * Set by the build system when server route files export loader/action.
@@ -91,24 +70,16 @@ export interface ClientRoute<Context extends DefaultContext = DefaultContext> {
    */
   serverCatchall?: ServerFlags;
   /** The route's children. */
-  children?: ClientRoute<Context>[];
+  children?: ClientRoute[];
 }
 
-/**
- * The root client route.
- *
- * @template Context - The router context type.
- */
-export interface RootClientRoute<
-  Context extends DefaultContext = DefaultContext,
-> extends ClientRoute<Context> {
+/** The root client route. */
+export interface RootClientRoute extends ClientRoute {
   /**
    * The root route's module.
    * Provide a `RootRouteModule` or lazy loader.
    */
-  main?:
-    | RootRouteModule<AnyParams, unknown, unknown, Context>
-    | RootRouteModuleLoader<Context>;
+  main?: RootRouteModule | RootRouteModuleLoader;
 }
 
 /**
@@ -151,25 +122,20 @@ export function isSerializedError(
  * }
  * ```
  *
- * @template Context - The router context type.
  * @param rootRoute - The root client route.
  * @returns A new client instance.
  */
-export class Client<Context extends DefaultContext = DefaultContext> {
+export class Client {
   /** The root client route. */
-  rootRoute: RootClientRoute<Context>;
+  rootRoute: RootClientRoute;
   /** A map of route ids to client routes. */
-  routeFileMap: Map<
-    string,
-    | RouteModule<AnyParams, unknown, unknown, Context>
-    | RouteModuleLoader<Context>
-  >;
+  routeFileMap: Map<string, RouteModule | RouteModuleLoader>;
   /** The route objects used by React Router. */
   routeObjects: RouteObject[];
   /** A map of route object ids to route objects used by React Router. */
   routeObjectMap: Map<string, RouteObject>;
 
-  constructor(rootRoute: RootClientRoute<Context>) {
+  constructor(rootRoute: RootClientRoute) {
     this.rootRoute = rootRoute;
     this.routeFileMap = new Map();
     const rootRouteId = "/";
@@ -177,7 +143,7 @@ export class Client<Context extends DefaultContext = DefaultContext> {
     this.routeObjectMap = new Map();
 
     const parentPathStack: string[] = ["/"];
-    const routeStack: ClientRoute<Context>[] = [rootRoute];
+    const routeStack: ClientRoute[] = [rootRoute];
     const routeObjectStack: RouteObject[] = [...this.routeObjects];
     while (parentPathStack.length > 0) {
       const currentPath = parentPathStack.pop()!;
@@ -186,7 +152,7 @@ export class Client<Context extends DefaultContext = DefaultContext> {
       const routeId = routeObject.id!;
 
       if (typeof route.main === "function") {
-        routeObject.lazy = createLazyRoute<Context>(
+        routeObject.lazy = createLazyRoute(
           route.main,
           route.server,
           routeId,
@@ -217,7 +183,7 @@ export class Client<Context extends DefaultContext = DefaultContext> {
         const indexRouteObject: RouteObject = {
           id: indexRouteId,
           index: true,
-          lazy: createLazyRoute<Context>(
+          lazy: createLazyRoute(
             route.index,
             route.serverIndex,
             indexRouteId,
@@ -250,7 +216,7 @@ export class Client<Context extends DefaultContext = DefaultContext> {
         const catchallRouteObject: RouteObject = {
           id: catchallRouteId,
           path: "*",
-          lazy: createLazyRoute<Context>(
+          lazy: createLazyRoute(
             route.catchall,
             route.serverCatchall,
             catchallRouteId,
@@ -309,7 +275,7 @@ export class Client<Context extends DefaultContext = DefaultContext> {
           HydrateFallback,
           loader,
           action,
-        } = await (route.lazy as LazyRoute<Context>)();
+        } = await (route.lazy as LazyRoute)();
         if (Component) route.Component = Component;
         if (ErrorBoundary) route.ErrorBoundary = ErrorBoundary;
         if (HydrateFallback) route.HydrateFallback = HydrateFallback;

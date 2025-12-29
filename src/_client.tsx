@@ -24,7 +24,6 @@ import React, { createContext, Suspense, useContext } from "react";
 import type { ComponentType } from "react";
 
 import type {
-  AnyParams,
   ErrorBoundaryProps,
   MiddlewareFunction,
   RouteModule,
@@ -365,51 +364,41 @@ function fetchServerAction(
   return fetchServerData(request, "POST", routeId);
 }
 
-export type Route<
-  Context extends RouterContextProvider = RouterContextProvider,
-> = {
+export type Route = {
   Component?: ComponentType;
   ErrorBoundary?: ComponentType;
   HydrateFallback?: ComponentType;
   loader?: (
-    args: LoaderFunctionArgs<Context>,
+    args: LoaderFunctionArgs<RouterContextProvider>,
   ) => unknown | Promise<unknown>;
   action?: (
-    args: ActionFunctionArgs<Context>,
+    args: ActionFunctionArgs<RouterContextProvider>,
   ) => unknown | Promise<unknown>;
-  middleware?: ReactRouterMiddlewareFunction<Context>[];
+  middleware?: ReactRouterMiddlewareFunction<RouterContextProvider>[];
 };
 
-export type LazyRouteResult<
-  Context extends RouterContextProvider = RouterContextProvider,
-> = Omit<Route<Context>, "middleware">;
+export type LazyRouteResult = Omit<Route, "middleware">;
 
 /**
  * Converts a route module into a renderable route object.
  *
- * @template Context - The router context type.
  * @returns A promise that resolves to the route object.
  */
-export type LazyRoute<
-  Context extends RouterContextProvider = RouterContextProvider,
-> = () => Promise<LazyRouteResult<Context>>;
+export type LazyRoute = () => Promise<LazyRouteResult>;
 
 /**
  * Converts a `RouteModule` into the internal `Route` shape used by the client runtime.
  *
- * @template Context - The router context type.
  * @param routeFile - The module exports for the route.
  * @param serverFlags - Flags indicating whether the route has server-side loader/action.
  * @param routeId - The route ID used for server data requests.
  * @returns A concrete `Route` instance.
  */
-export function createRoute<
-  Context extends RouterContextProvider = RouterContextProvider,
->(
-  routeFile: RouteModule<AnyParams, unknown, unknown, Context>,
+export function createRoute(
+  routeFile: RouteModule,
   serverFlags?: ServerFlags,
   routeId?: string,
-): Route<Context> {
+): Route {
   const {
     ErrorBoundary: _ErrorBoundary,
     default: _Component,
@@ -447,12 +436,10 @@ export function createRoute<
     HydrateFallback = function HydrateFallback() {
       const params = useParams();
       const actionData = useActionData();
-      const context = useJuniperContext() as Context;
+      const context = useJuniperContext();
 
       return React.createElement(
-        _HydrateFallback as ComponentType<
-          RouteProps<AnyParams, unknown, unknown, Context>
-        >,
+        _HydrateFallback as ComponentType<RouteProps>,
         {
           params,
           loaderData: undefined,
@@ -463,9 +450,9 @@ export function createRoute<
     };
   }
 
-  let loader: LoaderFunction<Context> | undefined;
+  let loader: LoaderFunction<RouterContextProvider> | undefined;
   if (_loader) {
-    loader = function loader(args: LoaderFunctionArgs<Context>) {
+    loader = function loader(args: LoaderFunctionArgs<RouterContextProvider>) {
       const { context, params } = args;
       const request = withCachedRequest(args.request);
       const serverLoader = () => getServerLoader(request);
@@ -476,7 +463,7 @@ export function createRoute<
       return result;
     };
   } else if (hasServerLoader) {
-    loader = function loader(args: LoaderFunctionArgs<Context>) {
+    loader = function loader(args: LoaderFunctionArgs<RouterContextProvider>) {
       if (HydrateFallback) {
         return { promise: getServerLoader(args.request) };
       }
@@ -485,18 +472,18 @@ export function createRoute<
   }
 
   let action:
-    | ActionFunction<Context>
+    | ActionFunction<RouterContextProvider>
     | undefined;
 
   if (_action) {
-    action = function action(args: ActionFunctionArgs<Context>) {
+    action = function action(args: ActionFunctionArgs<RouterContextProvider>) {
       const { context, params } = args;
       const request = withCachedRequest(args.request);
       const serverAction = () => getServerAction(request);
       return _action({ context, params, request, serverAction });
     };
   } else if (hasServerAction) {
-    action = function action(args: ActionFunctionArgs<Context>) {
+    action = function action(args: ActionFunctionArgs<RouterContextProvider>) {
       const request = withCachedRequest(args.request);
       return getServerAction(request);
     };
@@ -512,7 +499,7 @@ export function createRoute<
       const params = useParams();
       const loaderData = useLoaderData();
       const actionData = useActionData();
-      const context = useJuniperContext() as Context;
+      const context = useJuniperContext();
 
       if (hasAsyncLoader && HydrateFallback) {
         if (loaderData == null) {
@@ -539,9 +526,7 @@ export function createRoute<
       }
 
       return React.createElement(
-        _Component as ComponentType<
-          RouteProps<AnyParams, unknown, unknown, Context>
-        >,
+        _Component as ComponentType<RouteProps>,
         {
           params,
           loaderData,
@@ -561,16 +546,14 @@ export function createRoute<
       const error = useRouteError();
       const navigate = useNavigate();
       const location = useLocation();
-      const context = useJuniperContext() as Context;
+      const context = useJuniperContext();
 
       function resetErrorBoundary() {
         navigate(location.pathname, { replace: true });
       }
 
       return React.createElement(
-        _ErrorBoundary as ComponentType<
-          ErrorBoundaryProps<AnyParams, unknown, unknown, Context>
-        >,
+        _ErrorBoundary as ComponentType<ErrorBoundaryProps>,
         {
           error,
           resetErrorBoundary,
@@ -583,26 +566,28 @@ export function createRoute<
     };
   }
 
-  let middleware: ReactRouterMiddlewareFunction<Context>[] | undefined;
+  let middleware:
+    | ReactRouterMiddlewareFunction<RouterContextProvider>[]
+    | undefined;
   if (_middleware && _middleware.length > 0) {
-    middleware = _middleware.map(
-      (mw: MiddlewareFunction<Context, AnyParams>) => {
-        const wrappedMiddleware: ReactRouterMiddlewareFunction<Context> = (
-          args,
+    middleware = _middleware.map((mw: MiddlewareFunction) => {
+      const wrappedMiddleware: ReactRouterMiddlewareFunction<
+        RouterContextProvider
+      > = (
+        args,
+        next,
+      ) => {
+        return mw(
+          {
+            context: args.context as RouterContextProvider,
+            params: args.params,
+            request: args.request,
+          },
           next,
-        ) => {
-          return mw(
-            {
-              context: args.context as Context,
-              params: args.params,
-              request: args.request,
-            },
-            next,
-          );
-        };
-        return wrappedMiddleware;
-      },
-    );
+        );
+      };
+      return wrappedMiddleware;
+    });
   }
 
   return {
@@ -619,22 +604,17 @@ export function createRoute<
  * Creates a lazy route object that loads a `RouteModule` and converts it to a route object.
  * Note: Middleware cannot be lazily loaded per React Router constraints, so it is stripped.
  *
- * @template Context - The router context type.
  * @param lazyRouteFile - The lazy route file to create a lazy route object from.
  * @param serverFlags - Flags indicating whether the route has server-side loader/action.
  * @param routeId - The route ID used for server data requests.
  * @returns A lazy route object.
  */
-export function createLazyRoute<
-  Context extends RouterContextProvider = RouterContextProvider,
->(
-  lazyRouteFile: () => Promise<
-    RouteModule<AnyParams, unknown, unknown, Context>
-  >,
+export function createLazyRoute(
+  lazyRouteFile: () => Promise<RouteModule>,
   serverFlags?: ServerFlags,
   routeId?: string,
-): LazyRoute<Context> {
-  return async (): Promise<LazyRouteResult<Context>> => {
+): LazyRoute {
+  return async (): Promise<LazyRouteResult> => {
     const routeFile = await lazyRouteFile();
     const { middleware: _middleware, ...rest } = createRoute(
       routeFile,
@@ -644,6 +624,3 @@ export function createLazyRoute<
     return rest;
   };
 }
-
-/** The default router context provider. */
-export type DefaultContext = RouterContextProvider;
