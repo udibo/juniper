@@ -110,8 +110,8 @@
       "command": "deno task --cwd=templates/tanstack test"
     },
     "check": {
-      "description": "Checks the formatting and runs the linter.",
-      "command": "deno lint && deno fmt --check"
+      "description": "Checks the code for errors, formatting, and runs the linter.",
+      "command": "deno check && deno lint && deno fmt --check"
     },
     "git-rebase": {
       "description": "Gets your branch up to date with master after a squash merge.",

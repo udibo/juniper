@@ -25,8 +25,8 @@
       "command": "deno test -P=test --env-file --env-file=.env.test"
     },
     "check": {
-      "description": "Checks the formatting and runs the linter.",
-      "command": "deno lint && deno fmt --check"
+      "description": "Checks the code for errors, formatting, and runs the linter.",
+      "command": "deno check && deno lint && deno fmt --check"
     }
   },
   "imports": {
