@@ -1,4 +1,5 @@
 import type { RouteActionArgs } from "@udibo/juniper";
+import { delay } from "@std/async/delay";
 
 import type { ServerMutationResult } from "./client-calls-server.tsx";
 
@@ -9,7 +10,7 @@ export async function action(
   const title = formData.get("title") as string;
   const content = formData.get("content") as string;
 
-  await new Promise((resolve) => setTimeout(resolve, 400));
+  await delay(400);
 
   return {
     success: true,

@@ -6,7 +6,7 @@ export default function HomePage() {
       <title>Juniper - Modern Web Framework for Deno</title>
 
       <section className="text-center py-16">
-        <h1 className="text-5xl font-bold mb-6 bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+        <h1 className="text-5xl font-bold mb-6 bg-linear-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
           Welcome to Juniper
         </h1>
         <p className="text-xl text-slate-300 max-w-2xl mx-auto mb-12 leading-relaxed">

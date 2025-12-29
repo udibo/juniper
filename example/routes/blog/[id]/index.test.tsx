@@ -6,7 +6,7 @@ import { afterEach, describe, it } from "@std/testing/bdd";
 
 import { createRoutesStub } from "@udibo/juniper/utils/testing";
 
-import * as blogPostRoute from "./[id]/index.tsx";
+import * as blogPostRoute from "./index.tsx";
 
 describe("Blog post route", () => {
   afterEach(cleanup);

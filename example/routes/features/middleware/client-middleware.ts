@@ -1,8 +1,6 @@
-import type { RouteLoaderArgs } from "@udibo/juniper";
-
 import type { LoaderData } from "./client-middleware.tsx";
 
-export function loader(_args: RouteLoaderArgs): LoaderData {
+export function loader(): LoaderData {
   return {
     navigationInfo: {
       navigatedAt: new Date().toISOString(),

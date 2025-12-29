@@ -1,6 +1,7 @@
 import { createContext } from "react-router";
 
 import type {
+  AnyParams,
   MiddlewareFunction,
   RouteLoaderArgs,
   RouteProps,
@@ -48,7 +49,7 @@ export interface LoaderData {
 }
 
 export function loader(
-  { context, serverLoader }: RouteLoaderArgs,
+  { context, serverLoader }: RouteLoaderArgs<AnyParams, LoaderData>,
 ): LoaderData | Promise<LoaderData> {
   // Check if we have client navigation info (means we're doing client-side navigation)
   let clientInfo: ClientNavigationInfo | undefined;

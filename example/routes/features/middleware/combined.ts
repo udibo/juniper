@@ -32,7 +32,9 @@ app.use(async (c, next) => {
 export default app;
 
 // Server loader - called during SSR or when client calls serverLoader()
-export function loader({ context }: RouteLoaderArgs): LoaderData {
+export function loader(
+  { context }: RouteLoaderArgs,
+): LoaderData {
   const serverInfo = context.get(serverRequestInfoContext);
   console.log(`[Server Loader] Got request info: ${serverInfo.requestId}`);
 

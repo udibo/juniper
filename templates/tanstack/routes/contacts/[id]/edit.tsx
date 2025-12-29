@@ -14,24 +14,24 @@ import { contactsQuery } from "../index.tsx";
 import { contactQuery } from "./index.tsx";
 
 export async function loader(
-  { context, params, serverLoader }: RouteLoaderArgs,
+  { context, params, serverLoader }: RouteLoaderArgs<{ id: string }, Contact>,
 ): Promise<Contact> {
   const queryClient = context.get(queryClientContext);
   return await queryClient.ensureQueryData({
-    ...contactQuery(params.id!),
+    ...contactQuery(params.id),
     queryFn: () => serverLoader(),
   });
 }
 
 export async function action(
-  { context, params, serverAction }: RouteActionArgs,
-): Promise<Response> {
+  { context, params, serverAction }: RouteActionArgs<{ id: string }>,
+): Promise<void> {
   const queryClient = context.get(queryClientContext);
   try {
-    return await serverAction() as Response;
+    await serverAction();
   } finally {
     queryClient.invalidateQueries(contactsQuery());
-    queryClient.invalidateQueries(contactQuery(params.id!));
+    queryClient.invalidateQueries(contactQuery(params.id));
   }
 }
 

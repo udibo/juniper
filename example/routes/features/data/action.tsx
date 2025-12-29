@@ -1,5 +1,6 @@
-import { Form, useActionData, useNavigation } from "react-router";
-import type { RouteActionArgs } from "@udibo/juniper";
+import { delay } from "@std/async/delay";
+import type { AnyParams, RouteActionArgs, RouteProps } from "@udibo/juniper";
+import { Form, useNavigation } from "react-router";
 
 import { CodeBlock } from "@/components/CodeBlock.tsx";
 import { FeatureBadge } from "@/components/FeatureBadge.tsx";
@@ -15,13 +16,13 @@ interface ActionData {
 }
 
 export async function action(
-  { request }: RouteActionArgs,
+  { request }: RouteActionArgs<AnyParams, ActionData>,
 ): Promise<ActionData> {
   const formData = await request.formData();
   const name = formData.get("name") as string;
   const email = formData.get("email") as string;
 
-  await new Promise((resolve) => setTimeout(resolve, 800));
+  await delay(800);
 
   return {
     success: true,
@@ -31,8 +32,9 @@ export async function action(
   };
 }
 
-export default function FormActionDemo() {
-  const actionData = useActionData<ActionData>();
+export default function FormActionDemo({
+  actionData,
+}: RouteProps<AnyParams, unknown, ActionData>) {
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
 

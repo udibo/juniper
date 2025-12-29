@@ -1,8 +1,6 @@
-import type { RouteLoaderArgs } from "@udibo/juniper";
-
 import type { ResponseLoaderData } from "./response.tsx";
 
-export function loader(_args: RouteLoaderArgs): Response {
+export function loader(): Response {
   const data: ResponseLoaderData = {
     title: "Custom Response Example",
     description: "Data loaded via a custom Response object",

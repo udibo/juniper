@@ -10,13 +10,13 @@ import type { Contact } from "@/services/contact.ts";
 import { contactQuery } from "./index.tsx";
 
 export async function loader(
-  { context, params }: RouteLoaderArgs,
+  { context, params }: RouteLoaderArgs<{ id: string }, Contact>,
 ): Promise<Contact> {
   const queryClient = context.get(queryClientContext);
   return await queryClient.ensureQueryData({
-    ...contactQuery(params.id!),
+    ...contactQuery(params.id),
     queryFn: async () => {
-      const contact = await getContact(params.id!);
+      const contact = await getContact(params.id);
       if (!contact) {
         throw new HttpError(404, "Contact not found");
       }
@@ -26,13 +26,13 @@ export async function loader(
 }
 
 export async function action(
-  { request, params }: RouteActionArgs,
-): Promise<Response> {
+  { request, params }: RouteActionArgs<{ id: string }>,
+): Promise<void> {
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
 
   if (intent === "delete") {
-    await deleteContact(params.id!);
+    await deleteContact(params.id);
     throw redirect("/contacts");
   }
   throw new HttpError(400, "Invalid intent");

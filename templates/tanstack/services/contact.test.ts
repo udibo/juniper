@@ -1,4 +1,5 @@
 import { assertEquals, assertExists, assertNotEquals } from "@std/assert";
+import { delay } from "@std/async/delay";
 import { describe, it } from "@std/testing/bdd";
 
 import {
@@ -124,7 +125,7 @@ describe("Contact service", () => {
       const before = await getContact(createdContactId);
       assertExists(before);
 
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await delay(10);
 
       const after = await updateContact({
         id: createdContactId,

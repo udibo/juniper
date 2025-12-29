@@ -1,4 +1,4 @@
-import type { AnyParams, RouteLoaderArgs, RouteProps } from "@udibo/juniper";
+import type { AnyParams, RouteProps } from "@udibo/juniper";
 
 import { CodeBlock } from "@/components/CodeBlock.tsx";
 import { DataList, DataListItem } from "@/components/DataList.tsx";
@@ -14,7 +14,7 @@ interface LoaderData {
   message: string;
 }
 
-export async function loader(_args: RouteLoaderArgs): Promise<LoaderData> {
+export async function loader(): Promise<LoaderData> {
   await delay(500);
   return {
     timestamp: new Date().toISOString(),

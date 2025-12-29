@@ -2,7 +2,7 @@ import { delay } from "@std/async/delay";
 import { Suspense } from "react";
 import { Await, useAsyncError } from "react-router";
 import { HttpError } from "@udibo/juniper";
-import type { AnyParams, RouteLoaderArgs, RouteProps } from "@udibo/juniper";
+import type { AnyParams, RouteProps } from "@udibo/juniper";
 
 import { CodeBlock } from "@/components/CodeBlock.tsx";
 import { FeatureBadge } from "@/components/FeatureBadge.tsx";
@@ -16,7 +16,7 @@ interface DeferredLoaderData {
   verySlowData: Promise<string>;
 }
 
-export function loader(_args: RouteLoaderArgs): DeferredLoaderData {
+export function loader(): DeferredLoaderData {
   return {
     fastData: "This data loaded instantly!",
     slowData: delay(1000).then(() => "Loaded after 1 second"),

@@ -1,6 +1,7 @@
 import "global-jsdom/register";
 
 import { assertEquals, assertExists } from "@std/assert";
+import { delay } from "@std/async/delay";
 import { stub } from "@std/testing/mock";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
@@ -357,7 +358,7 @@ describe("Contact view route", () => {
 
       await user.click(screen.getByRole("button", { name: "Delete Contact" }));
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await delay(100);
 
       assertEquals(actionCalled, false);
     });

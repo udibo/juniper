@@ -1,11 +1,9 @@
-import type { RouteLoaderArgs } from "@udibo/juniper";
+import { delay } from "@std/async/delay";
 
 import type { ParentLoaderData } from "./main.tsx";
 
-export async function loader(
-  _args: RouteLoaderArgs,
-): Promise<ParentLoaderData> {
-  await new Promise((resolve) => setTimeout(resolve, 300));
+export async function loader(): Promise<ParentLoaderData> {
+  await delay(300);
   return {
     parentMessage: "Hello from parent loader!",
     loadedAt: new Date().toISOString(),

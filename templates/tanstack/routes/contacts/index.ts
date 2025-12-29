@@ -1,4 +1,4 @@
-import type { RouteLoaderArgs } from "@udibo/juniper";
+import type { AnyParams, RouteLoaderArgs } from "@udibo/juniper";
 
 import { queryClientContext } from "@/context/query.ts";
 import { getContacts } from "@/services/contact.ts";
@@ -6,7 +6,7 @@ import { getContacts } from "@/services/contact.ts";
 import { ContactsLoaderData, contactsQuery } from "./index.tsx";
 
 export async function loader(
-  { context }: RouteLoaderArgs,
+  { context }: RouteLoaderArgs<AnyParams, ContactsLoaderData>,
 ): Promise<ContactsLoaderData> {
   const queryClient = context.get(queryClientContext);
   return await queryClient.ensureQueryData({

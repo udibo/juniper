@@ -67,7 +67,7 @@ export async function getContact(id: string): Promise<Contact | null> {
 }
 
 export async function createContact(data: NewContact): Promise<Contact> {
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  await delay(100);
   const now = new Date();
   const contact: Contact = {
     id: generateId(),

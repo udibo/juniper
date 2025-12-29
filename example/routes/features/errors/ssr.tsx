@@ -1,11 +1,15 @@
-import type { RouteLoaderArgs } from "@udibo/juniper";
 import { useLoaderData } from "react-router";
 
 import { CodeBlock } from "@/components/CodeBlock.tsx";
 import { FeatureBadge } from "@/components/FeatureBadge.tsx";
 import { InfoBox } from "@/components/InfoBox.tsx";
 
-export function loader(_args: RouteLoaderArgs) {
+interface LoaderData {
+  message: string;
+  timestamp: string;
+}
+
+export function loader(): LoaderData {
   return {
     message: "Data loaded successfully from the client!",
     timestamp: new Date().toISOString(),

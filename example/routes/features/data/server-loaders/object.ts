@@ -1,10 +1,10 @@
-import type { RouteLoaderArgs } from "@udibo/juniper";
+import type { AnyParams, RouteLoaderArgs } from "@udibo/juniper";
 import { delay } from "@std/async/delay";
 
 import type { ServerLoaderData } from "./object.tsx";
 
 export async function loader(
-  _args: RouteLoaderArgs,
+  _args: RouteLoaderArgs<AnyParams, ServerLoaderData>,
 ): Promise<ServerLoaderData> {
   await delay(200);
   return {

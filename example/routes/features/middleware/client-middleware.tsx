@@ -1,6 +1,7 @@
 import { createContext } from "react-router";
 
 import type {
+  AnyParams,
   MiddlewareFunction,
   RouteLoaderArgs,
   RouteProps,
@@ -32,7 +33,7 @@ export interface LoaderData {
 }
 
 export function loader(
-  { context, serverLoader }: RouteLoaderArgs,
+  { context, serverLoader }: RouteLoaderArgs<AnyParams, LoaderData>,
 ): LoaderData | Promise<LoaderData> {
   let navigationInfo: NavigationInfo | undefined;
   try {

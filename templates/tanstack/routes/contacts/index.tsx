@@ -25,12 +25,12 @@ export const contactsQuery = () => ({
 export type ContactsLoaderData = Contact[];
 
 export async function loader(
-  { context, serverLoader }: RouteLoaderArgs,
+  { context, serverLoader }: RouteLoaderArgs<AnyParams, ContactsLoaderData>,
 ): Promise<ContactsLoaderData> {
   const queryClient = context.get(queryClientContext);
   return await queryClient.ensureQueryData({
     ...contactsQuery(),
-    queryFn: () => serverLoader() as Promise<ContactsLoaderData>,
+    queryFn: () => serverLoader(),
   });
 }
 

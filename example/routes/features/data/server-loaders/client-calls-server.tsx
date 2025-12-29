@@ -21,7 +21,9 @@ interface ClientEnrichedData extends ServerData {
 
 export async function loader({
   serverLoader,
-}: RouteLoaderArgs): Promise<ClientEnrichedData> {
+}: RouteLoaderArgs<AnyParams, ClientEnrichedData>): Promise<
+  ClientEnrichedData
+> {
   const serverData = await serverLoader() as ServerData;
 
   return {

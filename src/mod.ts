@@ -356,6 +356,28 @@ type BivariantComponent<Props> = {
 }["bivarianceHack"];
 
 /**
+ * The props for HydrateFallback components.
+ * Params are always available, but loaderData and actionData may not be loaded yet.
+ */
+export interface HydrateFallbackProps<
+  Params extends AnyParams = AnyParams,
+> {
+  /** The params of the route. */
+  params: Params;
+  /** The router context shared by middleware, loaders, actions, and components. */
+  context: RouterContextProvider;
+}
+
+/**
+ * A React component type used for a route's HydrateFallback export.
+ * This component is shown during hydration while the loader is pending.
+ * It receives params but may not have loaderData or actionData yet.
+ */
+export type HydrateFallbackComponent<
+  Params extends AnyParams = AnyParams,
+> = BivariantComponent<HydrateFallbackProps<Params>>;
+
+/**
  * A React component type used for a route's default export.
  *
  * @template Params - The type of route params. Defaults to `AnyParams`.
@@ -510,9 +532,11 @@ export type RouteErrorBoundary<
 export type LoaderFunction<
   Params extends AnyParams = AnyParams,
   LoaderData = unknown,
-> = (
-  args: RouteLoaderArgs<Params, LoaderData>,
-) => LoaderData | Promise<LoaderData>;
+> = {
+  bivarianceHack(
+    args: RouteLoaderArgs<Params, LoaderData>,
+  ): LoaderData | Promise<LoaderData>;
+}["bivarianceHack"];
 
 /**
  * An action function exported by a route module.
@@ -588,9 +612,11 @@ export type LoaderFunction<
 export type ActionFunction<
   Params extends AnyParams = AnyParams,
   ActionData = unknown,
-> = (
-  args: RouteActionArgs<Params, ActionData>,
-) => ActionData | Promise<ActionData>;
+> = {
+  bivarianceHack(
+    args: RouteActionArgs<Params, ActionData>,
+  ): ActionData | Promise<ActionData>;
+}["bivarianceHack"];
 
 /**
  * The contract for a route module file.
@@ -656,8 +682,8 @@ export interface RouteModule<
   default?: RouteComponent<Params, LoaderData, ActionData>;
   /** The route's error boundary component. */
   ErrorBoundary?: RouteErrorBoundary<Params, LoaderData, ActionData>;
-  /** The route's hydration fallback component. */
-  HydrateFallback?: RouteComponent<Params, LoaderData, ActionData>;
+  /** The route's hydration fallback component shown during hydration before loader completes. */
+  HydrateFallback?: HydrateFallbackComponent<Params>;
   /** The loader function. */
   loader?: LoaderFunction<Params, LoaderData>;
   /** The action function. */

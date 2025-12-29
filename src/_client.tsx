@@ -25,6 +25,7 @@ import type { ComponentType } from "react";
 
 import type {
   ErrorBoundaryProps,
+  HydrateFallbackProps,
   MiddlewareFunction,
   RouteModule,
   RouteProps,
@@ -435,15 +436,12 @@ export function createRoute(
   if (_HydrateFallback) {
     HydrateFallback = function HydrateFallback() {
       const params = useParams();
-      const actionData = useActionData();
       const context = useJuniperContext();
 
       return React.createElement(
-        _HydrateFallback as ComponentType<RouteProps>,
+        _HydrateFallback as ComponentType<HydrateFallbackProps>,
         {
           params,
-          loaderData: undefined,
-          actionData,
           context,
         },
       );

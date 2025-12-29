@@ -1,11 +1,14 @@
+import { delay } from "@std/async/delay";
 import type { RouteActionArgs } from "@udibo/juniper";
 import { redirect } from "react-router";
 
-export async function action({ request }: RouteActionArgs): Promise<void> {
+export async function action(
+  { request }: RouteActionArgs,
+): Promise<void> {
   const formData = await request.formData();
   const destination = formData.get("destination") as string;
 
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  await delay(300);
 
   if (destination === "home") {
     throw redirect("/");

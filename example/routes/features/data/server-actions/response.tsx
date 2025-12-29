@@ -1,4 +1,5 @@
-import { Form, useActionData, useNavigation } from "react-router";
+import type { AnyParams, RouteProps } from "@udibo/juniper";
+import { Form, useNavigation } from "react-router";
 
 import { CodeBlock } from "@/components/CodeBlock.tsx";
 import { DataList, DataListItem } from "@/components/DataList.tsx";
@@ -12,8 +13,9 @@ export interface ResponseActionData {
   processedAt: string;
 }
 
-export default function ServerActionResponseDemo() {
-  const actionData = useActionData<ResponseActionData>();
+export default function ServerActionResponseDemo({
+  actionData,
+}: RouteProps<AnyParams, unknown, ResponseActionData>) {
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
 

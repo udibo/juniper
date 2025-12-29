@@ -2,25 +2,25 @@ import { Form, Link, useNavigation } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 
+import type { AnyParams, RouteActionArgs } from "@udibo/juniper";
 import { HttpError } from "@udibo/juniper";
-import type { RouteActionArgs, RouteProps } from "@udibo/juniper";
 
 import { queryClientContext } from "@/context/query.ts";
 import type { Contact, NewContact } from "@/services/contact.ts";
 import { contactsQuery } from "./index.tsx";
 
 export async function action(
-  { context, serverAction }: RouteActionArgs,
-): Promise<Response> {
+  { context, serverAction }: RouteActionArgs<AnyParams>,
+): Promise<void> {
   const queryClient = context.get(queryClientContext);
   try {
-    return await serverAction() as Response;
+    await serverAction();
   } finally {
     queryClient.invalidateQueries(contactsQuery());
   }
 }
 
-export default function NewContact({}: RouteProps) {
+export default function NewContact() {
   const navigation = useNavigation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();

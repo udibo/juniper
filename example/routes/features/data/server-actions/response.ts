@@ -1,12 +1,15 @@
-import type { RouteActionArgs } from "@udibo/juniper";
+import { delay } from "@std/async/delay";
+import type { AnyParams, RouteActionArgs } from "@udibo/juniper";
 
 import type { ResponseActionData } from "./response.tsx";
 
-export async function action({ request }: RouteActionArgs): Promise<Response> {
+export async function action(
+  { request }: RouteActionArgs<AnyParams, Response>,
+): Promise<Response> {
   const formData = await request.formData();
   const input = formData.get("data") as string;
 
-  await new Promise((resolve) => setTimeout(resolve, 400));
+  await delay(400);
 
   const responseData: ResponseActionData = {
     success: true,
