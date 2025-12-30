@@ -4,7 +4,6 @@ import { postCSSPlugin } from "@udibo/esbuild-plugin-postcss";
 import tailwindcss from "@tailwindcss/postcss";
 
 const projectRoot = path.dirname(path.fromFileUrl(import.meta.url));
-console.log("projectRoot", projectRoot);
 export const builder = new Builder({
   projectRoot,
   configPath: "./deno.json",
