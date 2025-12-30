@@ -345,7 +345,7 @@ async function fetchServerData(
     return deserialized;
   } else if (responseType === "redirect") {
     const location = (await response.json()).location;
-    return redirect(location);
+    throw redirect(location);
   }
 
   if (!response.ok) {
