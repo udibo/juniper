@@ -32,9 +32,39 @@ export default function LoaderDemo({
       <FeatureBadge color="blue">Loader</FeatureBadge>
       <h2 className="text-2xl font-bold text-slate-100 mb-4">Loader</h2>
       <p className="text-slate-300 mb-6 leading-relaxed">
-        Loaders fetch data for your route. They run during navigation and can
-        call APIs, access localStorage, or perform any data fetching.
+        Loaders fetch data for your route. They run on both the server during
+        SSR and on the client during navigation. Use{" "}
+        <code className="px-1 py-0.5 bg-slate-700 rounded text-emerald-400">
+          isBrowser()
+        </code>{" "}
+        for browser-only APIs like localStorage.
       </p>
+
+      <InfoBox
+        title="Server vs Client Loaders"
+        color="emerald"
+        className="mb-6"
+      >
+        <ul className="list-disc list-inside space-y-2 text-slate-300">
+          <li>
+            <strong>Default:</strong> Loaders in{" "}
+            <code className="px-1 py-0.5 bg-slate-700/50 rounded">.tsx</code>{" "}
+            files run on both server and client
+          </li>
+          <li>
+            <strong>Server-only:</strong> Create a separate{" "}
+            <code className="px-1 py-0.5 bg-slate-700/50 rounded">.ts</code>{" "}
+            file for loaders that need server-only resources
+          </li>
+          <li>
+            <strong>Browser-only code:</strong> Use{" "}
+            <code className="px-1 py-0.5 bg-slate-700/50 rounded">
+              isBrowser()
+            </code>{" "}
+            to guard browser APIs within loaders
+          </li>
+        </ul>
+      </InfoBox>
 
       <InfoBox title="Loaded Data" color="blue" className="mb-6">
         <DataList>

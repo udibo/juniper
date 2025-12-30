@@ -742,6 +742,7 @@ describe("HydrationData serialization and deserialization", () => {
   beforeAll(async () => {
     hydrationData = {
       publicEnv: { APP_ENV: "test", APP_NAME: "TestApp" },
+      serializedContext: { testKey: "testValue" },
       matches: [{ id: "/" }, { id: "/blog" }, { id: "/blog/index" }],
       errors: {
         "/": new Error("Oops"),
@@ -812,12 +813,19 @@ describe("HydrationData serialization and deserialization", () => {
   it("hydrationData keys are the same", () => {
     assertEquals(
       Object.keys(deserializedHydrationData),
-      ["matches", "errors", "loaderData", "actionData"],
+      ["serializedContext", "matches", "errors", "loaderData", "actionData"],
     );
   });
 
   it("matches are the same", () => {
     assertEquals(deserializedHydrationData.matches, hydrationData.matches);
+  });
+
+  it("serializedContext is the same", () => {
+    assertEquals(
+      deserializedHydrationData.serializedContext,
+      hydrationData.serializedContext,
+    );
   });
 
   it("errors are the same", () => {

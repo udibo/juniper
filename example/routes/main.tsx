@@ -1,7 +1,31 @@
 import type { ReactNode } from "react";
-import { Link, Outlet } from "react-router";
+import { Link, Outlet, RouterContextProvider } from "react-router";
 import { HttpError } from "@udibo/juniper";
 import type { ErrorBoundaryProps } from "@udibo/juniper";
+
+import { serverSessionContext } from "@/context/server-session.ts";
+import type { ServerSession } from "@/context/server-session.ts";
+
+/** Serialized context structure passed from server to client. */
+export interface SerializedContext {
+  serverSession?: ServerSession;
+}
+
+/**
+ * Deserializes the context from the server and creates a RouterContextProvider.
+ * This function is called during client-side hydration to restore server-set context values.
+ */
+export function deserializeContext(
+  serializedContext?: SerializedContext,
+): RouterContextProvider {
+  const context = new RouterContextProvider();
+
+  if (serializedContext?.serverSession) {
+    context.set(serverSessionContext, serializedContext.serverSession);
+  }
+
+  return context;
+}
 
 function Shell({ children }: { children: ReactNode }) {
   return (

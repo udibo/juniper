@@ -24,6 +24,10 @@ const featureGroups: FeatureGroup[] = [
       { name: "Deferred Data", path: "/features/data/deferred" },
       { name: "Hydrate Fallback", path: "/features/data/hydrate-fallback" },
       { name: "Parent Route Data", path: "/features/data/parent-data" },
+      {
+        name: "Context Serialization",
+        path: "/features/data/context-serialization",
+      },
     ],
   },
   {

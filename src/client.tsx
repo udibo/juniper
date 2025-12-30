@@ -300,11 +300,23 @@ export class Client {
    * This function sets up the browser router and renders the application.
    */
   async hydrate() {
-    const { matches, ...hydrationData } = this.getHydrationData();
+    const { matches, serializedContext, ...hydrationData } = this
+      .getHydrationData();
 
     await this.loadLazyMatches(matches);
 
-    const context = new RouterContextProvider();
+    const rootMainModule = typeof this.rootRoute.main === "function"
+      ? undefined
+      : this.rootRoute.main;
+    const deserializeContext = rootMainModule?.deserializeContext;
+
+    let context: RouterContextProvider;
+    if (deserializeContext) {
+      context = deserializeContext(serializedContext);
+    } else {
+      context = new RouterContextProvider();
+    }
+
     const router = createBrowserRouter(this.routeObjects, {
       hydrationData,
       getContext: () => context,

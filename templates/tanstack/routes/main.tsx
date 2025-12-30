@@ -1,26 +1,31 @@
-import { Link, Outlet } from "react-router";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { Link, Outlet, RouterContextProvider } from "react-router";
+import {
+  hydrate as hydrateQueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
+import type { DehydratedState } from "@tanstack/react-query";
 
-import type {
-  ErrorBoundaryProps,
-  MiddlewareFunction,
-  RouteProps,
-} from "@udibo/juniper";
+import type { ErrorBoundaryProps, RouteProps } from "@udibo/juniper";
 
 import { createQueryClient, queryClientContext } from "@/context/query.ts";
 
-export const middleware: MiddlewareFunction[] = [
-  async ({ context }, next) => {
-    let queryClient = undefined;
-    try {
-      queryClient = context.get(queryClientContext);
-    } catch {
-      queryClient = createQueryClient();
-      context.set(queryClientContext, queryClient);
-    }
-    await next();
-  },
-];
+export interface SerializedContext {
+  dehydratedState?: DehydratedState;
+}
+
+export function deserializeContext(
+  serializedContext?: SerializedContext,
+): RouterContextProvider {
+  const context = new RouterContextProvider();
+
+  const queryClient = createQueryClient();
+  if (serializedContext?.dehydratedState) {
+    hydrateQueryClient(queryClient, serializedContext.dehydratedState);
+  }
+  context.set(queryClientContext, queryClient);
+
+  return context;
+}
 
 function Layout({ children }: { children: React.ReactNode }) {
   return (

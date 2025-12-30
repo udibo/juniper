@@ -56,6 +56,11 @@ export const client = new Client({
               main: () => import("./routes/features/data/action.tsx"),
             },
             {
+              path: "context-serialization",
+              main: () =>
+                import("./routes/features/data/context-serialization.tsx"),
+            },
+            {
               path: "deferred",
               main: () => import("./routes/features/data/deferred.tsx"),
             },

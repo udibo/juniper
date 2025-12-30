@@ -118,6 +118,7 @@ interface ServerRouteModule {
 
 interface ServerMainRouteModule extends ServerRouteModule {
   serializeError?: (error: unknown) => SerializedError | unknown;
+  serializeContext?: (context: RouterContextProvider) => unknown;
   publicEnvKeys?: string[];
 }
 
@@ -131,6 +132,16 @@ function getSerializeError<
   BasePath extends string = "/",
 >(route: Route<E, S, BasePath>): SerializeErrorFn {
   return route.main?.serializeError ?? (() => {});
+}
+
+type SerializeContextFn = (context: RouterContextProvider) => unknown;
+
+function getSerializeContext<
+  E extends AppEnv = AppEnv,
+  S extends Schema = Schema,
+  BasePath extends string = "/",
+>(route: Route<E, S, BasePath>): SerializeContextFn | undefined {
+  return route.main?.serializeContext;
 }
 
 function getAllPublicEnvKeys<
@@ -276,7 +287,7 @@ export async function serializeHydrationData(
     actionData: {},
   };
 
-  const { publicEnv, matches } = hydrationData;
+  const { publicEnv, serializedContext, matches } = hydrationData;
 
   // Serialize errors
   let errors: HydrationState["errors"];
@@ -337,6 +348,7 @@ export async function serializeHydrationData(
   }
 
   const { json, meta } = SuperJSON.serialize({
+    serializedContext,
     matches,
     errors,
     loaderData,
@@ -414,6 +426,7 @@ async function convertToHttpError(cause: unknown): Promise<HttpError> {
 
 interface RenderOptions {
   serializeError: SerializeErrorFn;
+  serializeContext?: SerializeContextFn;
   allPublicEnvKeys: string[];
 }
 
@@ -440,7 +453,7 @@ async function renderDocument(
     waitForAllReady,
     presetError,
   } = options;
-  const { serializeError, allPublicEnvKeys } = renderOptions;
+  const { serializeError, serializeContext, allPublicEnvKeys } = renderOptions;
 
   const router = createStaticRouter(dataRoutes, context);
 
@@ -457,6 +470,7 @@ async function renderDocument(
       try {
         const hydrationData = {
           publicEnv: getPublicEnv(allPublicEnvKeys),
+          serializedContext: serializeContext?.(requestContext),
           matches: context.matches.map((match) => ({
             id: match.route.id,
           })),
@@ -647,28 +661,33 @@ type LazyRouteFunction = () => Promise<
   Omit<RouteObject, "children" | "index" | "path">
 >;
 
-function wrapLazyToStripClientRouteHandlers(
+function wrapLazyWithServerFallback(
   lazy: RouteObject["lazy"],
+  serverModule: Pick<ServerRouteModule, "loader" | "action"> | undefined,
 ): RouteObject["lazy"] {
   if (!lazy || typeof lazy !== "function") return lazy;
 
+  const hasServerLoader = !!serverModule?.loader;
+  const hasServerAction = !!serverModule?.action;
+
   const lazyFn = lazy as LazyRouteFunction;
   const wrappedLazy: LazyRouteFunction = async () => {
-    const {
-      loader: _loader,
-      action: _action,
-      middleware: _middleware,
-      ...rest
-    } = await lazyFn() as Record<string, unknown>;
+    const result = await lazyFn() as Record<string, unknown>;
+    const { middleware: _middleware, ...rest } = result;
+
+    // Strip client loader/action only if server has them
+    if (hasServerLoader) delete rest.loader;
+    if (hasServerAction) delete rest.action;
+
     return rest;
   };
   return wrappedLazy as RouteObject["lazy"];
 }
 
 /**
- * Merges server routes with client route objects, replacing client loaders/actions
- * with server-side implementations where available. Client loaders/actions are always
- * stripped from the route objects since they are only used for client-side navigation.
+ * Merges server routes with client route objects. When a server loader/action exists,
+ * it replaces the client version. When no server loader/action exists, the client
+ * loader/action is preserved and will run on the server during SSR.
  *
  * @param serverRoute - The server route configuration
  * @param clientRoutes - The client route objects from React Router
@@ -686,10 +705,14 @@ export function mergeServerRoutes<
     routeObj: RouteObject,
     serverModule: Pick<ServerRouteModule, "loader" | "action"> | undefined,
   ): void {
+    // Save client handlers before potentially deleting them
+    const clientLoader = routeObj.loader;
+    const clientAction = routeObj.action;
+
     delete routeObj.loader;
     delete routeObj.action;
     delete routeObj.middleware;
-    routeObj.lazy = wrapLazyToStripClientRouteHandlers(routeObj.lazy);
+    routeObj.lazy = wrapLazyWithServerFallback(routeObj.lazy, serverModule);
 
     if (serverModule?.loader) {
       const serverLoader = serverModule.loader;
@@ -702,7 +725,11 @@ export function mergeServerRoutes<
           serverLoader: serverLoaderError,
         });
       };
+    } else if (clientLoader) {
+      // Use client loader on server when no server loader exists
+      routeObj.loader = clientLoader;
     }
+
     if (serverModule?.action) {
       const serverAction = serverModule.action;
       routeObj.action = async (args: ActionFunctionArgs) => {
@@ -714,6 +741,9 @@ export function mergeServerRoutes<
           serverAction: serverActionError,
         });
       };
+    } else if (clientAction) {
+      // Use client action on server when no server action exists
+      routeObj.action = clientAction;
     }
   }
 
@@ -809,11 +839,13 @@ export function createHandlers<
 >(route: Route<E, S, BasePath>, routes: RouteObject[]): HandlersResult {
   const factory = createFactory<AppEnv>();
   const serializeError = getSerializeError(route);
+  const serializeContext = getSerializeContext(route);
   const allPublicEnvKeys = getAllPublicEnvKeys(route);
   const { query, dataRoutes, queryRoute } = createStaticHandler(routes);
 
   const renderOptions: RenderOptions = {
     serializeError,
+    serializeContext,
     allPublicEnvKeys,
   };
 

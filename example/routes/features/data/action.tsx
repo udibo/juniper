@@ -44,12 +44,12 @@ export default function FormActionDemo({
       <FeatureBadge color="orange">Form Action</FeatureBadge>
       <h2 className="text-2xl font-bold text-slate-100 mb-4">Form Action</h2>
       <p className="text-slate-300 mb-6 leading-relaxed">
-        Actions handle form submissions and data mutations. Using{" "}
-        <code className="px-2 py-1 bg-slate-700 rounded text-emerald-400">
-          Form
+        Actions handle form submissions and data mutations. Like loaders, they
+        run on both server and client by default. Use a separate{" "}
+        <code className="px-1 py-0.5 bg-slate-700 rounded text-orange-400">
+          .ts
         </code>{" "}
-        from React Router, submissions are handled by the route's action
-        function.
+        file for server-only actions that need database access or secrets.
       </p>
 
       <div className="grid lg:grid-cols-2 gap-6 mb-6">

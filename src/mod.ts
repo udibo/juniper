@@ -747,10 +747,21 @@ export interface RootRouteModule<
   Params extends AnyParams = AnyParams,
   LoaderData = unknown,
   ActionData = unknown,
+  SerializedContext = unknown,
 > extends RouteModule<Params, LoaderData, ActionData> {
   /**
    * Extends the default error deserialization used on the client when rehydrating errors
    * thrown by loaders or actions on the server.
    */
   deserializeError?: (serializedError: unknown) => unknown;
+  /**
+   * Deserializes the context from the server during client-side hydration.
+   * This allows server-side context values to be transferred to the client.
+   *
+   * @param serializedContext - The serialized context from the server's serializeContext function.
+   * @returns A RouterContextProvider populated with the deserialized context values.
+   */
+  deserializeContext?(
+    serializedContext?: SerializedContext,
+  ): RouterContextProvider;
 }

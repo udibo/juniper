@@ -25,8 +25,11 @@ export default function ServerLoaderObjectDemo({
       </h2>
 
       <p className="text-slate-300 mb-6 leading-relaxed">
-        A <strong>server-only loader</strong>{" "}
-        runs exclusively on the server during SSR and when navigating. It has
+        A <strong>server-only loader</strong> is defined in a separate{" "}
+        <code className="px-1 py-0.5 bg-slate-700 rounded text-teal-400">
+          .ts
+        </code>{" "}
+        file. When present, it runs instead of any client loader, giving you
         access to server-side resources like databases, file systems, and
         environment variables that should never be exposed to the client.
       </p>

@@ -238,6 +238,8 @@ function reconstructPromiseStates(
 export interface HydrationData {
   /** Public environment variables shared with the client */
   publicEnv?: Record<string, string>;
+  /** Serialized context from the server's serializeContext function */
+  serializedContext?: unknown;
   /** Array of route matches with their IDs */
   matches: {
     id: string;
