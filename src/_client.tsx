@@ -22,6 +22,7 @@ import SuperJSON from "superjson";
 import type { SuperJSONResult } from "superjson";
 import React, { createContext, Suspense, useContext } from "react";
 import type { ComponentType } from "react";
+import { delay } from "@std/async/delay";
 
 import type {
   ErrorBoundaryProps,
@@ -314,6 +315,63 @@ export function App({ children }: { children: React.ReactNode }) {
       </body>
     </html>
   );
+}
+
+const LAZY_LOAD_ERROR_KEY = "__juniper_lazy_load_error";
+const MAX_LAZY_LOAD_RETRIES = 2;
+const LAZY_LOAD_ERROR_WINDOW_MS = 30000; // 30 seconds
+
+interface LazyLoadErrorState {
+  count: number;
+  timestamp: number;
+}
+
+function getLazyLoadErrorState(): LazyLoadErrorState {
+  try {
+    const stored = sessionStorage.getItem(LAZY_LOAD_ERROR_KEY);
+    if (!stored) return { count: 0, timestamp: 0 };
+    return JSON.parse(stored);
+  } catch {
+    return { count: 0, timestamp: 0 };
+  }
+}
+
+function shouldRefreshOnLazyLoadError(): boolean {
+  const { count, timestamp } = getLazyLoadErrorState();
+  const now = Date.now();
+
+  // Reset counter if outside the time window
+  if (now - timestamp > LAZY_LOAD_ERROR_WINDOW_MS) return true;
+
+  // Stop refreshing if we've exceeded max retries
+  return count < MAX_LAZY_LOAD_RETRIES;
+}
+
+function recordLazyLoadErrorRefresh(): void {
+  const { count, timestamp } = getLazyLoadErrorState();
+  const now = Date.now();
+
+  if (now - timestamp > LAZY_LOAD_ERROR_WINDOW_MS) {
+    // Start new window
+    sessionStorage.setItem(
+      LAZY_LOAD_ERROR_KEY,
+      JSON.stringify({ count: 1, timestamp: now }),
+    );
+  } else {
+    // Increment within existing window
+    sessionStorage.setItem(
+      LAZY_LOAD_ERROR_KEY,
+      JSON.stringify({ count: count + 1, timestamp }),
+    );
+  }
+}
+
+function clearLazyLoadErrorState(): void {
+  try {
+    sessionStorage.removeItem(LAZY_LOAD_ERROR_KEY);
+  } catch {
+    // Ignore errors (e.g., sessionStorage not available)
+  }
 }
 
 async function fetchServerData(
@@ -623,7 +681,19 @@ export function createLazyRoute(
   deserializeError?: (serializedError: unknown) => unknown,
 ): LazyRoute {
   return async (): Promise<LazyRouteResult> => {
-    const routeFile = await lazyRouteFile();
+    let routeFile: RouteModule;
+    try {
+      routeFile = await lazyRouteFile();
+      clearLazyLoadErrorState();
+    } catch (error) {
+      if (shouldRefreshOnLazyLoadError()) {
+        recordLazyLoadErrorRefresh();
+        delay(0).then(() => {
+          globalThis.location.reload();
+        });
+      }
+      throw error;
+    }
     const { middleware: _middleware, ...rest } = createRoute(
       routeFile,
       serverFlags,
