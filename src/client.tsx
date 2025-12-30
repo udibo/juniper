@@ -142,6 +142,12 @@ export class Client {
     this.routeObjects = [{ id: rootRouteId, path: rootRoute.path }];
     this.routeObjectMap = new Map();
 
+    // Extract deserializeError from root module if available (not lazy-loaded)
+    const rootMainModule = typeof rootRoute.main === "function"
+      ? undefined
+      : rootRoute.main;
+    const deserializeError = rootMainModule?.deserializeError;
+
     const parentPathStack: string[] = ["/"];
     const routeStack: ClientRoute[] = [rootRoute];
     const routeObjectStack: RouteObject[] = [...this.routeObjects];
@@ -156,6 +162,7 @@ export class Client {
           route.main,
           route.server,
           routeId,
+          deserializeError,
         );
       } else if (route.main) {
         const {
@@ -165,7 +172,7 @@ export class Client {
           loader,
           action,
           middleware,
-        } = createRoute(route.main, route.server, routeId);
+        } = createRoute(route.main, route.server, routeId, deserializeError);
         routeObject.Component = Component;
         routeObject.ErrorBoundary = ErrorBoundary;
         routeObject.HydrateFallback = HydrateFallback;
@@ -187,6 +194,7 @@ export class Client {
             route.index,
             route.serverIndex,
             indexRouteId,
+            deserializeError,
           ),
         };
         routeObjectChildren.push(indexRouteObject);
@@ -220,6 +228,7 @@ export class Client {
             route.catchall,
             route.serverCatchall,
             catchallRouteId,
+            deserializeError,
           ),
         };
         routeObjectChildren.push(catchallRouteObject);

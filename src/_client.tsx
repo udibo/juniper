@@ -318,6 +318,7 @@ async function fetchServerData(
   request: Request,
   method: "GET" | "POST",
   routeId: string,
+  deserializeError?: (serializedError: unknown) => unknown,
 ): Promise<unknown> {
   const headers: Record<string, string> = {
     "X-Juniper-Route-Id": routeId,
@@ -336,7 +337,8 @@ async function fetchServerData(
     const deserialized = SuperJSON.deserialize(serializedData);
 
     if (!response.ok) {
-      throw deserializeErrorDefault(deserialized);
+      throw deserializeError?.(deserialized) ??
+        deserializeErrorDefault(deserialized);
     }
     return deserialized;
   } else if (responseType === "redirect") {
@@ -354,15 +356,17 @@ async function fetchServerData(
 function fetchServerLoader(
   request: Request,
   routeId: string,
+  deserializeError?: (serializedError: unknown) => unknown,
 ): Promise<unknown> {
-  return fetchServerData(request, "GET", routeId);
+  return fetchServerData(request, "GET", routeId, deserializeError);
 }
 
 function fetchServerAction(
   request: Request,
   routeId: string,
+  deserializeError?: (serializedError: unknown) => unknown,
 ): Promise<unknown> {
-  return fetchServerData(request, "POST", routeId);
+  return fetchServerData(request, "POST", routeId, deserializeError);
 }
 
 export type Route = {
@@ -393,12 +397,14 @@ export type LazyRoute = () => Promise<LazyRouteResult>;
  * @param routeFile - The module exports for the route.
  * @param serverFlags - Flags indicating whether the route has server-side loader/action.
  * @param routeId - The route ID used for server data requests.
+ * @param deserializeError - Optional custom error deserializer for server errors.
  * @returns A concrete `Route` instance.
  */
 export function createRoute(
   routeFile: RouteModule,
   serverFlags?: ServerFlags,
   routeId?: string,
+  deserializeError?: (serializedError: unknown) => unknown,
 ): Route {
   const {
     ErrorBoundary: _ErrorBoundary,
@@ -419,7 +425,7 @@ export function createRoute(
     if (!routeId) {
       throw new Error("Route ID is required to fetch server loader data");
     }
-    return fetchServerLoader(request, routeId);
+    return fetchServerLoader(request, routeId, deserializeError);
   }
 
   function getServerAction(request: Request) {
@@ -429,7 +435,7 @@ export function createRoute(
     if (!routeId) {
       throw new Error("Route ID is required to fetch server action data");
     }
-    return fetchServerAction(request, routeId);
+    return fetchServerAction(request, routeId, deserializeError);
   }
 
   let HydrateFallback: ComponentType | undefined;
@@ -605,12 +611,14 @@ export function createRoute(
  * @param lazyRouteFile - The lazy route file to create a lazy route object from.
  * @param serverFlags - Flags indicating whether the route has server-side loader/action.
  * @param routeId - The route ID used for server data requests.
+ * @param deserializeError - Optional custom error deserializer for server errors.
  * @returns A lazy route object.
  */
 export function createLazyRoute(
   lazyRouteFile: () => Promise<RouteModule>,
   serverFlags?: ServerFlags,
   routeId?: string,
+  deserializeError?: (serializedError: unknown) => unknown,
 ): LazyRoute {
   return async (): Promise<LazyRouteResult> => {
     const routeFile = await lazyRouteFile();
@@ -618,6 +626,7 @@ export function createLazyRoute(
       routeFile,
       serverFlags,
       routeId,
+      deserializeError,
     );
     return rest;
   };
