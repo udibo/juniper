@@ -48,12 +48,14 @@ export default function LoaderDemo({
         <ul className="list-disc list-inside space-y-2 text-slate-300">
           <li>
             <strong>Default:</strong> Loaders in{" "}
-            <code className="px-1 py-0.5 bg-slate-700/50 rounded">.tsx</code>{" "}
+            <code className="px-1 py-0.5 bg-slate-700/50 rounded">.tsx</code>
+            {" "}
             files run on both server and client
           </li>
           <li>
             <strong>Server-only:</strong> Create a separate{" "}
-            <code className="px-1 py-0.5 bg-slate-700/50 rounded">.ts</code>{" "}
+            <code className="px-1 py-0.5 bg-slate-700/50 rounded">.ts</code>
+            {" "}
             file for loaders that need server-only resources
           </li>
           <li>

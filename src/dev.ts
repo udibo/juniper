@@ -17,7 +17,8 @@ if (import.meta.main) {
   } catch (error) {
     if (
       !(error instanceof TypeError &&
-        (error as TypeError & { code?: string }).code === "ERR_MODULE_NOT_FOUND")
+        (error as TypeError & { code?: string }).code ===
+          "ERR_MODULE_NOT_FOUND")
     ) {
       console.error("❌ Error importing build.ts:", error);
     }
