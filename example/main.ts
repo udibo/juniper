@@ -55,6 +55,10 @@ export const server = createServer(import.meta.url, client, {
           path: "data",
           children: [
             {
+              path: "parent-data",
+              main: await import("./routes/features/data/parent-data/main.ts"),
+            },
+            {
               path: "server-actions",
               children: [
                 {
@@ -118,8 +122,46 @@ export const server = createServer(import.meta.url, client, {
           path: "errors",
           children: [
             {
+              path: "server-loader",
+              main: await import("./routes/features/errors/server-loader.ts"),
+            },
+            {
+              path: "server-middleware",
+              main: await import(
+                "./routes/features/errors/server-middleware.ts"
+              ),
+            },
+            {
               path: "ssr",
               main: await import("./routes/features/errors/ssr.ts"),
+            },
+            {
+              path: "nested",
+            },
+          ],
+        },
+        {
+          path: "middleware",
+          children: [
+            {
+              path: "basic-auth",
+              main: await import("./routes/features/middleware/basic-auth.ts"),
+            },
+            {
+              path: "client-middleware",
+              main: await import(
+                "./routes/features/middleware/client-middleware.ts"
+              ),
+            },
+            {
+              path: "combined",
+              main: await import("./routes/features/middleware/combined.ts"),
+            },
+            {
+              path: "context-sharing",
+              main: await import(
+                "./routes/features/middleware/context-sharing.ts"
+              ),
             },
           ],
         },

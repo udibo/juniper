@@ -23,6 +23,11 @@ const featureGroups: FeatureGroup[] = [
       { name: "Client Loader", path: "/features/data/loader" },
       { name: "Deferred Data", path: "/features/data/deferred" },
       { name: "Hydrate Fallback", path: "/features/data/hydrate-fallback" },
+      { name: "Parent Route Data", path: "/features/data/parent-data" },
+      {
+        name: "Context Serialization",
+        path: "/features/data/context-serialization",
+      },
     ],
   },
   {
@@ -69,10 +74,38 @@ const featureGroups: FeatureGroup[] = [
     ],
   },
   {
+    title: "Server Middleware",
+    features: [
+      { name: "Logging", path: "/features/middleware/logging" },
+      { name: "Basic Auth", path: "/features/middleware/basic-auth" },
+      { name: "Context Sharing", path: "/features/middleware/context-sharing" },
+    ],
+  },
+  {
+    title: "Client Middleware",
+    features: [
+      {
+        name: "Client Middleware",
+        path: "/features/middleware/client-middleware",
+      },
+      {
+        name: "Client Redirect",
+        path: "/features/middleware/client-redirect",
+      },
+      { name: "Combined Middleware", path: "/features/middleware/combined" },
+    ],
+  },
+  {
     title: "Error Handling",
     features: [
       { name: "Error Boundary", path: "/features/errors/boundary" },
       { name: "SSR Errors", path: "/features/errors/ssr" },
+      { name: "Server Loader Error", path: "/features/errors/server-loader" },
+      {
+        name: "Server Middleware Error",
+        path: "/features/errors/server-middleware",
+      },
+      { name: "Nested Error", path: "/features/errors/nested" },
     ],
   },
 ];

@@ -15,7 +15,13 @@ if (import.meta.main) {
   try {
     builder = (await import(projectRoot + "/build.ts")).builder;
   } catch (error) {
-    console.error("❌ Error importing build.ts:", error);
+    if (
+      !(error instanceof TypeError &&
+        (error as TypeError & { code?: string }).code ===
+          "ERR_MODULE_NOT_FOUND")
+    ) {
+      console.error("❌ Error importing build.ts:", error);
+    }
   }
 
   if (!builder) {

@@ -31,7 +31,7 @@ appWrapper.onError((cause) => {
 Throw `HttpError` for predictable outcomes:
 
 ```ts
-import { HttpError } from "@udibo/http-error";
+import { HttpError } from "@udibo/juniper";
 
 app.get("/:id", async (c) => {
   const user = await userService.get(c.req.param("id"));

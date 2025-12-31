@@ -1,5 +1,5 @@
 import { encodeHex } from "@std/encoding/hex";
-import { HttpError } from "@udibo/http-error";
+import { HttpError } from "@udibo/juniper";
 import { z } from "zod";
 import { isDevelopment } from "@udibo/juniper/utils/env";
 
@@ -52,14 +52,14 @@ async function hashPassword(
 }
 
 export const UserSchema = z.object({
-  id: z.string().uuid(),
-  username: z.string()
-    .min(1, "Username is required")
+  id: z.uuid(),
+  username: z.string({ message: "Field 'username' is required" })
+    .min(1, "Username must be at least 1 character")
     .max(50, "Username must be less than 50 characters"),
-  displayName: z.string()
-    .min(1, "Display name is required")
+  displayName: z.string({ message: "Field 'displayName' is required" })
+    .min(1, "Display name must be at least 1 character")
     .max(100, "Display name must be less than 100 characters"),
-  email: z.string().email("Invalid email"),
+  email: z.email(),
   password: z.string()
     .min(8, "Password must be at least 8 characters")
     .max(256, "Password must be less than 256 characters")
@@ -139,7 +139,7 @@ export class UserService extends Service<User> {
         UserSchema.shape.password.parse(password);
       } catch (error) {
         if (error instanceof z.ZodError) {
-          const messages = error.errors.map((e) => e.message);
+          const messages = error.issues.map((e) => e.message);
           throw new HttpError(
             400,
             `Invalid user: ${messages.join(", ")}`,

@@ -6,7 +6,7 @@
 
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import type { Context, Span, SpanOptions, Tracer } from "@opentelemetry/api";
-import { HttpError } from "@udibo/http-error";
+import { HttpError } from "@udibo/juniper";
 
 import { getEnv } from "@udibo/juniper/utils/env";
 
@@ -21,7 +21,7 @@ import { getEnv } from "@udibo/juniper/utils/env";
  * @example Using getInstance for error correlation
  * ```ts
  * import { getInstance } from "@udibo/juniper/utils/otel";
- * import { HttpError } from "@udibo/http-error";
+ * import { HttpError } from "@udibo/juniper";
  *
  * app.get("/api/users/:id", async (c) => {
  *   try {

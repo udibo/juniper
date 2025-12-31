@@ -56,6 +56,11 @@ export const client = new Client({
               main: () => import("./routes/features/data/action.tsx"),
             },
             {
+              path: "context-serialization",
+              main: () =>
+                import("./routes/features/data/context-serialization.tsx"),
+            },
+            {
               path: "deferred",
               main: () => import("./routes/features/data/deferred.tsx"),
             },
@@ -70,6 +75,15 @@ export const client = new Client({
             {
               path: "loader",
               main: () => import("./routes/features/data/loader.tsx"),
+            },
+            {
+              path: "parent-data",
+              main: () => import("./routes/features/data/parent-data/main.tsx"),
+              server: {
+                loader: true,
+              },
+              index: () =>
+                import("./routes/features/data/parent-data/index.tsx"),
             },
             {
               path: "server-actions",
@@ -168,11 +182,82 @@ export const client = new Client({
               main: () => import("./routes/features/errors/boundary.tsx"),
             },
             {
+              path: "server-loader",
+              main: () => import("./routes/features/errors/server-loader.tsx"),
+              server: {
+                loader: true,
+              },
+            },
+            {
+              path: "server-middleware",
+              main: () =>
+                import("./routes/features/errors/server-middleware.tsx"),
+            },
+            {
               path: "ssr",
               main: () => import("./routes/features/errors/ssr.tsx"),
               server: {
                 loader: true,
               },
+            },
+            {
+              path: "nested",
+              main: () => import("./routes/features/errors/nested/main.tsx"),
+              index: () => import("./routes/features/errors/nested/index.tsx"),
+              children: [
+                {
+                  path: "child",
+                  main: () =>
+                    import("./routes/features/errors/nested/child.tsx"),
+                },
+              ],
+            },
+          ],
+        },
+        {
+          path: "middleware",
+          index: () => import("./routes/features/middleware/index.tsx"),
+          children: [
+            {
+              path: "basic-auth",
+              main: () => import("./routes/features/middleware/basic-auth.tsx"),
+              server: {
+                loader: true,
+              },
+            },
+            {
+              path: "client-middleware",
+              main: await import(
+                "./routes/features/middleware/client-middleware.tsx"
+              ),
+              server: {
+                loader: true,
+              },
+            },
+            {
+              path: "client-redirect",
+              main: await import(
+                "./routes/features/middleware/client-redirect.tsx"
+              ),
+            },
+            {
+              path: "combined",
+              main: await import("./routes/features/middleware/combined.tsx"),
+              server: {
+                loader: true,
+              },
+            },
+            {
+              path: "context-sharing",
+              main: () =>
+                import("./routes/features/middleware/context-sharing.tsx"),
+              server: {
+                loader: true,
+              },
+            },
+            {
+              path: "logging",
+              main: () => import("./routes/features/middleware/logging.tsx"),
             },
           ],
         },

@@ -1,5 +1,6 @@
-import { useFetcher } from "react-router";
+import { delay } from "@std/async/delay";
 import type { RouteActionArgs } from "@udibo/juniper";
+import { useFetcher } from "react-router";
 
 import { CodeBlock } from "@/components/CodeBlock.tsx";
 import { FeatureBadge } from "@/components/FeatureBadge.tsx";
@@ -20,7 +21,7 @@ export async function action(
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
 
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  await delay(300);
 
   if (intent === "increment") {
     counter += 1;

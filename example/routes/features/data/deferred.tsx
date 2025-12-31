@@ -1,7 +1,8 @@
 import { delay } from "@std/async/delay";
 import { Suspense } from "react";
 import { Await, useAsyncError } from "react-router";
-import type { AnyParams, RouteLoaderArgs, RouteProps } from "@udibo/juniper";
+import { HttpError } from "@udibo/juniper";
+import type { AnyParams, RouteProps } from "@udibo/juniper";
 
 import { CodeBlock } from "@/components/CodeBlock.tsx";
 import { FeatureBadge } from "@/components/FeatureBadge.tsx";
@@ -15,7 +16,7 @@ interface DeferredLoaderData {
   verySlowData: Promise<string>;
 }
 
-export function loader(_args: RouteLoaderArgs): DeferredLoaderData {
+export function loader(): DeferredLoaderData {
   return {
     fastData: "This data loaded instantly!",
     slowData: delay(1000).then(() => "Loaded after 1 second"),
@@ -27,7 +28,9 @@ function AwaitError() {
   const error = useAsyncError();
   return (
     <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-red-400">
-      Error: {error instanceof Error ? error.message : "Unknown error"}
+      Error: {error instanceof HttpError
+        ? error.exposedMessage
+        : (error instanceof Error ? error.message : String(error))}
     </div>
   );
 }

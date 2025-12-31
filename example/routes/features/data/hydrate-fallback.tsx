@@ -1,4 +1,5 @@
-import type { AnyParams, RouteLoaderArgs, RouteProps } from "@udibo/juniper";
+import { delay } from "@std/async/delay";
+import type { AnyParams, RouteProps } from "@udibo/juniper";
 
 import { CodeBlock } from "@/components/CodeBlock.tsx";
 import { DataList, DataListItem } from "@/components/DataList.tsx";
@@ -12,8 +13,8 @@ interface LoaderData {
   timestamp: string;
 }
 
-export async function loader(_args: RouteLoaderArgs): Promise<LoaderData> {
-  await new Promise((resolve) => setTimeout(resolve, 5000));
+export async function loader(): Promise<LoaderData> {
+  await delay(5000);
   return {
     message: "Content loaded after hydration!",
     timestamp: new Date().toISOString(),

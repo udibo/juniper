@@ -1,4 +1,4 @@
-import "global-jsdom/register";
+import "@udibo/juniper/utils/global-jsdom";
 
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, it } from "@std/testing/bdd";

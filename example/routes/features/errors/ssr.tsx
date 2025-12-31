@@ -1,11 +1,15 @@
-import type { RouteLoaderArgs } from "@udibo/juniper";
 import { useLoaderData } from "react-router";
 
 import { CodeBlock } from "@/components/CodeBlock.tsx";
 import { FeatureBadge } from "@/components/FeatureBadge.tsx";
 import { InfoBox } from "@/components/InfoBox.tsx";
 
-export function loader(_args: RouteLoaderArgs) {
+interface LoaderData {
+  message: string;
+  timestamp: string;
+}
+
+export function loader(): LoaderData {
   return {
     message: "Data loaded successfully from the client!",
     timestamp: new Date().toISOString(),
@@ -120,12 +124,14 @@ export default function Page() {
   return <div>{loaderData.message}</div>;
 }
 
+import { HttpError } from "@udibo/juniper";
+
 // Parent route (main.tsx)
 export function ErrorBoundary({ error }: ErrorBoundaryProps) {
   return (
     <div>
       <h1>Server Error</h1>
-      <p>{error.message}</p>
+      <p>{error instanceof HttpError ? error.exposedMessage : (error instanceof Error ? error.message : String(error))}</p>
     </div>
   );
 }`}

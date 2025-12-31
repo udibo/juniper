@@ -66,7 +66,9 @@ export default function ErrorBoundaryDemo() {
       </div>
 
       <CodeBlock>
-        {`// routes/features/errors/main.tsx
+        {`import { HttpError } from "@udibo/juniper";
+
+// routes/features/errors/main.tsx
 export function ErrorBoundary({ 
   error, 
   resetErrorBoundary 
@@ -74,7 +76,7 @@ export function ErrorBoundary({
   return (
     <div>
       <h1>Something went wrong</h1>
-      <p>{error.message}</p>
+      <p>{error instanceof HttpError ? error.exposedMessage : (error instanceof Error ? error.message : String(error))}</p>
       <button onClick={resetErrorBoundary}>
         Try Again
       </button>

@@ -1,7 +1,6 @@
-import { HttpError } from "@udibo/http-error";
-import type { RouteLoaderArgs } from "@udibo/juniper";
+import { HttpError } from "@udibo/juniper";
 
-export function loader(_args: RouteLoaderArgs) {
+export function loader(): void {
   throw new HttpError(
     400,
     "This error was thrown during server-side rendering!",

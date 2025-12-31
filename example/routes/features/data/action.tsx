@@ -1,5 +1,6 @@
-import { Form, useActionData, useNavigation } from "react-router";
-import type { RouteActionArgs } from "@udibo/juniper";
+import { delay } from "@std/async/delay";
+import type { AnyParams, RouteActionArgs, RouteProps } from "@udibo/juniper";
+import { Form, useNavigation } from "react-router";
 
 import { CodeBlock } from "@/components/CodeBlock.tsx";
 import { FeatureBadge } from "@/components/FeatureBadge.tsx";
@@ -15,13 +16,13 @@ interface ActionData {
 }
 
 export async function action(
-  { request }: RouteActionArgs,
+  { request }: RouteActionArgs<AnyParams, ActionData>,
 ): Promise<ActionData> {
   const formData = await request.formData();
   const name = formData.get("name") as string;
   const email = formData.get("email") as string;
 
-  await new Promise((resolve) => setTimeout(resolve, 800));
+  await delay(800);
 
   return {
     success: true,
@@ -31,8 +32,9 @@ export async function action(
   };
 }
 
-export default function FormActionDemo() {
-  const actionData = useActionData<ActionData>();
+export default function FormActionDemo({
+  actionData,
+}: RouteProps<AnyParams, unknown, ActionData>) {
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
 
@@ -42,12 +44,12 @@ export default function FormActionDemo() {
       <FeatureBadge color="orange">Form Action</FeatureBadge>
       <h2 className="text-2xl font-bold text-slate-100 mb-4">Form Action</h2>
       <p className="text-slate-300 mb-6 leading-relaxed">
-        Actions handle form submissions and data mutations. Using{" "}
-        <code className="px-2 py-1 bg-slate-700 rounded text-emerald-400">
-          Form
+        Actions handle form submissions and data mutations. Like loaders, they
+        run on both server and client by default. Use a separate{" "}
+        <code className="px-1 py-0.5 bg-slate-700 rounded text-orange-400">
+          .ts
         </code>{" "}
-        from React Router, submissions are handled by the route's action
-        function.
+        file for server-only actions that need database access or secrets.
       </p>
 
       <div className="grid lg:grid-cols-2 gap-6 mb-6">

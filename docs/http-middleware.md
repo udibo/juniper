@@ -37,7 +37,7 @@ global error-serialization pair.
 
 ```ts
 // server.tsx
-import { HttpError } from "@udibo/http-error";
+import { HttpError } from "@udibo/juniper";
 import { trimTrailingSlash } from "hono/trailing-slash";
 import { getInstance } from "@udibo/juniper/utils/otel";
 
@@ -97,7 +97,7 @@ and instrumentation:
 
 ```ts
 import { Hono } from "hono";
-import { HttpError } from "@udibo/http-error";
+import { HttpError } from "@udibo/juniper";
 import { getInstance } from "@udibo/juniper/utils/otel";
 
 const app = new Hono();
@@ -164,7 +164,7 @@ Author reusable helpers with `createMiddleware`:
 
 ```ts
 import { createMiddleware } from "hono/factory";
-import { HttpError } from "@udibo/http-error";
+import { HttpError } from "@udibo/juniper";
 
 export const requireApiKey = createMiddleware(async (c, next) => {
   const apiKey = c.req.header("x-api-key");

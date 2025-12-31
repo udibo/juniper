@@ -1,3 +1,4 @@
+import { HttpError } from "@udibo/juniper";
 import type { ErrorBoundaryProps, RouteProps } from "@udibo/juniper";
 import { Form, Link } from "react-router";
 
@@ -95,7 +96,9 @@ export function ErrorBoundary({
           : "Sorry, we couldn't find that blog post."}
       </p>
       <p className="text-slate-500 mb-8">
-        {error instanceof Error ? error.message : "Unknown error"}
+        {error instanceof HttpError
+          ? error.exposedMessage
+          : (error instanceof Error ? error.message : String(error))}
       </p>
       <Link
         to="/blog"

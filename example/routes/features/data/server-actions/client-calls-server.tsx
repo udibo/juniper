@@ -1,5 +1,5 @@
-import type { RouteActionArgs } from "@udibo/juniper";
-import { Form, useActionData, useNavigation } from "react-router";
+import type { AnyParams, RouteActionArgs, RouteProps } from "@udibo/juniper";
+import { Form, useNavigation } from "react-router";
 
 import { CodeBlock } from "@/components/CodeBlock.tsx";
 import { DataList, DataListItem } from "@/components/DataList.tsx";
@@ -23,7 +23,9 @@ interface ClientEnrichedResult extends ServerMutationResult {
 export async function action({
   request,
   serverAction,
-}: RouteActionArgs): Promise<ClientEnrichedResult> {
+}: RouteActionArgs<AnyParams, ClientEnrichedResult>): Promise<
+  ClientEnrichedResult
+> {
   const startTime = Date.now();
 
   const formData = await request.formData();
@@ -62,8 +64,9 @@ export async function action({
   };
 }
 
-export default function ClientCallsServerActionDemo() {
-  const actionData = useActionData<ClientEnrichedResult>();
+export default function ClientCallsServerActionDemo({
+  actionData,
+}: RouteProps<AnyParams, unknown, ClientEnrichedResult>) {
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
 

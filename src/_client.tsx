@@ -15,23 +15,83 @@ import type {
   HydrationState,
   LoaderFunction,
   LoaderFunctionArgs,
+  MiddlewareFunction as ReactRouterMiddlewareFunction,
   RouterContextProvider,
 } from "react-router";
 import SuperJSON from "superjson";
 import type { SuperJSONResult } from "superjson";
-import React, { Suspense } from "react";
+import React, { createContext, Suspense, useContext } from "react";
 import type { ComponentType } from "react";
+import { delay } from "@std/async/delay";
 
 import type {
-  AnyParams,
   ErrorBoundaryProps,
+  HydrateFallbackProps,
+  MiddlewareFunction,
   RouteModule,
   RouteProps,
 } from "@udibo/juniper";
 
+const JuniperContext = createContext<RouterContextProvider | undefined>(
+  undefined,
+);
+
+export function JuniperContextProvider({
+  context,
+  children,
+}: {
+  context: RouterContextProvider;
+  children: React.ReactNode;
+}) {
+  return (
+    <JuniperContext.Provider value={context}>
+      {children}
+    </JuniperContext.Provider>
+  );
+}
+
+export function useJuniperContext(): RouterContextProvider {
+  const context = useContext(JuniperContext);
+  if (!context) {
+    throw new Error(
+      "useJuniperContext must be used within a JuniperContextProvider",
+    );
+  }
+  return context;
+}
+
 export interface ServerFlags {
   loader?: boolean;
   action?: boolean;
+}
+
+function normalizeSegmentForId(segment: string): string {
+  return segment.replace(/:(\w+)/g, "[$1]");
+}
+
+export function generateRouteId(
+  parentPath: string,
+  segment: string,
+  type: "main" | "index" | "catchall",
+): string {
+  const normalizedSegment = normalizeSegmentForId(segment);
+  let fullPath: string;
+  if (parentPath === "/") {
+    fullPath = normalizedSegment ? `/${normalizedSegment}` : "/";
+  } else {
+    fullPath = normalizedSegment
+      ? `${parentPath}/${normalizedSegment}`
+      : parentPath;
+  }
+
+  switch (type) {
+    case "index":
+      return fullPath === "/" ? "/index" : `${fullPath}/index`;
+    case "catchall":
+      return fullPath === "/" ? "/[...]" : `${fullPath}/[...]`;
+    default:
+      return fullPath;
+  }
 }
 
 const FORM_DATA_CACHE = Symbol("juniperFormDataCache");
@@ -179,6 +239,8 @@ function reconstructPromiseStates(
 export interface HydrationData {
   /** Public environment variables shared with the client */
   publicEnv?: Record<string, string>;
+  /** Serialized context from the server's serializeContext function */
+  serializedContext?: unknown;
   /** Array of route matches with their IDs */
   matches: {
     id: string;
@@ -255,13 +317,70 @@ export function App({ children }: { children: React.ReactNode }) {
   );
 }
 
+const LAZY_LOAD_ERROR_KEY = "__juniper_lazy_load_error";
+const MAX_LAZY_LOAD_RETRIES = 2;
+const LAZY_LOAD_ERROR_WINDOW_MS = 30000; // 30 seconds
+
+interface LazyLoadErrorState {
+  count: number;
+  timestamp: number;
+}
+
+function getLazyLoadErrorState(): LazyLoadErrorState {
+  try {
+    const stored = sessionStorage.getItem(LAZY_LOAD_ERROR_KEY);
+    if (!stored) return { count: 0, timestamp: 0 };
+    return JSON.parse(stored);
+  } catch {
+    return { count: 0, timestamp: 0 };
+  }
+}
+
+function shouldRefreshOnLazyLoadError(): boolean {
+  const { count, timestamp } = getLazyLoadErrorState();
+  const now = Date.now();
+
+  // Reset counter if outside the time window
+  if (now - timestamp > LAZY_LOAD_ERROR_WINDOW_MS) return true;
+
+  // Stop refreshing if we've exceeded max retries
+  return count < MAX_LAZY_LOAD_RETRIES;
+}
+
+function recordLazyLoadErrorRefresh(): void {
+  const { count, timestamp } = getLazyLoadErrorState();
+  const now = Date.now();
+
+  if (now - timestamp > LAZY_LOAD_ERROR_WINDOW_MS) {
+    // Start new window
+    sessionStorage.setItem(
+      LAZY_LOAD_ERROR_KEY,
+      JSON.stringify({ count: 1, timestamp: now }),
+    );
+  } else {
+    // Increment within existing window
+    sessionStorage.setItem(
+      LAZY_LOAD_ERROR_KEY,
+      JSON.stringify({ count: count + 1, timestamp }),
+    );
+  }
+}
+
+function clearLazyLoadErrorState(): void {
+  try {
+    sessionStorage.removeItem(LAZY_LOAD_ERROR_KEY);
+  } catch {
+    // Ignore errors (e.g., sessionStorage not available)
+  }
+}
+
 async function fetchServerData(
   request: Request,
   method: "GET" | "POST",
   routeId: string,
+  deserializeError?: (serializedError: unknown) => unknown,
 ): Promise<unknown> {
   const headers: Record<string, string> = {
-    "Accept": "application/json",
     "X-Juniper-Route-Id": routeId,
   };
 
@@ -272,16 +391,23 @@ async function fetchServerData(
 
   const response = await fetch(request.url, fetchOptions);
 
-  if (!response.ok) {
-    throw await HttpError.from(response);
-  }
-
   const responseType = response.headers.get("X-Juniper");
   if (responseType === "serialized") {
-    return SuperJSON.deserialize(await response.json());
+    const serializedData = await response.json();
+    const deserialized = SuperJSON.deserialize(serializedData);
+
+    if (!response.ok) {
+      throw deserializeError?.(deserialized) ??
+        deserializeErrorDefault(deserialized);
+    }
+    return deserialized;
   } else if (responseType === "redirect") {
     const location = (await response.json()).location;
-    return redirect(location);
+    throw redirect(location);
+  }
+
+  if (!response.ok) {
+    throw await HttpError.from(response);
   }
 
   return response;
@@ -290,63 +416,63 @@ async function fetchServerData(
 function fetchServerLoader(
   request: Request,
   routeId: string,
+  deserializeError?: (serializedError: unknown) => unknown,
 ): Promise<unknown> {
-  return fetchServerData(request, "GET", routeId);
+  return fetchServerData(request, "GET", routeId, deserializeError);
 }
 
 function fetchServerAction(
   request: Request,
   routeId: string,
+  deserializeError?: (serializedError: unknown) => unknown,
 ): Promise<unknown> {
-  return fetchServerData(request, "POST", routeId);
+  return fetchServerData(request, "POST", routeId, deserializeError);
 }
 
-export type Route<
-  Context extends RouterContextProvider = RouterContextProvider,
-> = {
+export type Route = {
   Component?: ComponentType;
   ErrorBoundary?: ComponentType;
   HydrateFallback?: ComponentType;
   loader?: (
-    args: LoaderFunctionArgs<Context>,
+    args: LoaderFunctionArgs<RouterContextProvider>,
   ) => unknown | Promise<unknown>;
   action?: (
-    args: ActionFunctionArgs<Context>,
+    args: ActionFunctionArgs<RouterContextProvider>,
   ) => unknown | Promise<unknown>;
+  middleware?: ReactRouterMiddlewareFunction<RouterContextProvider>[];
 };
+
+export type LazyRouteResult = Omit<Route, "middleware">;
 
 /**
  * Converts a route module into a renderable route object.
  *
- * @template Context - The router context type.
  * @returns A promise that resolves to the route object.
  */
-export type LazyRoute<
-  Context extends RouterContextProvider = RouterContextProvider,
-> = () => Promise<Route<Context>>;
+export type LazyRoute = () => Promise<LazyRouteResult>;
 
 /**
  * Converts a `RouteModule` into the internal `Route` shape used by the client runtime.
  *
- * @template Context - The router context type.
  * @param routeFile - The module exports for the route.
  * @param serverFlags - Flags indicating whether the route has server-side loader/action.
  * @param routeId - The route ID used for server data requests.
+ * @param deserializeError - Optional custom error deserializer for server errors.
  * @returns A concrete `Route` instance.
  */
-export function createRoute<
-  Context extends RouterContextProvider = RouterContextProvider,
->(
-  routeFile: RouteModule<AnyParams, unknown, unknown, Context>,
+export function createRoute(
+  routeFile: RouteModule,
   serverFlags?: ServerFlags,
   routeId?: string,
-): Route<Context> {
+  deserializeError?: (serializedError: unknown) => unknown,
+): Route {
   const {
     ErrorBoundary: _ErrorBoundary,
     default: _Component,
     HydrateFallback: _HydrateFallback,
     loader: _loader,
     action: _action,
+    middleware: _middleware,
   } = routeFile;
 
   const hasServerLoader = serverFlags?.loader === true;
@@ -359,7 +485,7 @@ export function createRoute<
     if (!routeId) {
       throw new Error("Route ID is required to fetch server loader data");
     }
-    return fetchServerLoader(request, routeId);
+    return fetchServerLoader(request, routeId, deserializeError);
   }
 
   function getServerAction(request: Request) {
@@ -369,72 +495,67 @@ export function createRoute<
     if (!routeId) {
       throw new Error("Route ID is required to fetch server action data");
     }
-    return fetchServerAction(request, routeId);
+    return fetchServerAction(request, routeId, deserializeError);
   }
-
-  let loader:
-    | LoaderFunction<Context>
-    | undefined;
 
   let HydrateFallback: ComponentType | undefined;
   if (_HydrateFallback) {
     HydrateFallback = function HydrateFallback() {
       const params = useParams();
-      const actionData = useActionData();
+      const context = useJuniperContext();
 
       return React.createElement(
-        _HydrateFallback as ComponentType<RouteProps>,
+        _HydrateFallback as ComponentType<HydrateFallbackProps>,
         {
           params,
-          loaderData: undefined,
-          actionData,
+          context,
         },
       );
     };
-    if (_loader) {
-      loader = function loader(args: LoaderFunctionArgs<Context>) {
-        const { context, params } = args;
-        const request = withCachedRequest(args.request);
-        const serverLoader = () => getServerLoader(request);
-        const result = _loader({ context, params, request, serverLoader });
-        if (result instanceof Promise) {
-          return { promise: result };
-        }
-        return result;
-      };
-    }
-  } else if (_loader) {
-    loader = function loader(args: LoaderFunctionArgs<Context>) {
+  }
+
+  let loader: LoaderFunction<RouterContextProvider> | undefined;
+  if (_loader) {
+    loader = function loader(args: LoaderFunctionArgs<RouterContextProvider>) {
       const { context, params } = args;
       const request = withCachedRequest(args.request);
       const serverLoader = () => getServerLoader(request);
-      return _loader({ context, params, request, serverLoader });
+      const result = _loader({ context, params, request, serverLoader });
+      if (HydrateFallback && result instanceof Promise) {
+        return { promise: result };
+      }
+      return result;
     };
   } else if (hasServerLoader) {
-    loader = function loader(args: LoaderFunctionArgs<Context>) {
+    loader = function loader(args: LoaderFunctionArgs<RouterContextProvider>) {
+      if (HydrateFallback) {
+        return { promise: getServerLoader(args.request) };
+      }
       return getServerLoader(args.request);
     };
   }
 
   let action:
-    | ActionFunction<Context>
+    | ActionFunction<RouterContextProvider>
     | undefined;
 
   if (_action) {
-    action = function action(args: ActionFunctionArgs<Context>) {
+    action = function action(args: ActionFunctionArgs<RouterContextProvider>) {
       const { context, params } = args;
       const request = withCachedRequest(args.request);
       const serverAction = () => getServerAction(request);
       return _action({ context, params, request, serverAction });
     };
   } else if (hasServerAction) {
-    action = function action(args: ActionFunctionArgs<Context>) {
+    action = function action(args: ActionFunctionArgs<RouterContextProvider>) {
       const request = withCachedRequest(args.request);
       return getServerAction(request);
     };
   }
 
   const hasClientLoader = !!_loader;
+  const hasAsyncLoader = HydrateFallback &&
+    (hasClientLoader || hasServerLoader);
 
   let Component: ComponentType | undefined;
   if (_Component) {
@@ -442,32 +563,29 @@ export function createRoute<
       const params = useParams();
       const loaderData = useLoaderData();
       const actionData = useActionData();
+      const context = useJuniperContext();
 
-      if (hasClientLoader) {
+      if (hasAsyncLoader && HydrateFallback) {
         if (loaderData == null) {
-          if (HydrateFallback) {
-            return <HydrateFallback />;
-          }
-          return null;
+          return <HydrateFallback />;
         }
-        if (HydrateFallback) {
-          const hasPromise = typeof loaderData === "object" &&
-            "promise" in loaderData;
-          if (hasPromise) {
-            return (
-              <Suspense fallback={<HydrateFallback />}>
-                <Await resolve={loaderData.promise}>
-                  {(resolvedLoaderData) => (
-                    <_Component
-                      params={params}
-                      loaderData={resolvedLoaderData}
-                      actionData={actionData}
-                    />
-                  )}
-                </Await>
-              </Suspense>
-            );
-          }
+        const hasPromise = typeof loaderData === "object" &&
+          "promise" in loaderData;
+        if (hasPromise) {
+          return (
+            <Suspense fallback={<HydrateFallback />}>
+              <Await resolve={loaderData.promise}>
+                {(resolvedLoaderData) => (
+                  <_Component
+                    params={params}
+                    loaderData={resolvedLoaderData}
+                    actionData={actionData}
+                    context={context}
+                  />
+                )}
+              </Await>
+            </Suspense>
+          );
         }
       }
 
@@ -477,6 +595,7 @@ export function createRoute<
           params,
           loaderData,
           actionData,
+          context,
         },
       );
     };
@@ -491,6 +610,7 @@ export function createRoute<
       const error = useRouteError();
       const navigate = useNavigate();
       const location = useLocation();
+      const context = useJuniperContext();
 
       function resetErrorBoundary() {
         navigate(location.pathname, { replace: true });
@@ -504,9 +624,34 @@ export function createRoute<
           params,
           loaderData,
           actionData,
+          context,
         },
       );
     };
+  }
+
+  let middleware:
+    | ReactRouterMiddlewareFunction<RouterContextProvider>[]
+    | undefined;
+  if (_middleware && _middleware.length > 0) {
+    middleware = _middleware.map((mw: MiddlewareFunction) => {
+      const wrappedMiddleware: ReactRouterMiddlewareFunction<
+        RouterContextProvider
+      > = (
+        args,
+        next,
+      ) => {
+        return mw(
+          {
+            context: args.context as RouterContextProvider,
+            params: args.params,
+            request: args.request,
+          },
+          next,
+        );
+      };
+      return wrappedMiddleware;
+    });
   }
 
   return {
@@ -515,32 +660,46 @@ export function createRoute<
     HydrateFallback,
     loader,
     action,
+    middleware,
   };
 }
 
 /**
  * Creates a lazy route object that loads a `RouteModule` and converts it to a route object.
+ * Note: Middleware cannot be lazily loaded per React Router constraints, so it is stripped.
  *
- * @template Context - The router context type.
  * @param lazyRouteFile - The lazy route file to create a lazy route object from.
  * @param serverFlags - Flags indicating whether the route has server-side loader/action.
  * @param routeId - The route ID used for server data requests.
+ * @param deserializeError - Optional custom error deserializer for server errors.
  * @returns A lazy route object.
  */
-export function createLazyRoute<
-  Context extends RouterContextProvider = RouterContextProvider,
->(
-  lazyRouteFile: () => Promise<
-    RouteModule<AnyParams, unknown, unknown, Context>
-  >,
+export function createLazyRoute(
+  lazyRouteFile: () => Promise<RouteModule>,
   serverFlags?: ServerFlags,
   routeId?: string,
-): LazyRoute<Context> {
-  return async (): Promise<Route<Context>> => {
-    const routeFile = await lazyRouteFile();
-    return createRoute(routeFile, serverFlags, routeId);
+  deserializeError?: (serializedError: unknown) => unknown,
+): LazyRoute {
+  return async (): Promise<LazyRouteResult> => {
+    let routeFile: RouteModule;
+    try {
+      routeFile = await lazyRouteFile();
+      clearLazyLoadErrorState();
+    } catch (error) {
+      if (shouldRefreshOnLazyLoadError()) {
+        recordLazyLoadErrorRefresh();
+        delay(0).then(() => {
+          globalThis.location.reload();
+        });
+      }
+      throw error;
+    }
+    const { middleware: _middleware, ...rest } = createRoute(
+      routeFile,
+      serverFlags,
+      routeId,
+      deserializeError,
+    );
+    return rest;
   };
 }
-
-/** The default router context provider. */
-export type DefaultContext = RouterContextProvider;

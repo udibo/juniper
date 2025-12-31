@@ -1,4 +1,5 @@
 import { Outlet } from "react-router";
+import { HttpError } from "@udibo/juniper";
 import type { ErrorBoundaryProps } from "@udibo/juniper";
 
 export default function ErrorsLayout() {
@@ -32,7 +33,9 @@ export function ErrorBoundary(
         </h3>
         <div className="bg-slate-900/50 rounded-lg p-4 mb-4">
           <p className="text-red-300 font-mono text-sm">
-            {error instanceof Error ? error.message : "Unknown error occurred"}
+            {error instanceof HttpError
+              ? error.exposedMessage
+              : (error instanceof Error ? error.message : String(error))}
           </p>
         </div>
         <button
@@ -49,14 +52,16 @@ export function ErrorBoundary(
           Example Code
         </h3>
         <pre className="text-sm text-slate-300 font-mono overflow-x-auto">
-{`export function ErrorBoundary({
+        {`import { HttpError } from "@udibo/juniper";
+
+export function ErrorBoundary({
   error,
   resetErrorBoundary
 }: ErrorBoundaryProps) {
   return (
     <div>
       <h1>Something went wrong</h1>
-      <p>{error.message}</p>
+      <p>{error instanceof HttpError ? error.exposedMessage : (error instanceof Error ? error.message : String(error))}</p>
       <button onClick={resetErrorBoundary}>
         Try Again
       </button>

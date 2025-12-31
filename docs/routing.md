@@ -69,7 +69,7 @@ parent directories to children:
 ```ts
 // routes/api/main.ts
 import { Hono } from "hono";
-import { HttpError } from "@udibo/http-error";
+import { HttpError } from "@udibo/juniper";
 import { getInstance } from "@udibo/juniper/utils/otel";
 
 const app = new Hono();
@@ -102,7 +102,7 @@ export default app;
 // routes/api/blog/[slug].ts
 import { Hono } from "hono";
 import { postService } from "/services/post.ts";
-import { HttpError } from "@udibo/http-error";
+import { HttpError } from "@udibo/juniper";
 
 const app = new Hono();
 
@@ -128,7 +128,7 @@ loads.
 
 ```tsx
 // routes/blog/[slug].tsx
-import { HttpError } from "@udibo/http-error";
+import { HttpError } from "@udibo/juniper";
 import type { RouteLoaderArgs, RouteProps } from "@udibo/juniper";
 import type { Post } from "/services/post.ts";
 import { postService } from "/services/post.ts";

@@ -123,6 +123,17 @@ export async function getServerFlags(
   return undefined;
 }
 
+export async function hasMiddlewareExport(
+  absoluteFilePath: string,
+): Promise<boolean> {
+  try {
+    const content = await Deno.readTextFile(absoluteFilePath);
+    return /export\s+const\s+middleware(\s|=|:)/.test(content);
+  } catch {
+    return false;
+  }
+}
+
 export async function processDirectory(
   absoluteDirPath: string,
   importPathBase: string,
@@ -280,24 +291,29 @@ export async function processClientDirectory(
     const directImport = `await import("${currentFileImportPath}")`;
 
     if (entry.isFile && entry.name.endsWith(".tsx")) {
+      const clientFilePath = path.join(absoluteDirPath, entry.name);
       const serverFileName = getServerRouteFileName(entry.name);
       const serverFilePath = path.join(absoluteDirPath, serverFileName);
       const serverFlags = await getServerFlags(serverFilePath);
+      const hasMiddleware = await hasMiddlewareExport(clientFilePath);
+      const routeImport = (isRootLevel || hasMiddleware)
+        ? directImport
+        : lazyImport;
 
       if (isClientMainRoute(entry.name)) {
-        properties.main = isRootLevel ? directImport : lazyImport;
+        properties.main = routeImport;
         if (serverFlags) properties.serverMain = serverFlags;
       } else if (isClientIndexRoute(entry.name)) {
-        properties.index = lazyImport;
+        properties.index = hasMiddleware ? directImport : lazyImport;
         if (serverFlags) properties.serverIndex = serverFlags;
       } else if (isClientCatchallRoute(entry.name)) {
-        properties.catchall = lazyImport;
+        properties.catchall = hasMiddleware ? directImport : lazyImport;
         if (serverFlags) properties.serverCatchall = serverFlags;
       } else if (isClientDynamicRoute(entry.name)) {
         const paramName = getClientDynamicRouteParam(entry.name);
         const route: GeneratedRoute = {
           path: `:${paramName}`,
-          main: lazyImport,
+          main: hasMiddleware ? directImport : lazyImport,
         };
         if (serverFlags) route.server = serverFlags;
         properties.parameterizedChildren.push(route);
@@ -305,7 +321,7 @@ export async function processClientDirectory(
         const routeName = entry.name.slice(0, -4);
         const route: GeneratedRoute = {
           path: routeName,
-          main: lazyImport,
+          main: hasMiddleware ? directImport : lazyImport,
         };
         if (serverFlags) route.server = serverFlags;
         properties.fileModuleChildren.push(route);

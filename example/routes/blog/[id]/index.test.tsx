@@ -1,4 +1,4 @@
-import "global-jsdom/register";
+import "@udibo/juniper/utils/global-jsdom";
 
 import { assertEquals } from "@std/assert";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
@@ -6,7 +6,7 @@ import { afterEach, describe, it } from "@std/testing/bdd";
 
 import { createRoutesStub } from "@udibo/juniper/utils/testing";
 
-import * as blogPostRoute from "./[id]/index.tsx";
+import * as blogPostRoute from "./index.tsx";
 
 describe("Blog post route", () => {
   afterEach(cleanup);

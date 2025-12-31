@@ -1,6 +1,6 @@
 import { assert, assertEquals } from "@std/assert";
 import { afterAll, afterEach, beforeAll, describe, it } from "@std/testing/bdd";
-import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
+import { generate as generateUUIDv7 } from "@std/uuid/v7";
 
 import { postService } from "@/services/post.ts";
 import type { NewPost, Post } from "@/services/post.ts";
@@ -109,7 +109,7 @@ describe("/api/blog/posts", () => {
       assertEquals(res.status, 400);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 400);
-      assertEquals(errorBody.title, "BadRequestError");
+      assertEquals(errorBody.title, "Bad Request");
       assertEquals(
         errorBody.detail,
         'Invalid index "invalidIndex" for post. Valid indexes are: id, authorId, updatedAt.',
@@ -147,7 +147,7 @@ describe("/api/blog/posts", () => {
 
       const errorBody = await res.json();
       assertEquals(errorBody.status, 404);
-      assertEquals(errorBody.title, "NotFoundError");
+      assertEquals(errorBody.title, "Not Found");
       assertEquals(errorBody.detail, "Failed to find post");
       assert(errorBody.instance);
     });
@@ -197,7 +197,7 @@ describe("/api/blog/posts", () => {
       assertEquals(res.status, 400);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 400);
-      assertEquals(errorBody.title, "BadRequestError");
+      assertEquals(errorBody.title, "Bad Request");
       assert(
         errorBody.detail.includes("Invalid post"),
         "Error detail should mention invalid post",
@@ -207,8 +207,8 @@ describe("/api/blog/posts", () => {
         "Error detail should mention missing title",
       );
       assert(
-        errorBody.detail.includes("Field 'authorId' is required"),
-        "Error detail should mention invalid authorId",
+        errorBody.detail.includes("Invalid author ID"),
+        "Error detail should mention missing authorId",
       );
     });
   });
@@ -266,7 +266,7 @@ describe("/api/blog/posts", () => {
       assertEquals(res.status, 404);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 404);
-      assertEquals(errorBody.title, "NotFoundError");
+      assertEquals(errorBody.title, "Not Found");
       assertEquals(errorBody.detail, "Failed to find post to update");
     });
 
@@ -293,7 +293,7 @@ describe("/api/blog/posts", () => {
         assertEquals(res.status, 400);
         const errorBody = await res.json();
         assertEquals(errorBody.status, 400);
-        assertEquals(errorBody.title, "BadRequestError");
+        assertEquals(errorBody.title, "Bad Request");
         assert(errorBody.detail.includes("Invalid post"));
         assert(errorBody.detail.includes("Field 'title' is required"));
       } finally {
@@ -349,7 +349,7 @@ describe("/api/blog/posts", () => {
       assertEquals(res.status, 404);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 404);
-      assertEquals(errorBody.title, "NotFoundError");
+      assertEquals(errorBody.title, "Not Found");
       assertEquals(errorBody.detail, "Failed to find post to patch");
     });
 
@@ -374,7 +374,7 @@ describe("/api/blog/posts", () => {
         assertEquals(res.status, 400);
         const errorBody = await res.json();
         assertEquals(errorBody.status, 400);
-        assertEquals(errorBody.title, "BadRequestError");
+        assertEquals(errorBody.title, "Bad Request");
         assert(errorBody.detail.includes("Invalid post"));
         assert(
           errorBody.detail.includes("Title must be less than 255 characters"),
@@ -418,7 +418,7 @@ describe("/api/blog/posts", () => {
       assertEquals(res.status, 404);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 404);
-      assertEquals(errorBody.title, "NotFoundError");
+      assertEquals(errorBody.title, "Not Found");
       assertEquals(errorBody.detail, "Failed to find post to delete");
     });
   });

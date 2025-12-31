@@ -4,11 +4,12 @@ import { Service } from "./service.ts";
 
 export const PostSchema = z.object({
   id: z.string().uuid(),
-  title: z.string()
+  title: z.string({ message: "Field 'title' is required" })
     .min(1, "Title is required")
     .max(255, "Title must be less than 255 characters"),
-  content: z.string().min(1, "Content is required"),
-  authorId: z.string().uuid("Invalid author ID"),
+  content: z.string({ message: "Field 'content' is required" })
+    .min(1, "Content is required"),
+  authorId: z.uuid({ message: "Invalid author ID" }),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });

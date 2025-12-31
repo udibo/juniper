@@ -1,4 +1,4 @@
-import "global-jsdom/register";
+import "@udibo/juniper/utils/global-jsdom";
 
 import { assertEquals } from "@std/assert";
 import { cleanup, render, screen } from "@testing-library/react";

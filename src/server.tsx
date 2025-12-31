@@ -1,14 +1,18 @@
 import * as path from "@std/path";
-import { HttpError } from "@udibo/http-error";
+import { HttpError } from "@udibo/juniper";
 import { Hono } from "hono";
-import type { Env, Schema } from "hono";
+import type { Schema, TypedResponse } from "hono";
 import { trimTrailingSlash } from "hono/trailing-slash";
+import type { RedirectStatusCode } from "hono/utils/http-status";
+import { RouterContextProvider } from "react-router";
 
 import type { Client } from "@udibo/juniper/client";
 import { getInstance } from "@udibo/juniper/utils/otel";
 
 import { buildApp, createHandlers, mergeServerRoutes } from "./_server.tsx";
-import type { Route } from "./_server.tsx";
+import type { AppEnv, Route } from "./_server.tsx";
+
+export type { AppEnv };
 
 /**
  * Creates a Hono application server with the provided route configuration.
@@ -55,7 +59,7 @@ import type { Route } from "./_server.tsx";
  * @returns A configured Hono application instance
  */
 export function createServer<
-  E extends Env = Env,
+  E extends AppEnv = AppEnv,
   S extends Schema = Schema,
   BasePath extends string = "/",
 >(
@@ -66,7 +70,38 @@ export function createServer<
   const projectRoot = path.dirname(path.fromFileUrl(moduleUrl));
   const appWrapper = new Hono<E, S, BasePath>({ strict: true });
 
+  appWrapper.use(async (c, next) => {
+    c.set("context", new RouterContextProvider());
+    const originalRedirect = c.redirect;
+    c.redirect = function redirect<T extends RedirectStatusCode = 302>(
+      location: string | URL,
+      status?: T,
+    ): Response & TypedResponse<undefined, T, "redirect"> {
+      if (c.req.header("X-Juniper-Route-Id")) {
+        c.header("Vary", "Accept");
+        c.header("X-Juniper", "redirect");
+        return c.json({ location }) as unknown as
+          & Response
+          & TypedResponse<undefined, T, "redirect">;
+      }
+      return (originalRedirect<T>).call(c, location, status);
+    };
+    await next();
+  });
+
+  appWrapper.use(trimTrailingSlash());
+
   appWrapper.onError((cause) => {
+    if (
+      !(cause instanceof HttpError) &&
+      cause !== null &&
+      typeof cause === "object" &&
+      "getResponse" in cause &&
+      typeof cause.getResponse === "function"
+    ) {
+      console.error(cause);
+      return cause.getResponse();
+    }
     const error = HttpError.from(cause);
     if (!error.instance) {
       const instance = getInstance();
@@ -77,11 +112,17 @@ export function createServer<
     console.error(error);
     return error.getResponse();
   });
-  appWrapper.use(trimTrailingSlash());
 
   const serverRoutes = mergeServerRoutes(route, client.routeObjects);
-  const handlers = createHandlers(route, serverRoutes);
-  const app = buildApp(route, client.rootRoute, handlers, projectRoot);
+  const { handlers, errorHandler } = createHandlers(route, serverRoutes);
+  const app = buildApp(
+    route,
+    client.rootRoute,
+    handlers,
+    projectRoot,
+    "/",
+    errorHandler,
+  );
 
   appWrapper.route("/", app);
   return appWrapper;

@@ -7,8 +7,8 @@ import {
 import { sortBy } from "@std/collections/sort-by";
 import { afterAll, beforeAll, describe, it } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
-import { HttpError } from "@udibo/http-error";
+import { generate as generateUUIDv7 } from "@std/uuid/v7";
+import { HttpError } from "@udibo/juniper";
 
 import { PostService } from "./post.ts";
 import type { NewPost, Post } from "./post.ts";
@@ -48,7 +48,7 @@ describe("PostService", () => {
       await assertRejects(
         () => service.create(invalidPostData),
         HttpError,
-        "Invalid post: Field 'title' is required.",
+        "Invalid post: Field 'title' is required",
       );
     });
 

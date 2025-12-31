@@ -12,7 +12,6 @@ Every Juniper project should declare the following sections:
 {
   "imports": {
     "@udibo/juniper": "jsr:@udibo/juniper@^0.0.1",
-    "@udibo/http-error": "jsr:@udibo/http-error@0.10",
     "@std/assert": "jsr:@std/assert@^1.0.15",
     "@std/testing": "jsr:@std/testing@^1.0.16",
     "@std/path": "jsr:@std/path@^1.1.2",

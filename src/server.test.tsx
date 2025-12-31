@@ -1,13 +1,8 @@
-import {
-  assertEquals,
-  assertExists,
-  assertObjectMatch,
-  assertStringIncludes,
-} from "@std/assert";
+import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
 import { Outlet, useLoaderData, useParams } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
-import { HttpError } from "@udibo/http-error";
+import { HttpError } from "@udibo/juniper";
 
 import type { RouteLoaderArgs } from "@udibo/juniper";
 import { Client } from "@udibo/juniper/client";
@@ -83,7 +78,8 @@ describe("createServer", () => {
       ],
     });
 
-    const testApp = new (await import("hono")).Hono();
+    const { Hono } = await import("hono");
+    const testApp = new Hono<{ Variables: { test: string } }>();
     testApp.get("/", (c) => c.text("Server Route"));
 
     const server = createServer(import.meta.url, client, {
@@ -128,7 +124,7 @@ describe("createServer", () => {
     assertStringIncludes(html, "<div>Home</div>");
   });
 
-  it("should return JSON for data requests when Accept is application/json", async () => {
+  it("should return JSON for data requests when X-Juniper-Route-Id is present", async () => {
     const client = new Client({
       path: "/",
       main: {
@@ -143,7 +139,7 @@ describe("createServer", () => {
       },
     });
     const res = await server.request("http://localhost/", {
-      headers: { accept: "application/json" },
+      headers: { "X-Juniper-Route-Id": "/" },
     });
     assertEquals(res.status, 200);
     const ct = res.headers.get("content-type");
@@ -443,7 +439,7 @@ describe("createServer", () => {
     assertStringIncludes(html, "<div>Error occurred</div>");
   });
 
-  it("should handle unhandled errors that cannot be caught by error boundaries", async () => {
+  it("should handle unhandled errors with React Router's default ErrorBoundary", async () => {
     const client = new Client({
       path: "/",
       main: {
@@ -456,13 +452,9 @@ describe("createServer", () => {
     const server = createServer(import.meta.url, client, { path: "/" });
     const res = await server.request("http://localhost/");
     assertEquals(res.status, 500);
-    assertEquals(res.headers.get("content-type"), "application/problem+json");
-    const error = await res.json();
-    assertEquals(Object.keys(error), ["status", "title"]);
-    assertObjectMatch(error, {
-      status: 500,
-      title: "InternalServerError",
-    });
+    assertEquals(res.headers.get("content-type"), "text/html; charset=utf-8");
+    const html = await res.text();
+    assertStringIncludes(html, "<!DOCTYPE html>");
   });
 });
 

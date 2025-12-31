@@ -1,5 +1,5 @@
-import { generate as generateUUIDv7 } from "@std/uuid/unstable-v7";
-import { HttpError } from "@udibo/http-error";
+import { generate as generateUUIDv7 } from "@std/uuid/v7";
+import { HttpError } from "@udibo/juniper";
 import { z } from "zod";
 
 import { isTest } from "@udibo/juniper/utils/env";
@@ -188,7 +188,7 @@ export class Service<T extends Entity> implements Disposable {
         return options;
       } catch (error) {
         if (error instanceof z.ZodError) {
-          const messages = error.errors.map((e) => e.message);
+          const messages = error.issues.map((e) => e.message);
           throw new HttpError(
             400,
             `Invalid list options: ${messages.join(", ")}`,
@@ -206,12 +206,7 @@ export class Service<T extends Entity> implements Disposable {
         return this.schema.parse(data) as T;
       } catch (error) {
         if (error instanceof z.ZodError) {
-          const messages = error.errors.map((e) => {
-            if (e.message === "Required" && e.path && e.path.length > 0) {
-              return `Field '${e.path.join(".")}' is required.`;
-            }
-            return e.message;
-          });
+          const messages = error.issues.map((e) => e.message);
           throw validationFailed(this.name, messages);
         }
         throw HttpError.from(error);

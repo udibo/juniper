@@ -1,4 +1,4 @@
-import "global-jsdom/register";
+import "@udibo/juniper/utils/global-jsdom";
 
 import { assertEquals, assertExists, assertRejects } from "@std/assert";
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
@@ -647,6 +647,26 @@ describe("createRoutesStub", () => {
 
     await waitFor(() => {
       screen.getByText("Resolved");
+    });
+  });
+
+  it("should provide context to route components", async () => {
+    const routeModule = {
+      default: function TestComponent({ context }: { context: unknown }) {
+        return (
+          <div data-testid="context-test">
+            {context ? "has context" : "no context"}
+          </div>
+        );
+      },
+    };
+
+    const Stub = createRoutesStub([routeModule]);
+    render(<Stub />);
+
+    await waitFor(() => {
+      const element = screen.getByTestId("context-test");
+      assertEquals(element.textContent, "has context");
     });
   });
 });
