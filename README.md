@@ -10,8 +10,6 @@ Juniper is a web framework for building React applications with Deno. It makes
 it easy to understand your application as a tree. The server routing is built
 with Hono and the client routing is built with React Router.
 
-This is a work in progress, not ready for use.
-
 ## Features
 
 - TODO: Write out list of features
@@ -29,7 +27,7 @@ to use the framework.
 - [Configuration](docs/configuration.md)
 - [Development tools](docs/development-tools.md)
 - [Routing](docs/routing.md)
-- [HTTP Middleware](docs/http-middleware.md)
+- [Middleware](docs/middleware.md)
 - [Static Files](docs/static-files.md)
 - [Metadata](docs/metadata.md)
 - [Styling](docs/styling.md)
