@@ -188,7 +188,7 @@ export interface CreateRoutesStubOptions {
  *
  * @example Testing a route with a loader
  * ```tsx
- * import "global-jsdom/register";
+ * import "@udibo/juniper/utils/global-jsdom";
  * import { afterEach, describe, it } from "@std/testing/bdd";
  * import { cleanup, render, screen, waitFor } from "@testing-library/react";
  * import { createRoutesStub } from "@udibo/juniper/utils/testing";
@@ -211,7 +211,7 @@ export interface CreateRoutesStubOptions {
  *
  * @example Testing with a stubbed loader
  * ```tsx
- * import "global-jsdom/register";
+ * import "@udibo/juniper/utils/global-jsdom";
  * import { afterEach, describe, it } from "@std/testing/bdd";
  * import { cleanup, render, screen, waitFor } from "@testing-library/react";
  * import { createRoutesStub } from "@udibo/juniper/utils/testing";
@@ -243,7 +243,7 @@ export interface CreateRoutesStubOptions {
  *
  * @example Testing with initial context (e.g., TanStack Query)
  * ```tsx
- * import "global-jsdom/register";
+ * import "@udibo/juniper/utils/global-jsdom";
  * import { afterEach, describe, it } from "@std/testing/bdd";
  * import { cleanup, render, screen, waitFor } from "@testing-library/react";
  * import { QueryClient } from "@tanstack/react-query";
@@ -518,6 +518,11 @@ export interface FormDataStub extends Disposable {
  * "Illegal constructor" when passed a JSDOM HTMLFormElement. This stub
  * replaces FormData with a compatible implementation that manually extracts
  * form field values.
+ *
+ * **Note:** If you are using `@udibo/juniper/utils/global-jsdom` to set up JSDOM,
+ * this function is already called automatically and you do not need to call it yourself.
+ * You only need to use this function directly when using `npm:global-jsdom` instead
+ * (for example, if you need a URL other than localhost).
  *
  * @example Testing form submission with automatic cleanup using `using`
  * ```ts

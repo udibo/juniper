@@ -44,8 +44,7 @@
     "hono": "npm:hono@^4.11.2",
     "tailwindcss": "npm:tailwindcss@^4.1.18",
     "@tailwindcss/postcss": "npm:@tailwindcss/postcss@^4.1.18",
-    "@testing-library/react": "npm:@testing-library/react@^16.3.1",
-    "global-jsdom": "npm:global-jsdom@^27"
+    "@testing-library/react": "npm:@testing-library/react@^16.3.1"
   },
   "permissions": {
     "serve": {

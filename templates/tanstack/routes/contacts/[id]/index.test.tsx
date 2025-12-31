@@ -1,4 +1,4 @@
-import "global-jsdom/register";
+import "@udibo/juniper/utils/global-jsdom";
 
 import { assertEquals, assertExists } from "@std/assert";
 import { delay } from "@std/async/delay";
@@ -9,11 +9,7 @@ import { afterEach, describe, it } from "@std/testing/bdd";
 import type { RouterContextProvider } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-import {
-  createRoutesStub,
-  stubFetch,
-  stubFormData,
-} from "@udibo/juniper/utils/testing";
+import { createRoutesStub, stubFetch } from "@udibo/juniper/utils/testing";
 
 import { queryClientContext } from "@/context/query.ts";
 import type { Contact } from "@/services/contact.ts";
@@ -264,7 +260,6 @@ describe("Contact view route", () => {
       queryClient.setQueryData(["contact", "contact-123"], contact);
 
       const user = userEvent.setup();
-      using _formDataStub = stubFormData();
       using _fetchStub = stubFetch((input) => {
         if (input.toString().includes("/api/contacts")) {
           return Response.json([]);
@@ -369,7 +364,6 @@ describe("Contact view route", () => {
       queryClient.setQueryData(["contact", "contact-123"], contact);
 
       const user = userEvent.setup();
-      using _formDataStub = stubFormData();
       using _fetchStub = stubFetch((input) => {
         if (input.toString().includes("/api/contacts")) {
           return Response.json([]);

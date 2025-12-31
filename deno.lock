@@ -2245,7 +2245,6 @@
           "npm:@testing-library/react@^16.3.1",
           "npm:@testing-library/user-event@^14.6.1",
           "npm:@types/react@^19.2.7",
-          "npm:global-jsdom@27",
           "npm:hono@^4.11.2",
           "npm:playwright@^1.57.0",
           "npm:react-router@^7.11.0",
@@ -2296,7 +2295,6 @@
           "npm:@opentelemetry/api@^1.9.0",
           "npm:@testing-library/react@^16.3.1",
           "npm:@types/react@^19.2.7",
-          "npm:global-jsdom@27",
           "npm:hono@^4.11.2",
           "npm:react-router@^7.11.0",
           "npm:react@^19.2.3"
@@ -2314,7 +2312,6 @@
           "npm:@tailwindcss/postcss@^4.1.18",
           "npm:@testing-library/react@^16.3.1",
           "npm:@types/react@^19.2.7",
-          "npm:global-jsdom@27",
           "npm:hono@^4.11.2",
           "npm:react-router@^7.11.0",
           "npm:react@^19.2.3",
@@ -2334,7 +2331,6 @@
           "npm:@testing-library/react@^16.3.1",
           "npm:@testing-library/user-event@^14.6.1",
           "npm:@types/react@^19.2.7",
-          "npm:global-jsdom@27",
           "npm:hono@^4.11.2",
           "npm:react-router@^7.11.0",
           "npm:react@^19.2.3"

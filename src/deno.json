@@ -11,7 +11,8 @@
     "./client": "./client.tsx",
     "./utils/env": "./utils/env.ts",
     "./utils/otel": "./utils/otel.ts",
-    "./utils/testing": "./utils/testing.ts"
+    "./utils/testing": "./utils/testing.ts",
+    "./utils/global-jsdom": "./utils/global-jsdom.ts"
   },
   "tasks": {
     "test": {

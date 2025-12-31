@@ -1,4 +1,4 @@
-import "global-jsdom/register";
+import "@udibo/juniper/utils/global-jsdom";
 
 import { assert } from "@std/assert";
 import { afterEach, describe, it } from "@std/testing/bdd";

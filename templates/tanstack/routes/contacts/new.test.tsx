@@ -1,4 +1,4 @@
-import "global-jsdom/register";
+import "@udibo/juniper/utils/global-jsdom";
 
 import { assertEquals, assertExists } from "@std/assert";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
@@ -11,7 +11,6 @@ import {
   createRoutesStub,
   fetchResolver,
   stubFetch,
-  stubFormData,
 } from "@udibo/juniper/utils/testing";
 
 import { queryClientContext } from "@/context/query.ts";
@@ -237,7 +236,6 @@ describe("New contact route", () => {
     it("should show creating state when mutation is pending", async () => {
       const queryClient = createTestQueryClient();
       const user = userEvent.setup();
-      using _formDataStub = stubFormData();
       const [resolveFetch, fakeFetch] = fetchResolver();
       using _fetchStub = stubFetch(fakeFetch);
 
@@ -282,7 +280,6 @@ describe("New contact route", () => {
     it("should display error message when mutation fails", async () => {
       const queryClient = createTestQueryClient();
       const user = userEvent.setup();
-      using _formDataStub = stubFormData();
       using _fetchStub = stubFetch(
         new Response(
           JSON.stringify({ message: "Email already exists" }),
@@ -320,7 +317,6 @@ describe("New contact route", () => {
     it("should create contact successfully and navigate", async () => {
       const queryClient = createTestQueryClient();
       const user = userEvent.setup();
-      using _formDataStub = stubFormData();
       const createdContact: Contact = {
         id: "new-contact-123",
         firstName: "John",
@@ -410,7 +406,6 @@ describe("New contact route", () => {
     it("should call action when server action form is submitted", async () => {
       const queryClient = createTestQueryClient();
       const user = userEvent.setup();
-      using _formDataStub = stubFormData();
       let actionCalled = false;
       let actionFormData: FormData | null = null;
 
@@ -481,7 +476,6 @@ describe("New contact route", () => {
     it("should show submitting state when action is pending", async () => {
       const queryClient = createTestQueryClient();
       const user = userEvent.setup();
-      using _formDataStub = stubFormData();
       let resolveAction: () => void;
 
       const Stub = createRoutesStub([
