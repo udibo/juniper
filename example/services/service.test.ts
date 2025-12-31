@@ -20,8 +20,8 @@ import { Service } from "./service.ts";
 
 const userSchema = z.object({
   id: z.string().uuid(),
-  name: z.string(),
-  age: z.number()
+  name: z.string({ message: "Field 'name' is required" }),
+  age: z.number({ message: "Field 'age' is required" })
     .min(18, { message: "Age must be greater than or equal to 18" })
     .max(150, { message: "Age must be less than or equal to 150" }),
   createdAt: z.coerce.date(),
@@ -289,7 +289,7 @@ describe("Service", () => {
           return Promise.resolve().then(() => service.parse(incompleteData));
         },
         HttpError,
-        "Invalid user: Field 'name' is required.",
+        "Invalid user: Field 'name' is required",
       );
     });
   });

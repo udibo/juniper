@@ -33,8 +33,8 @@ export function ErrorBoundary(
         </h3>
         <div className="bg-slate-900/50 rounded-lg p-4 mb-4">
           <p className="text-red-300 font-mono text-sm">
-            {error instanceof HttpError && !error.expose
-              ? "Server error"
+            {error instanceof HttpError
+              ? error.exposedMessage
               : (error instanceof Error ? error.message : String(error))}
           </p>
         </div>
@@ -61,7 +61,7 @@ export function ErrorBoundary({
   return (
     <div>
       <h1>Something went wrong</h1>
-      <p>{error instanceof HttpError && !error.expose ? "Server error" : (error instanceof Error ? error.message : String(error))}</p>
+      <p>{error instanceof HttpError ? error.exposedMessage : (error instanceof Error ? error.message : String(error))}</p>
       <button onClick={resetErrorBoundary}>
         Try Again
       </button>

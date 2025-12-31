@@ -174,7 +174,7 @@ describe("/api/users", () => {
       assertEquals(res.status, 400);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 400);
-      assertEquals(errorBody.title, "BadRequestError");
+      assertEquals(errorBody.title, "Bad Request");
       assertEquals(
         errorBody.detail,
         'Invalid index "invalidIndex" for user. Valid indexes are: id, username, email, updatedAt.',
@@ -252,7 +252,7 @@ describe("/api/users", () => {
 
       const errorBody = await res.json();
       assertEquals(errorBody.status, 404);
-      assertEquals(errorBody.title, "NotFoundError");
+      assertEquals(errorBody.title, "Not Found");
       assertEquals(errorBody.detail, "Failed to find user");
       assert(errorBody.instance);
     });
@@ -331,7 +331,7 @@ describe("/api/users", () => {
       assertEquals(res.status, 400);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 400);
-      assertEquals(errorBody.title, "BadRequestError");
+      assertEquals(errorBody.title, "Bad Request");
       assert(
         errorBody.detail.includes("Invalid user"),
         "Error detail should mention invalid user",
@@ -357,7 +357,7 @@ describe("/api/users", () => {
       assertEquals(res.status, 400);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 400);
-      assertEquals(errorBody.title, "BadRequestError");
+      assertEquals(errorBody.title, "Bad Request");
       assert(
         errorBody.detail.includes("Invalid user"),
         "Error detail should mention invalid user",
@@ -388,7 +388,7 @@ describe("/api/users", () => {
       assertEquals(res.status, 400);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 400);
-      assertEquals(errorBody.title, "BadRequestError");
+      assertEquals(errorBody.title, "Bad Request");
       assertEquals(
         errorBody.detail,
         "Failed to create user",
@@ -489,7 +489,7 @@ describe("/api/users", () => {
       assertEquals(res.status, 404);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 404);
-      assertEquals(errorBody.title, "NotFoundError");
+      assertEquals(errorBody.title, "Not Found");
       assertEquals(errorBody.detail, "Failed to find user to update");
     });
 
@@ -510,7 +510,7 @@ describe("/api/users", () => {
       assertEquals(res.status, 400);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 400);
-      assertEquals(errorBody.title, "BadRequestError");
+      assertEquals(errorBody.title, "Bad Request");
       assert(errorBody.detail.includes("Invalid user"));
       assert(errorBody.detail.includes("Field 'displayName' is required"));
     });
@@ -534,7 +534,7 @@ describe("/api/users", () => {
       assertEquals(res.status, 400);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 400);
-      assertEquals(errorBody.title, "BadRequestError");
+      assertEquals(errorBody.title, "Bad Request");
       assert(errorBody.detail.includes("Invalid user"));
       assert(
         errorBody.detail.includes("Password must be at least 8 characters"),
@@ -563,7 +563,7 @@ describe("/api/users", () => {
       assertEquals(res.status, 400);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 400);
-      assertEquals(errorBody.title, "BadRequestError");
+      assertEquals(errorBody.title, "Bad Request");
       assertEquals(
         errorBody.detail,
         "Failed to update user",
@@ -656,7 +656,7 @@ describe("/api/users", () => {
       assertEquals(res.status, 404);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 404);
-      assertEquals(errorBody.title, "NotFoundError");
+      assertEquals(errorBody.title, "Not Found");
       assertEquals(errorBody.detail, "Failed to find user to patch");
     });
 
@@ -676,7 +676,7 @@ describe("/api/users", () => {
       assertEquals(res.status, 400);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 400);
-      assertEquals(errorBody.title, "BadRequestError");
+      assertEquals(errorBody.title, "Bad Request");
       assert(errorBody.detail.includes("Invalid user"));
       assert(
         errorBody.detail.includes("Username must be less than 50 characters"),
@@ -699,7 +699,7 @@ describe("/api/users", () => {
       assertEquals(res.status, 400);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 400);
-      assertEquals(errorBody.title, "BadRequestError");
+      assertEquals(errorBody.title, "Bad Request");
       assert(errorBody.detail.includes("Invalid user"));
       assert(
         errorBody.detail.includes("Password must be at least 8 characters"),
@@ -726,7 +726,7 @@ describe("/api/users", () => {
       assertEquals(res.status, 400);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 400);
-      assertEquals(errorBody.title, "BadRequestError");
+      assertEquals(errorBody.title, "Bad Request");
       assertEquals(
         errorBody.detail,
         "Failed to patch user",
@@ -760,7 +760,7 @@ describe("/api/users", () => {
       assertEquals(res.status, 404);
       const errorBody = await res.json();
       assertEquals(errorBody.status, 404);
-      assertEquals(errorBody.title, "NotFoundError");
+      assertEquals(errorBody.title, "Not Found");
       assertEquals(errorBody.detail, "Failed to find user to delete");
     });
   });

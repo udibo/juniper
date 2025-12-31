@@ -28,8 +28,8 @@ function AwaitError() {
   const error = useAsyncError();
   return (
     <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-red-400">
-      Error: {error instanceof HttpError && !error.expose
-        ? "Server error"
+      Error: {error instanceof HttpError
+        ? error.exposedMessage
         : (error instanceof Error ? error.message : String(error))}
     </div>
   );

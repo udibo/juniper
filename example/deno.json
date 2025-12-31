@@ -32,7 +32,7 @@
   "imports": {
     "@/": "./",
     "@udibo/juniper": "jsr:@udibo/juniper@^0.0.1",
-    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@0.3.0",
+    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.3.0",
     "@std/testing": "jsr:@std/testing@^1.0.16",
     "@std/assert": "jsr:@std/assert@^1.0.16",
     "@std/async": "jsr:@std/async@^1.0.16",
@@ -46,10 +46,10 @@
     "react": "npm:react@^19.2.3",
     "@types/react": "npm:@types/react@^19.2.7",
     "react-router": "npm:react-router@^7.11.0",
-    "hono": "npm:hono@^4.11.2",
+    "hono": "npm:hono@^4.11.3",
     "tailwindcss": "npm:tailwindcss@^4.1.18",
     "@tailwindcss/postcss": "npm:@tailwindcss/postcss@^4.1.18",
-    "zod": "npm:zod@^3.25.76",
+    "zod": "npm:zod@^4.3.2",
     "@testing-library/react": "npm:@testing-library/react@^16.3.1",
     "@testing-library/user-event": "npm:@testing-library/user-event@^14.6.1"
   },

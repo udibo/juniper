@@ -103,8 +103,8 @@ export function ErrorBoundary({ error }: ErrorBoundaryProps) {
           Authentication Failed
         </h4>
         <p className="text-red-300 font-mono text-sm mb-4">
-          {error instanceof HttpError && !error.expose
-            ? "Server error"
+          {error instanceof HttpError
+            ? error.exposedMessage
             : (error instanceof Error ? error.message : String(error))}
         </p>
         <p className="text-sm text-slate-400">

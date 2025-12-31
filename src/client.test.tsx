@@ -319,7 +319,8 @@ describe("createRoute", () => {
     const result = await routeObject.action(actionArgs);
     assertEquals(result, payload);
     assertSpyCalls(fetchStub, 1);
-    const fetchBody = fetchStub.calls[0].args[1]?.body;
+    const fetchBody = (fetchStub.calls[0].args[1] as RequestInit | undefined)
+      ?.body;
     assert(fetchBody instanceof FormData);
     assertEquals(fetchBody.get("title"), "Hello");
   });
@@ -410,7 +411,7 @@ describe("deserializeErrorDefault", () => {
       detail: "Oops",
     });
     assertIsError(error, HttpError, "Oops");
-    assertEquals(error.name, "InternalServerError");
+    assertEquals(error.name, "Internal Server Error");
     assertEquals(error.status, 500);
   });
 
@@ -477,7 +478,7 @@ describe("getHydrationData", () => {
         assertIsError(data.errors["/about"], TypeError, "Wrong type");
 
         assertIsError(data.errors["/blog"], HttpError, "Bad request");
-        assertEquals(data.errors["/blog"].name, "BadRequestError");
+        assertEquals(data.errors["/blog"].name, "Bad Request");
         assertEquals(data.errors["/blog"].status, 400);
 
         assertIsError(data.errors["/blog/create"], Error, "Custom error");
@@ -504,7 +505,7 @@ describe("getHydrationData", () => {
         assertIsError(data.errors["/about"], TypeError, "Wrong type");
 
         assertIsError(data.errors["/blog"], HttpError, "Bad request");
-        assertEquals(data.errors["/blog"].name, "BadRequestError");
+        assertEquals(data.errors["/blog"].name, "Bad Request");
         assertEquals(data.errors["/blog"].status, 400);
 
         assertIsError(data.errors["/blog/create"], CustomError, "Custom error");
@@ -843,7 +844,7 @@ describe("HydrationData serialization and deserialization", () => {
     );
     assertEquals(
       deserializedHydrationData.errors!["/blog/index"].name,
-      "BadRequestError",
+      "Bad Request",
     );
     assertEquals(deserializedHydrationData.errors!["/blog/index"].status, 400);
   });
@@ -869,7 +870,7 @@ describe("HydrationData serialization and deserialization", () => {
       HttpError,
       `${messagePrefix} bad request`,
     );
-    assertEquals(httpError.name, "BadRequestError");
+    assertEquals(httpError.name, "Bad Request");
     assertEquals(httpError.status, 400);
 
     const customError = await assertRejects(

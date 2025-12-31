@@ -48,7 +48,7 @@ describe("PostService", () => {
       await assertRejects(
         () => service.create(invalidPostData),
         HttpError,
-        "Invalid post: Field 'title' is required.",
+        "Invalid post: Field 'title' is required",
       );
     });
 

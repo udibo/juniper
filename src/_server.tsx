@@ -49,6 +49,7 @@ import {
 } from "./_client.tsx";
 import { startActiveSpan } from "./utils/_otel.ts";
 import type { ActionFunction, LoaderFunction } from "@udibo/juniper";
+import { isHttpErrorLike } from "@udibo/http-error";
 
 const args = parseArgs(Deno.args, {
   boolean: ["hot-reload"],
@@ -563,14 +564,12 @@ async function renderDocument(
   const actionHeaders = context.actionHeaders[deepestMatch.route.id];
   const loaderHeaders = context.loaderHeaders[deepestMatch.route.id];
 
-  const statusCode: StatusCode = presetError?.status ??
+  const statusCode = (presetError?.status ??
     Object.values(context.errors ?? {})
-      .find((value: unknown) =>
-        value instanceof Error && (value as HttpError).status
-      )
+      .find((value: unknown) => isHttpErrorLike(value))
       ?.status ??
     context.statusCode ??
-    200;
+    200) as StatusCode;
 
   c.status(statusCode);
 

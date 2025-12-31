@@ -131,7 +131,7 @@ export function ErrorBoundary({ error }: ErrorBoundaryProps) {
   return (
     <div>
       <h1>Server Error</h1>
-      <p>{error instanceof HttpError && !error.expose ? "Server error" : (error instanceof Error ? error.message : String(error))}</p>
+      <p>{error instanceof HttpError ? error.exposedMessage : (error instanceof Error ? error.message : String(error))}</p>
     </div>
   );
 }`}

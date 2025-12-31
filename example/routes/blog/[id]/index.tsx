@@ -96,8 +96,8 @@ export function ErrorBoundary({
           : "Sorry, we couldn't find that blog post."}
       </p>
       <p className="text-slate-500 mb-8">
-        {error instanceof HttpError && !error.expose
-          ? "Server error"
+        {error instanceof HttpError
+          ? error.exposedMessage
           : (error instanceof Error ? error.message : String(error))}
       </p>
       <Link

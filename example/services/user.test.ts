@@ -72,7 +72,7 @@ describe("UserService", () => {
       await assertRejects(
         () => service.create(invalidUserData),
         HttpError,
-        "Invalid user: Field 'username' is required.",
+        "Invalid user: Field 'username' is required",
       );
     });
 
@@ -408,7 +408,7 @@ describe("UserService", () => {
       await assertRejects(
         () => service.update(invalidUpdate),
         HttpError,
-        "Invalid user: Display name is required",
+        "Invalid user: Display name must be at least 1 character",
       );
     });
 

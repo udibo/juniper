@@ -43,7 +43,7 @@ export default function NestedErrorIndex() {
 // routes/features/errors/nested/main.tsx
 // Parent route WITH ErrorBoundary
 export function ErrorBoundary({ error }) {
-  return <div>Parent caught: {error instanceof HttpError && !error.expose ? "Server error" : (error instanceof Error ? error.message : String(error))}</div>;
+  return <div>Parent caught: {error instanceof HttpError ? error.exposedMessage : (error instanceof Error ? error.message : String(error))}</div>;
 }
 
 // routes/features/errors/nested/child.tsx
