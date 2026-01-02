@@ -13,7 +13,8 @@ if (import.meta.main) {
   const port = args.port ? Number(args.port) : undefined;
   let builder: Builder | undefined;
   try {
-    builder = (await import(projectRoot + "/build.ts")).builder;
+    const buildPath = path.toFileUrl(path.join(projectRoot, "build.ts")).href;
+    builder = (await import(buildPath)).builder;
   } catch (error) {
     if (
       !(error instanceof TypeError &&
