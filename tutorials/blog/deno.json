@@ -1,4 +1,5 @@
 {
+  "unstable": ["kv"],
   "tasks": {
     "serve": {
       "description": "Runs the server in development mode.",
