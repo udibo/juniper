@@ -174,9 +174,11 @@ describe("Contacts index route", () => {
   it("should show HydrateFallback while loading", async () => {
     const queryClient = createTestQueryClient();
     const Stub = createRoutesStub([{
-      ...contactsRoute,
       path: "/contacts",
+      default: contactsRoute.default,
       HydrateFallback: contactsRoute.HydrateFallback,
+      // Loader that never resolves to keep HydrateFallback visible
+      loader: () => new Promise(() => {}),
     }], { getContext: getContext(queryClient) });
     render(
       <QueryClientProvider client={queryClient}>

@@ -39,7 +39,7 @@ const VALID_ROUTE_FILE_REGEX =
  * Regular expression to match files that should NOT trigger rebuilds
  */
 const SHOULD_IGNORE_REGEX =
-  /~|\.tmp$|\.lock$|\.log$|^(build|dev)\.ts$|^public\/build|\.test\./;
+  /~|\.tmp$|\.lock$|\.log$|\.poll$|^(build|dev)\.ts$|^public\/build|\.test\./;
 
 export class DevServer {
   watcher?: Deno.FsWatcher;
