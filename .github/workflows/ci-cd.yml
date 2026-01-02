@@ -49,12 +49,9 @@ jobs:
       - name: Run Juniper tests with coverage (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: deno task test --coverage
-      - name: Run Juniper tests (macOS)
-        if: matrix.os == 'macos-latest'
+      - name: Run Juniper tests (macOS/Windows)
+        if: matrix.os != 'ubuntu-latest'
         run: deno task test --parallel
-      - name: Run Juniper tests (Windows)
-        if: matrix.os == 'windows-latest'
-        run: deno task test
       - name: View coverage report (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         working-directory: src
@@ -67,36 +64,16 @@ jobs:
           files: src/coverage/lcov.info
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-      - name: Run example tests (macOS/Ubuntu)
-        if: matrix.os != 'windows-latest'
+      - name: Run example tests
         run: deno task test:example --parallel
-      - name: Run example tests (Windows)
-        if: matrix.os == 'windows-latest'
-        run: deno task test:example
-      - name: Run minimal template tests (macOS/Ubuntu)
-        if: matrix.os != 'windows-latest'
+      - name: Run minimal template tests
         run: deno task test:minimal --parallel
-      - name: Run minimal template tests (Windows)
-        if: matrix.os == 'windows-latest'
-        run: deno task test:minimal
-      - name: Run tailwindcss template tests (macOS/Ubuntu)
-        if: matrix.os != 'windows-latest'
+      - name: Run tailwindcss template tests
         run: deno task test:tailwindcss --parallel
-      - name: Run tailwindcss template tests (Windows)
-        if: matrix.os == 'windows-latest'
-        run: deno task test:tailwindcss
-      - name: Run tanstack template tests (macOS/Ubuntu)
-        if: matrix.os != 'windows-latest'
+      - name: Run tanstack template tests
         run: deno task test:tanstack --parallel
-      - name: Run tanstack template tests (Windows)
-        if: matrix.os == 'windows-latest'
-        run: deno task test:tanstack
-      - name: Run blog tutorial tests (macOS/Ubuntu)
-        if: matrix.os != 'windows-latest'
+      - name: Run blog tutorial tests
         run: deno task test:blog --parallel
-      - name: Run blog tutorial tests (Windows)
-        if: matrix.os == 'windows-latest'
-        run: deno task test:blog
   publish:
     name: Publish to JSR
     needs: [test]
