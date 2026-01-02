@@ -94,7 +94,9 @@ jobs:
         run: |
           cp README.md src/
           cp LICENSE src/
+          cp CONTRIBUTING.md src/
+          cp CHANGELOG.md src/
           cp -r docs src/
       - name: Publish to JSR
         working-directory: src
-        run: deno publish
+        run: deno publish --allow-dirty
