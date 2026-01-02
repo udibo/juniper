@@ -43,7 +43,11 @@ export function reactCompilerPlugin(
       });
 
       build.onLoad({ filter, namespace: "" }, async (args) => {
-        const contents = await Deno.readTextFile(args.path);
+        const isRemote = args.path.startsWith("http://") ||
+          args.path.startsWith("https://");
+        const contents = isRemote
+          ? await fetch(args.path).then((r) => r.text())
+          : await Deno.readTextFile(args.path);
 
         const t0 = performance.now();
 
