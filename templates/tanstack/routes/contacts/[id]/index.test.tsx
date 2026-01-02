@@ -240,6 +240,10 @@ describe("Contact view route", () => {
     const Stub = createRoutesStub([{
       ...contactViewRoute,
       path: "/contacts/:id",
+      loader() {
+        // Return a promise that never resolves to keep showing HydrateFallback
+        return new Promise(() => {});
+      },
       HydrateFallback: contactViewRoute.HydrateFallback,
     }], { getContext: getContext(queryClient) });
     render(
