@@ -859,6 +859,128 @@ Visit http://localhost:8000 to see your blog. You can:
 - Edit posts at `/blog/:id/edit`
 - Access the API at `/api/posts`
 
+## Testing Your Blog
+
+Your blog application includes tests to verify it works correctly. Let's look at
+how to test a Juniper application.
+
+### Running Tests
+
+Run the tests with:
+
+```bash
+deno task test
+```
+
+### Testing the Home Page
+
+Create `routes/index.test.tsx` to test the home page component:
+
+```tsx
+// routes/index.test.tsx
+import "@udibo/juniper/utils/global-jsdom";
+
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, it } from "@std/testing/bdd";
+
+import { createRoutesStub } from "@udibo/juniper/utils/testing";
+
+import * as indexRoute from "./index.tsx";
+
+describe("Home route", () => {
+  afterEach(cleanup);
+
+  it("should render the home page", () => {
+    const Stub = createRoutesStub([indexRoute]);
+    render(<Stub />);
+
+    screen.getByRole("heading", { name: "Welcome to My Blog" });
+    screen.getByText("A simple blog built with Juniper.");
+    screen.getByRole("link", { name: /View Posts/ });
+  });
+});
+```
+
+Key points:
+
+- Import `@udibo/juniper/utils/global-jsdom` to set up the DOM environment
+- Use `createRoutesStub` from `@udibo/juniper/utils/testing` to render route
+  modules
+- Use Testing Library's `screen` queries to find and verify elements
+- Call `cleanup` after each test to reset the DOM
+
+### Testing the Server
+
+Create `main.test.ts` to test the server serves your application:
+
+```typescript
+// main.test.ts
+import { assertEquals, assertStringIncludes } from "@std/assert";
+import { resolve } from "@std/path/resolve";
+import { mergeReadableStreams, TextLineStream } from "@std/streams";
+import { describe, it } from "@std/testing/bdd";
+
+import { server } from "./main.ts";
+
+describe("serves static files", () => {
+  it("should serve a static file", async () => {
+    const res = await server.request("http://localhost/favicon.ico");
+
+    assertEquals(res.status, 200);
+    assertEquals(res.headers.get("content-type"), "image/x-icon");
+    assertEquals(
+      new Uint8Array(await res.arrayBuffer()).length,
+      (await Deno.readFile(
+        resolve(import.meta.dirname!, "./public/favicon.ico"),
+      )).length,
+      "Length of served file",
+    );
+  });
+});
+
+describe("serves application when running main.ts", () => {
+  it("should serve the application", async () => {
+    const command = new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "-A",
+        `--env-file=${resolve(import.meta.dirname!, "./.env")}`,
+        `--env-file=${resolve(import.meta.dirname!, "./.env.test")}`,
+        resolve(import.meta.dirname!, "./main.ts"),
+      ],
+      stdout: "piped",
+      stderr: "piped",
+    });
+    await using child = command.spawn();
+    const stdout = mergeReadableStreams(child.stdout, child.stderr)
+      .pipeThrough(new TextDecoderStream())
+      .pipeThrough(new TextLineStream());
+
+    for await (const line of stdout.values({ preventCancel: true })) {
+      if (line.includes("Listening on")) {
+        break;
+      }
+    }
+
+    const res = await fetch("http://localhost:8100/");
+    assertEquals(res.status, 200);
+    assertEquals(res.headers.get("content-type"), "text/html; charset=utf-8");
+    const html = await res.text();
+    assertStringIncludes(html, "<!DOCTYPE html>");
+    assertStringIncludes(html, "My Blog");
+  });
+});
+```
+
+This test:
+
+- Verifies static files are served correctly
+- Spawns the actual server process and makes HTTP requests
+- Checks the HTML response contains expected content
+
+For more testing patterns including loader testing, action testing, mocking, and
+integration tests, see the [Testing Guide](../testing.md).
+
 ## Next Steps
 
 You've built a working blog application that demonstrates Juniper's core
@@ -882,6 +1004,7 @@ Additional enhancements:
 
 **Related topics:**
 
+- [Testing](../testing.md) - Testing utilities and patterns
 - [Routing](../routing.md) - File-based routing and data loading
 - [Forms](../forms.md) - Form handling and validation
 - [Error Handling](../error-handling.md) - Error boundaries and HttpError

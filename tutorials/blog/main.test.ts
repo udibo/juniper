@@ -57,6 +57,6 @@ describe("serves application when running main.ts", () => {
     assertEquals(res.headers.get("content-type"), "text/html; charset=utf-8");
     const html = await res.text();
     assertStringIncludes(html, "<!DOCTYPE html>");
-    assertStringIncludes(html, "Minimal Example");
+    assertStringIncludes(html, "My Blog");
   });
 });
