@@ -32,11 +32,18 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
-      - name: Setup Deno
+      - name: Setup Deno (Ubuntu/macOS)
+        if: matrix.os != 'windows-latest'
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
           cache: true
+      - name: Setup Deno (Windows - no cache)
+        if: matrix.os == 'windows-latest'
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+          cache: false
       - name: Install dependencies
         run: deno install
       - name: Run Juniper tests with coverage (Ubuntu)
