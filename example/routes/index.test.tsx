@@ -27,19 +27,27 @@ describe("Home page route", () => {
     );
   });
 
-  it("should have explore features link", () => {
+  it("should have documentation link", () => {
     const Stub = createRoutesStub([indexRoute]);
     render(<Stub />);
 
-    const link = screen.getByRole("link", { name: "Explore Features" });
+    const link = screen.getByRole("link", { name: "Documentation" });
+    assertEquals(link.getAttribute("href"), "https://jsr.io/@udibo/juniper");
+  });
+
+  it("should have features demo link", () => {
+    const Stub = createRoutesStub([indexRoute]);
+    render(<Stub />);
+
+    const link = screen.getByRole("link", { name: "Features Demo" });
     assertEquals(link.getAttribute("href"), "/features");
   });
 
-  it("should have read the blog link", () => {
+  it("should have example blog link", () => {
     const Stub = createRoutesStub([indexRoute]);
     render(<Stub />);
 
-    const link = screen.getByRole("link", { name: "Read the Blog" });
+    const link = screen.getByRole("link", { name: "Example Blog" });
     assertEquals(link.getAttribute("href"), "/blog");
   });
 
