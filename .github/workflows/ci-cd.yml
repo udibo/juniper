@@ -37,6 +37,8 @@ jobs:
         with:
           deno-version: v2.x
           cache: true
+      - name: Install dependencies
+        run: deno install
       - name: Run Juniper tests with coverage (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: deno task test --coverage

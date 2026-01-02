@@ -57,6 +57,9 @@ jobs:
           deno-version: v2.x
           cache: true
 
+      - name: Install dependencies
+        run: deno install
+
       - name: Run tests
         run: deno task test
 
@@ -73,6 +76,9 @@ jobs:
         with:
           deno-version: v2.x
           cache: true
+
+      - name: Install dependencies
+        run: deno install
 
       - name: Build for production
         run: deno task build:prod
@@ -100,6 +106,9 @@ test:
         deno-version: v2.x
         cache: true
 
+    - name: Install dependencies
+      run: deno install
+
     - name: Run tests with coverage (Ubuntu)
       if: matrix.os == 'ubuntu-latest'
       run: deno task test --coverage
@@ -108,6 +117,11 @@ test:
       if: matrix.os != 'ubuntu-latest'
       run: deno task test --parallel
 ```
+
+The `deno install` step is important when running tests in parallel across
+multiple platforms. It ensures all npm dependencies are fully resolved before
+tests start, preventing race conditions on Windows where package extraction may
+not complete before parallel test processes attempt to access them.
 
 Add test coverage reporting with Codecov:
 
@@ -139,6 +153,9 @@ type-check:
       with:
         deno-version: v2.x
         cache: true
+
+    - name: Install dependencies
+      run: deno install
 
     - name: Check types
       run: deno check
@@ -184,6 +201,9 @@ build:
       with:
         deno-version: v2.x
         cache: true
+
+    - name: Install dependencies
+      run: deno install
 
     - name: Build application
       run: deno task build:prod
@@ -310,6 +330,7 @@ jobs:
         with:
           deno-version: v2.x
           cache: true
+      - run: deno install
       - run: deno task test --coverage
       - uses: codecov/codecov-action@v5
         with:
@@ -328,6 +349,7 @@ jobs:
         with:
           deno-version: v2.x
           cache: true
+      - run: deno install
       - run: deno task build:prod
       - uses: actions/upload-artifact@v4
         with:
@@ -348,6 +370,7 @@ jobs:
         with:
           deno-version: v2.x
           cache: true
+      - run: deno install
       - run: deno task build:prod
       - uses: denoland/deployctl@v1
         with:
