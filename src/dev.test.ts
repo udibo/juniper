@@ -7,8 +7,8 @@ import type { Spy } from "@std/testing/mock";
 import type * as esbuild from "esbuild";
 import type { SSEStreamingApi } from "hono/streaming";
 
-import { Builder } from "@udibo/juniper/build";
-import { isSnapshotMode } from "@udibo/juniper/utils/testing";
+import { Builder } from "./build.ts";
+import { isSnapshotMode } from "./utils/testing.ts";
 
 import { DevServer } from "./_dev.ts";
 import {

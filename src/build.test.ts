@@ -3,8 +3,8 @@ import * as path from "@std/path";
 import { describe, it } from "@std/testing/bdd";
 import { assertSpyCall, assertSpyCalls, spy, stub } from "@std/testing/mock";
 
-import { Builder } from "@udibo/juniper/build";
-import { isSnapshotMode } from "@udibo/juniper/utils/testing";
+import { Builder } from "./build.ts";
+import { isSnapshotMode } from "./utils/testing.ts";
 
 import { deno } from "./deno.ts";
 import {

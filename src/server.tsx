@@ -1,13 +1,13 @@
 import * as path from "@std/path";
-import { HttpError } from "@udibo/juniper";
+import { HttpError } from "./mod.ts";
 import { Hono } from "hono";
 import type { Schema, TypedResponse } from "hono";
 import { trimTrailingSlash } from "hono/trailing-slash";
 import type { RedirectStatusCode } from "hono/utils/http-status";
 import { RouterContextProvider } from "react-router";
 
-import type { Client } from "@udibo/juniper/client";
-import { getInstance } from "@udibo/juniper/utils/otel";
+import type { Client } from "./client.tsx";
+import { getInstance } from "./utils/otel.ts";
 
 import { buildApp, createHandlers, mergeServerRoutes } from "./_server.tsx";
 import type { AppEnv, Route } from "./_server.tsx";

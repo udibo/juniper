@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import * as path from "@std/path";
 import { parseArgs } from "@std/cli/parse-args";
-import { HttpError } from "@udibo/juniper";
+import { HttpError } from "./mod.ts";
 import { SpanStatusCode } from "@opentelemetry/api";
 import { Hono } from "hono";
 import type { Context, Env, Schema } from "hono";
@@ -36,9 +36,9 @@ import type {
   ClientRoute,
   HydrationData,
   SerializedError,
-} from "@udibo/juniper/client";
-import { isDevelopment } from "@udibo/juniper/utils/env";
-import { getInstance } from "@udibo/juniper/utils/otel";
+} from "./client.tsx";
+import { isDevelopment } from "./utils/env.ts";
+import { getInstance } from "./utils/otel.ts";
 
 import {
   App,
@@ -48,7 +48,7 @@ import {
   type SerializedHydrationDataPromises,
 } from "./_client.tsx";
 import { startActiveSpan } from "./utils/_otel.ts";
-import type { ActionFunction, LoaderFunction } from "@udibo/juniper";
+import type { ActionFunction, LoaderFunction } from "./mod.ts";
 import { isHttpErrorLike } from "@udibo/http-error";
 
 const args = parseArgs(Deno.args, {

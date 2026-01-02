@@ -1,4 +1,4 @@
-import "@udibo/juniper/utils/global-jsdom";
+import "./global-jsdom.ts";
 
 import { assertEquals, assertExists, assertRejects } from "@std/assert";
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
@@ -11,11 +11,11 @@ import {
   isProduction,
   isServer,
   isTest,
-} from "@udibo/juniper/utils/env";
+} from "./env.ts";
 import {
   createRoutesStub,
   simulateEnvironment,
-} from "@udibo/juniper/utils/testing";
+} from "./testing.ts";
 
 import { simulateBrowser } from "./testing.internal.ts";
 

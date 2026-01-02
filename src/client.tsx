@@ -11,7 +11,7 @@ import {
   RouterProvider,
 } from "react-router";
 import type { RouteObject } from "react-router";
-import type { RootRouteModule, RouteModule } from "@udibo/juniper";
+import type { RootRouteModule, RouteModule } from "./mod.ts";
 
 import {
   App,

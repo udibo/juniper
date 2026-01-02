@@ -9,8 +9,8 @@ import {
   isProduction,
   isServer,
   isTest,
-} from "@udibo/juniper/utils/env";
-import { simulateEnvironment } from "@udibo/juniper/utils/testing";
+} from "./env.ts";
+import { simulateEnvironment } from "./testing.ts";
 
 import { simulateBrowser } from "./testing.internal.ts";
 

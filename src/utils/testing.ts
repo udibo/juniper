@@ -16,7 +16,7 @@ import type { HydrationState, RouteObject } from "react-router";
 import { stub } from "@std/testing/mock";
 import type { Stub } from "@std/testing/mock";
 
-import type { AnyParams, RouteModule } from "@udibo/juniper";
+import type { AnyParams, RouteModule } from "../mod.ts";
 
 import { createRoute, JuniperContextProvider } from "../_client.tsx";
 import type { ServerFlags } from "../_client.tsx";
