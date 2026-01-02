@@ -5,17 +5,8 @@ import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { delay } from "@std/async/delay";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 
-import {
-  getEnv,
-  isBrowser,
-  isProduction,
-  isServer,
-  isTest,
-} from "./env.ts";
-import {
-  createRoutesStub,
-  simulateEnvironment,
-} from "./testing.ts";
+import { getEnv, isBrowser, isProduction, isServer, isTest } from "./env.ts";
+import { createRoutesStub, simulateEnvironment } from "./testing.ts";
 
 import { simulateBrowser } from "./testing.internal.ts";
 

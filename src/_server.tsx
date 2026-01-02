@@ -32,11 +32,7 @@ import serialize from "serialize-javascript";
 import SuperJSON from "superjson";
 import { isbot } from "isbot";
 
-import type {
-  ClientRoute,
-  HydrationData,
-  SerializedError,
-} from "./client.tsx";
+import type { ClientRoute, HydrationData, SerializedError } from "./client.tsx";
 import { isDevelopment } from "./utils/env.ts";
 import { getInstance } from "./utils/otel.ts";
 
