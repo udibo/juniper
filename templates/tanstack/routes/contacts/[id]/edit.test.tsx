@@ -232,9 +232,11 @@ describe("Contact edit route", () => {
   it("should show HydrateFallback while loading", async () => {
     const queryClient = createTestQueryClient();
     const Stub = createRoutesStub([{
-      ...contactEditRoute,
       path: "/contacts/:id/edit",
+      default: contactEditRoute.default,
       HydrateFallback: contactEditRoute.HydrateFallback,
+      // Loader that never resolves to keep HydrateFallback visible
+      loader: () => new Promise(() => {}),
     }], { getContext: getContext(queryClient) });
     render(
       <QueryClientProvider client={queryClient}>
