@@ -1,7 +1,7 @@
 import { parseArgs } from "@std/cli/parse-args";
 import * as path from "@std/path";
 
-import { Builder } from "@udibo/juniper/build";
+import { Builder } from "./build.ts";
 
 import { DevServer } from "./_dev.ts";
 

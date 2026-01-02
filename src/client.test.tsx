@@ -8,19 +8,19 @@ import {
 } from "@std/assert";
 import { beforeAll, beforeEach, describe, it } from "@std/testing/bdd";
 import { assertSpyCalls, stub } from "@std/testing/mock";
-import { HttpError } from "@udibo/juniper";
+import { HttpError } from "./mod.ts";
 import { Outlet } from "react-router";
 import type { ActionFunctionArgs } from "react-router";
 import SuperJSON from "superjson";
 import serialize from "serialize-javascript";
 
-import { Client, isSerializedError } from "@udibo/juniper/client";
+import { Client, isSerializedError } from "./client.tsx";
 import type {
   HydrationData,
   RootClientRoute,
   SerializedError,
-} from "@udibo/juniper/client";
-import type { RouteModule } from "@udibo/juniper";
+} from "./client.tsx";
+import type { RouteModule } from "./mod.ts";
 
 import { simulateBrowser } from "./utils/testing.internal.ts";
 

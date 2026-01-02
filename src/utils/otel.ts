@@ -6,9 +6,9 @@
 
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import type { Context, Span, SpanOptions, Tracer } from "@opentelemetry/api";
-import { HttpError } from "@udibo/juniper";
+import { HttpError } from "../mod.ts";
 
-import { getEnv } from "@udibo/juniper/utils/env";
+import { getEnv } from "./env.ts";
 
 /**
  * Gets the current OpenTelemetry instance for error tracking and observability.

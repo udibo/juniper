@@ -30,7 +30,7 @@ import type {
   MiddlewareFunction,
   RouteModule,
   RouteProps,
-} from "@udibo/juniper";
+} from "./mod.ts";
 
 const JuniperContext = createContext<RouterContextProvider | undefined>(
   undefined,

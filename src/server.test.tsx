@@ -2,12 +2,12 @@ import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
 import { Outlet, useLoaderData, useParams } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
-import { HttpError } from "@udibo/juniper";
+import { HttpError } from "./mod.ts";
 
-import type { RouteLoaderArgs } from "@udibo/juniper";
-import { Client } from "@udibo/juniper/client";
-import { createServer } from "@udibo/juniper/server";
-import { simulateEnvironment } from "@udibo/juniper/utils/testing";
+import type { RouteLoaderArgs } from "./mod.ts";
+import { Client } from "./client.tsx";
+import { createServer } from "./server.tsx";
+import { simulateEnvironment } from "./utils/testing.ts";
 
 import { mergeServerRoutes, serializeErrorDefault } from "./_server.tsx";
 

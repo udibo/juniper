@@ -8,7 +8,7 @@ import { describe, it } from "@std/testing/bdd";
 import { SpanStatusCode } from "@opentelemetry/api";
 import type { Context, Span, SpanOptions, Tracer } from "@opentelemetry/api";
 
-import { otelUtils } from "@udibo/juniper/utils/otel";
+import { otelUtils } from "./otel.ts";
 
 type FakeState = {
   ended: boolean;

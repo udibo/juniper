@@ -1,6 +1,6 @@
 import { trace } from "@opentelemetry/api";
 
-import { otelUtils } from "@udibo/juniper/utils/otel";
+import { otelUtils } from "./otel.ts";
 
 import denoConfig from "../deno.json" with { type: "json" };
 
