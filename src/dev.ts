@@ -1,3 +1,11 @@
+/**
+ * This module provides the development server entrypoint for Juniper applications.
+ *
+ * It can be run directly with `deno run @udibo/juniper/dev` to start a development
+ * server with hot reloading and automatic rebuilds.
+ *
+ * @module
+ */
 import { parseArgs } from "@std/cli/parse-args";
 import * as path from "@std/path";
 
@@ -13,7 +21,8 @@ if (import.meta.main) {
   const port = args.port ? Number(args.port) : undefined;
   let builder: Builder | undefined;
   try {
-    builder = (await import(projectRoot + "/build.ts")).builder;
+    const buildPath = path.toFileUrl(path.join(projectRoot, "build.ts")).href;
+    builder = (await import(buildPath)).builder;
   } catch (error) {
     if (
       !(error instanceof TypeError &&
