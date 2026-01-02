@@ -1,3 +1,11 @@
+/**
+ * This module provides the development server entrypoint for Juniper applications.
+ *
+ * It can be run directly with `deno run @udibo/juniper/dev` to start a development
+ * server with hot reloading and automatic rebuilds.
+ *
+ * @module
+ */
 import { parseArgs } from "@std/cli/parse-args";
 import * as path from "@std/path";
 

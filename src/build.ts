@@ -1,3 +1,14 @@
+/**
+ * This module contains utilities for building Juniper applications.
+ *
+ * It provides the {@linkcode Builder} class for configuring and executing builds,
+ * including route generation, client bundling, and server entrypoint creation.
+ *
+ * It can be run directly with `deno run @udibo/juniper/build` to build the application
+ * with the default configuration.
+ *
+ * @module
+ */
 import { denoPlugin } from "@deno/esbuild-plugin";
 import { delay } from "@std/async/delay";
 import { ensureDir, exists } from "@std/fs";

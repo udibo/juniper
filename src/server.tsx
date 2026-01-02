@@ -1,3 +1,11 @@
+/**
+ * This module contains the server-side runtime for Juniper applications.
+ *
+ * It provides the {@linkcode createServer} function for creating Hono applications
+ * with integrated routing, static file serving, and server-side rendering.
+ *
+ * @module
+ */
 import * as path from "@std/path";
 import { HttpError } from "./mod.ts";
 import { Hono } from "hono";
