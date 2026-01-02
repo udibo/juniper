@@ -97,4 +97,4 @@ jobs:
           cp -r docs src/
       - name: Publish to JSR
         working-directory: src
-        run: deno publish
+        run: deno publish --allow-dirty
