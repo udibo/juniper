@@ -113,15 +113,19 @@ test:
       if: matrix.os == 'ubuntu-latest'
       run: deno task test --coverage
 
-    - name: Run tests (macOS/Windows)
-      if: matrix.os != 'ubuntu-latest'
+    - name: Run tests (macOS)
+      if: matrix.os == 'macos-latest'
       run: deno task test --parallel
+
+    - name: Run tests (Windows)
+      if: matrix.os == 'windows-latest'
+      run: deno task test
 ```
 
-The `deno install` step is important when running tests in parallel across
-multiple platforms. It ensures all npm dependencies are fully resolved before
-tests start, preventing race conditions on Windows where package extraction may
-not complete before parallel test processes attempt to access them.
+**Important:** Tests run sequentially on Windows (without `--parallel`) because
+parallel test execution can cause npm package resolution failures due to Windows
+file system timing issues. The `deno install` step ensures all dependencies are
+resolved before tests start.
 
 Add test coverage reporting with Codecov:
 
