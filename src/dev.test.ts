@@ -293,7 +293,7 @@ describe("DevServer", () => {
       }
     });
 
-    it("should ignore changes to private files", async () => {
+    it("should trigger rebuild for private files", async () => {
       const buildStub = stub(
         builder,
         "build",
@@ -319,7 +319,10 @@ describe("DevServer", () => {
         await delay(10);
         await devServer.stop();
 
-        assertSpyCalls(rebuildStub, 0);
+        assertSpyCalls(rebuildStub, 1);
+        assertSpyCall(rebuildStub, 0, {
+          args: [{ server: false, client: false }],
+        });
         assertEquals(await startPromise, undefined);
       } finally {
         buildStub.restore();
@@ -1037,11 +1040,11 @@ describe("DevServer", () => {
         devServer.shouldTriggerRebuild("public/build/app.js"),
         false,
       );
-      // Ignored underscore prefixed files/dirs
-      assertEquals(devServer.shouldTriggerRebuild("_private.ts"), false);
+      // Underscore prefixed files/dirs trigger rebuilds (they may be imported by routes)
+      assertEquals(devServer.shouldTriggerRebuild("_private.ts"), true);
       assertEquals(
         devServer.shouldTriggerRebuild("routes/_partial.tsx"),
-        false,
+        true,
       );
       // Ignored tests
       assertEquals(

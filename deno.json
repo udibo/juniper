@@ -4,7 +4,8 @@
     "./example",
     "./templates/minimal",
     "./templates/tailwindcss",
-    "./templates/tanstack"
+    "./templates/tanstack",
+    "./tutorials/blog"
   ],
   "unstable": ["kv"],
   "nodeModulesDir": "auto",
@@ -25,21 +26,21 @@
       "description": "Runs the tanstack template server in development mode.",
       "command": "deno task --cwd=templates/tanstack serve"
     },
-    "serve-prod": {
+    "serve:prod": {
       "description": "Runs the example server in production mode.",
-      "command": "deno task --cwd=example serve-prod"
+      "command": "deno task --cwd=example serve:prod"
     },
-    "serve-prod:minimal": {
+    "serve:prod:minimal": {
       "description": "Runs the minimal template server in production mode.",
-      "command": "deno task --cwd=templates/minimal serve-prod"
+      "command": "deno task --cwd=templates/minimal serve:prod"
     },
-    "serve-prod:tailwindcss": {
+    "serve:prod:tailwindcss": {
       "description": "Runs the tailwindcss template server in production mode.",
-      "command": "deno task --cwd=templates/tailwindcss serve-prod"
+      "command": "deno task --cwd=templates/tailwindcss serve:prod"
     },
-    "serve-prod:tanstack": {
+    "serve:prod:tanstack": {
       "description": "Runs the tanstack template server in production mode.",
-      "command": "deno task --cwd=templates/tanstack serve-prod"
+      "command": "deno task --cwd=templates/tanstack serve:prod"
     },
     "build": {
       "description": "Builds the example application for development.",
@@ -57,21 +58,21 @@
       "description": "Builds the tanstack template application for development.",
       "command": "deno task --cwd=templates/tanstack build"
     },
-    "build-prod": {
+    "build:prod": {
       "description": "Builds the example application for production.",
-      "command": "deno task --cwd=example build-prod"
+      "command": "deno task --cwd=example build:prod"
     },
-    "build-prod:minimal": {
+    "build:prod:minimal": {
       "description": "Builds the minimal template application for production.",
-      "command": "deno task --cwd=templates/minimal build-prod"
+      "command": "deno task --cwd=templates/minimal build:prod"
     },
-    "build-prod:tailwindcss": {
+    "build:prod:tailwindcss": {
       "description": "Builds the tailwindcss template application for production.",
-      "command": "deno task --cwd=templates/tailwindcss build-prod"
+      "command": "deno task --cwd=templates/tailwindcss build:prod"
     },
-    "build-prod:tanstack": {
+    "build:prod:tanstack": {
       "description": "Builds the tanstack template application for production.",
-      "command": "deno task --cwd=templates/tanstack build-prod"
+      "command": "deno task --cwd=templates/tanstack build:prod"
     },
     "dev": {
       "description": "Runs the example development server.",
@@ -109,19 +110,43 @@
       "description": "Runs all of the tanstack template tests.",
       "command": "deno task --cwd=templates/tanstack test"
     },
+    "serve:blog": {
+      "description": "Runs the blog tutorial server in development mode.",
+      "command": "deno task --cwd=tutorials/blog serve"
+    },
+    "serve:prod:blog": {
+      "description": "Runs the blog tutorial server in production mode.",
+      "command": "deno task --cwd=tutorials/blog serve:prod"
+    },
+    "build:blog": {
+      "description": "Builds the blog tutorial application for development.",
+      "command": "deno task --cwd=tutorials/blog build"
+    },
+    "build:prod:blog": {
+      "description": "Builds the blog tutorial application for production.",
+      "command": "deno task --cwd=tutorials/blog build:prod"
+    },
+    "dev:blog": {
+      "description": "Runs the blog tutorial development server.",
+      "command": "deno task --cwd=tutorials/blog dev"
+    },
+    "test:blog": {
+      "description": "Runs all of the blog tutorial tests.",
+      "command": "deno task --cwd=tutorials/blog test"
+    },
     "check": {
       "description": "Checks the code for errors, formatting, and runs the linter.",
       "command": "deno check && deno lint && deno fmt --check"
     },
-    "git-rebase": {
+    "git:rebase": {
       "description": "Gets your branch up to date with master after a squash merge.",
       "command": "git fetch origin main && git rebase --onto origin/main HEAD"
     },
-    "start-lgtm": {
+    "lgtm:start": {
       "description": "Starts the LGTM service.",
       "command": "docker compose up -d --wait lgtm"
     },
-    "stop-lgtm": {
+    "lgtm:stop": {
       "description": "Stops the LGTM service.",
       "command": "docker compose down lgtm"
     }
@@ -152,7 +177,7 @@
     }
   },
   "allowScripts": {
-    "allow": [],
+    "allow": ["npm:esbuild@0.27.2"],
     "deny": [
       "npm:@parcel/watcher@2.5.1",
       "npm:esbuild@0.25.12",

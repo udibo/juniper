@@ -1,149 +1,285 @@
 # Metadata
 
-Juniper renders documents with React Router streaming, so every `<title>`,
-`<meta>`, and `<link>` element you declare is part of the server response. This
-guide explains how to manage global metadata, update it per route, and keep
-error states in sync between server and client.
+## React 19 Document Metadata
 
-## Root document shell
-
-The root React module (`routes/main.tsx`) is the canonical place to define head
-elements that every page should include:
+React 19 supports rendering `<title>`, `<meta>`, and `<link>` tags directly in
+components. These tags are automatically hoisted to the document `<head>` during
+rendering.
 
 ```tsx
-// routes/main.tsx
+export default function BlogPost({ loaderData }: RouteProps) {
+  return (
+    <>
+      <title>{loaderData.post.title} | My Blog</title>
+      <meta name="description" content={loaderData.post.excerpt} />
+
+      <article>
+        <h1>{loaderData.post.title}</h1>
+        <p>{loaderData.post.content}</p>
+      </article>
+    </>
+  );
+}
+```
+
+This eliminates the need for third-party helmet libraries.
+
+## Setting Page Titles
+
+Set the page title using the `<title>` element:
+
+```tsx
+// Static title
+export default function About() {
+  return (
+    <>
+      <title>About Us | My App</title>
+      <h1>About Us</h1>
+    </>
+  );
+}
+
+// Dynamic title from loader data
+export default function BlogPost({ loaderData }: RouteProps) {
+  return (
+    <>
+      <title>{loaderData.post.title}</title>
+      <article>{/* content */}</article>
+    </>
+  );
+}
+
+// Title with fallback
+export default function Product({ loaderData }: RouteProps) {
+  const title = loaderData.product?.name || "Product";
+  return (
+    <>
+      <title>{title} | Store</title>
+      {/* content */}
+    </>
+  );
+}
+```
+
+## Meta Tags
+
+Add meta tags for SEO and social sharing:
+
+```tsx
+export default function BlogPost({ loaderData }: RouteProps) {
+  const { post } = loaderData;
+
+  return (
+    <>
+      {/* Basic SEO */}
+      <title>{post.title}</title>
+      <meta name="description" content={post.excerpt} />
+      <meta name="keywords" content={post.tags.join(", ")} />
+
+      {/* Robots */}
+      <meta name="robots" content="index, follow" />
+
+      {/* Canonical URL */}
+      <link rel="canonical" href={`https://example.com/blog/${post.slug}`} />
+
+      <article>{/* content */}</article>
+    </>
+  );
+}
+```
+
+Common meta tags:
+
+```tsx
+// Prevent indexing (for private pages)
+<meta name="robots" content="noindex, nofollow" />
+
+// Viewport (usually in root layout)
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+// Character encoding
+<meta charSet="utf-8" />
+
+// Author
+<meta name="author" content="Your Name" />
+
+// Theme color (for mobile browsers)
+<meta name="theme-color" content="#10b981" />
+```
+
+## Open Graph Tags
+
+Add Open Graph tags for rich social media previews:
+
+```tsx
+export default function BlogPost({ loaderData }: RouteProps) {
+  const { post } = loaderData;
+  const url = `https://example.com/blog/${post.slug}`;
+
+  return (
+    <>
+      <title>{post.title}</title>
+      <meta name="description" content={post.excerpt} />
+
+      {/* Open Graph */}
+      <meta property="og:type" content="article" />
+      <meta property="og:title" content={post.title} />
+      <meta property="og:description" content={post.excerpt} />
+      <meta property="og:url" content={url} />
+      <meta property="og:image" content={post.coverImage} />
+      <meta property="og:site_name" content="My Blog" />
+
+      {/* Article-specific */}
+      <meta property="article:published_time" content={post.publishedAt} />
+      <meta property="article:author" content={post.author.name} />
+      {post.tags.map((tag) => (
+        <meta key={tag} property="article:tag" content={tag} />
+      ))}
+
+      {/* Twitter Card */}
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content={post.title} />
+      <meta name="twitter:description" content={post.excerpt} />
+      <meta name="twitter:image" content={post.coverImage} />
+
+      <article>{/* content */}</article>
+    </>
+  );
+}
+```
+
+## Structured Data
+
+Add JSON-LD structured data for rich search results:
+
+```tsx
+export default function BlogPost({ loaderData }: RouteProps) {
+  const { post } = loaderData;
+
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: post.title,
+    description: post.excerpt,
+    image: post.coverImage,
+    datePublished: post.publishedAt,
+    dateModified: post.updatedAt,
+    author: {
+      "@type": "Person",
+      name: post.author.name,
+    },
+  };
+
+  return (
+    <>
+      <title>{post.title}</title>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
+
+      <article>{/* content */}</article>
+    </>
+  );
+}
+```
+
+Common structured data types:
+
+```tsx
+// Organization
+const orgData = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "My Company",
+  url: "https://example.com",
+  logo: "https://example.com/logo.png",
+};
+
+// Product
+const productData = {
+  "@context": "https://schema.org",
+  "@type": "Product",
+  name: product.name,
+  image: product.images,
+  description: product.description,
+  offers: {
+    "@type": "Offer",
+    price: product.price,
+    priceCurrency: "USD",
+  },
+};
+
+// Breadcrumb
+const breadcrumbData = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    { "@type": "ListItem", position: 1, name: "Home", item: "/" },
+    { "@type": "ListItem", position: 2, name: "Blog", item: "/blog" },
+    { "@type": "ListItem", position: 3, name: post.title },
+  ],
+};
+```
+
+## Per-Route Metadata
+
+Set default metadata in your root layout and override in child routes:
+
+```tsx
+// routes/main.tsx - Default metadata
 export default function Main() {
   return (
     <>
       <meta charSet="utf-8" />
-      <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <meta name="description" content="My awesome application" />
       <link rel="icon" href="/favicon.ico" />
+      <title>My App</title>
+
       <Outlet />
     </>
   );
 }
 ```
 
-- These elements are emitted before any nested routes render, so crawlers and
-  browsers see them immediately.
-- Because React 19 supports rendering `<title>`/`<meta>` anywhere in the tree,
-  you can also set defaults here and override them in child routes.
-
-## Per-route metadata
-
-Set metadata inside individual route components to reflect loader data:
-
 ```tsx
-// routes/blog/[id].tsx
-export default function BlogPost(
-  { loaderData }: RouteProps<{ id: string }, { post: Post }>,
-) {
-  return (
-    <article>
-      <title>{loaderData.post.title} · Juniper Blog</title>
-      <meta name="description" content={loaderData.post.summary} />
-      {/* ... */}
-    </article>
-  );
-}
-```
-
-Because the component renders on the server first, the `<title>` tag is included
-in the streamed HTML. When the client hydrates, React reconciles the same
-structure, avoiding double titles.
-
-## Async metadata
-
-When metadata depends on asynchronous loaders (e.g., `defer`), wrap the content
-in `Suspense` and update the `<title>` after the promise resolves:
-
-```tsx
-import { Await, useLoaderData } from "react-router";
-
-export default function DeferredPage() {
-  const { delayedMessage } = useLoaderData() as DeferLoaderData;
-  return (
-    <Suspense fallback={<title>Loading…</title>}>
-      <Await resolve={delayedMessage}>
-        {(message: string) => (
-          <>
-            <title>{`Defer ${message}`}</title>
-            {/* rest of layout */}
-          </>
-        )}
-      </Await>
-    </Suspense>
-  );
-}
-```
-
-The first chunk still includes the fallback title, but once the promise resolves
-the stream sends the updated title and the browser swaps it in.
-
-## Error metadata
-
-Use React Router `ErrorBoundary` exports to control metadata when an error is
-thrown:
-
-```tsx
-export function ErrorBoundary({ params, error }: ErrorBoundaryProps) {
+// routes/blog/index.tsx - Override for blog section
+export default function BlogList() {
   return (
     <>
-      <title>Blog post not found</title>
-      <meta name="robots" content="noindex" />
-      <div>Could not load post {params.id}</div>
+      <title>Blog | My App</title>
+      <meta name="description" content="Read our latest blog posts" />
+
+      {/* Blog list content */}
     </>
   );
 }
 ```
 
-Custom error classes can be serialized on the server and deserialized on the
-client:
+```tsx
+// routes/blog/[id]/index.tsx - Dynamic metadata
+export default function BlogPost({ loaderData }: RouteProps) {
+  return (
+    <>
+      <title>{loaderData.post.title} | My App</title>
+      <meta name="description" content={loaderData.post.excerpt} />
 
-```ts
-// routes/main.ts
-import { CustomError } from "/utils/error.ts";
-
-export function serializeError(error: unknown) {
-  if (error instanceof CustomError) {
-    return {
-      __type: "Error",
-      __subType: "CustomError",
-      message: error.message,
-      exposeStack: error.exposeStack,
-    };
-  }
-}
-// routes/main.tsx
-export function deserializeError(serialized: unknown) {
-  if (isSerializedCustomError(serialized)) {
-    const restored = new CustomError(
-      serialized.message,
-      serialized.exposeStack,
-    );
-    restored.stack = serialized.stack;
-    return restored;
-  }
+      {/* Post content */}
+    </>
+  );
 }
 ```
 
-This ensures metadata shown in `ErrorBoundary` components matches the
-server-rendered version even after hydration.
+React 19 automatically handles duplicate tags - the last rendered value wins,
+allowing child routes to override parent metadata.
 
-## Deterministic output
+## Next Steps
 
-- Keep metadata deterministic for crawlers: avoid random numbers or
-  request-specific IDs in `<title>`/`<meta>` elements unless they reflect actual
-  content.
-- When toggling metadata based on environment (e.g., preview banners), gate it
-  with `isDevelopment()` so production crawlers are unaffected.
-- If multiple routes render the same head element, React deduplicates them.
-  Prefer one `<title>` per document but feel free to emit multiple `<meta>` tags
-  (`description`, `og:*`, etc.).
+**Next:** [Database](database.md) - Deno KV and other databases
 
-## Next steps
+**Related topics:**
 
-- Review [Styling](styling.md) to see how to link CSS outputs alongside
-  metadata.
-- Visit [Error Handling](error-handling.md) for a deeper explanation of
-  serialization hooks and trace logging.
+- [Routing](routing.md) - File-based routing and data loading
+- [Styling](styling.md) - CSS and TailwindCSS integration
+- [Static Files](static-files.md) - Serving static assets

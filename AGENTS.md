@@ -34,6 +34,11 @@
 - For making assertions, prefer using `@std/assert` when possible. Use assertion
   functions rather than using if statements that throw.
 
+## Referencing documentation
+
+- For JSR (jsr.io) documentation, you must include an accept header, otherwise
+  it will respond with a 404 not found error.
+
 ## Style
 
 ### Types

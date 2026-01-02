@@ -1,109 +1,203 @@
 # Static Files
 
-The builder and dev server treat the `public/` directory as the origin for every
-asset that is not handled by Hono or React Router. This guide explains how files
-map to URLs, what the build step emits, and how to tailor caching for
-production.
+## Public Directory
 
-## Directory layout
+The `public` directory serves static files directly to clients. Place assets
+like images, fonts, and favicons here:
+
+```
+my-app/
+├── public/
+│   ├── favicon.ico
+│   ├── robots.txt
+│   ├── images/
+│   │   └── logo.png
+│   └── fonts/
+│       └── inter.woff2
+```
+
+Access these files from your components using absolute paths:
+
+```tsx
+export default function Header() {
+  return (
+    <header>
+      <img src="/images/logo.png" alt="Logo" />
+      <link rel="icon" href="/favicon.ico" />
+    </header>
+  );
+}
+```
+
+## Serving Static Assets
+
+Juniper automatically serves files from the `public` directory. The built-in
+static file handler:
+
+- Serves files with correct MIME types
+- Supports range requests for video/audio streaming
+- Returns 404 for missing files
+
+For custom static file handling, configure it in your root Hono app:
+
+```typescript
+// routes/main.ts
+import { Hono } from "hono";
+import { serveStatic } from "hono/deno";
+
+const app = new Hono();
+
+// Serve static files from a custom directory
+app.use("/assets/*", serveStatic({ root: "./custom-assets" }));
+
+export default app;
+```
+
+## Build Output
+
+The build system outputs bundled JavaScript and CSS to `public/build/`:
 
 ```
 public/
-├── build/            # Generated bundles (main.js, chunks, CSS)
-├── favicon.ico
-├── images/
-│   └── logo-81x100.png
-└── robots.txt
+├── build/
+│   ├── main.js           # Main application bundle
+│   ├── main.js.map       # Source map (dev only)
+│   ├── main.css          # Bundled CSS
+│   └── chunk-[hash].js   # Code-split chunks
 ```
 
-- Files in `public/` are served verbatim at the root of your app
-  (`/favicon.ico`, `/robots.txt`).
-- The builder writes hashed assets into `public/build` and references them from
-  the generated HTML via `<script type="module" src="/build/main.js">`.
-- You may keep long-lived marketing assets alongside the bundles; the dev server
-  automatically reloads when anything changes.
+These files are automatically included in the HTML during SSR. You don't need to
+manually reference them.
 
-## Generated assets
+**Don't edit files in `public/build/`** - they're regenerated on each build.
 
-During `deno task build`, `Builder.build()` invokes esbuild with
-`splitting: true`, `treeShaking: true`, and React Compiler support. Outputs
-include:
+To exclude build output from version control, add to `.gitignore`:
 
-- `public/build/main.js` - entry bundle that imports the generated `client` and
-  bootstraps hydration.
-- `public/build/*.js` - code-split chunks for lazy routes.
-- `public/build/*.css` - optional stylesheet outputs if you add CSS entry
-  points.
-
-Because the generated `main.ts` references `client` via
-`import { client } from "./main.tsx";` and the server injects `/build/main.js`,
-you typically commit the bundles alongside source. Doing so avoids requiring the
-builder during production deploys.
-
-## Custom entry points
-
-Use the `entryPoints` option when instantiating your `Builder` to include
-stylesheets or workers:
-
-```ts
-export const builder = new Builder({
-  projectRoot,
-  entryPoints: ["./styles/global.css", "./workers/email.ts"],
-});
+```
+public/build/
 ```
 
-Each entry point is emitted into `public/build` and can be referenced from React
-layouts:
+## Asset Optimization
+
+### Images
+
+For optimal image loading:
+
+```tsx
+// Use width and height to prevent layout shift
+<img
+  src="/images/hero.jpg"
+  width={1200}
+  height={600}
+  alt="Hero image"
+  loading="lazy" // Lazy load below-the-fold images
+/>;
+```
+
+Consider using an image optimization service or CDN for production.
+
+### Fonts
+
+For custom fonts, use `@font-face` in your CSS:
+
+```css
+/* main.css */
+@font-face {
+  font-family: "Inter";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/inter-regular.woff2") format("woff2");
+}
+
+body {
+  font-family: "Inter", system-ui, sans-serif;
+}
+```
+
+Preload critical fonts for faster rendering:
 
 ```tsx
 // routes/main.tsx
 export default function Main() {
   return (
     <>
-      <link rel="stylesheet" href="/build/global.css" />
+      <link
+        rel="preload"
+        href="/fonts/inter-regular.woff2"
+        as="font"
+        type="font/woff2"
+        crossOrigin="anonymous"
+      />
       <Outlet />
     </>
   );
 }
 ```
 
-## Caching strategy
+### Bundle Size
 
-- **Bundled assets** – Because filenames are hashed, you can cache `/build/*.js`
-  and `/build/*.css` with `Cache-Control: public, max-age=31536000, immutable`.
-  Serve them through a CDN whenever possible.
-- **Static files** – Assets outside `build/` (images, icons) should use etags or
-  shorter TTLs if they change frequently.
-- **Service workers** – If you add worker entry points, remember to scope them
-  under the correct path and update the cache manifest after each build.
+The build system automatically:
 
-The server currently streams responses via `renderToReadableStream`. If you need
-to inject cache headers globally, do so in `routes/main.ts` before handing off
-to React Router.
+- Minifies JavaScript and CSS in production
+- Enables tree-shaking to remove unused code
+- Splits code by route for lazy loading
 
-## Dev vs. production
+Monitor bundle size with:
 
-| Environment                               | Behavior                                                                                                      |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Development (`deno task dev`)             | Bundles are rebuilt incrementally. `public/dev-client.js` opens an EventSource connection to request reloads. |
-| Production build (`deno task build-prod`) | Assets are minified, sourcemaps are disabled, and no dev client is injected.                                  |
+```bash
+# Check build output sizes
+ls -la public/build/
+```
 
-If you see 404s for `/build/main.js` while running `deno task serve`, ensure you
-ran `deno task build` first and committed the resulting files.
+## Cache Headers
 
-## Troubleshooting
+Configure caching for static assets using Hono middleware:
 
-- **Missing `build` directory** – Run `deno task build` and ensure the
-  permission profile allows writing to `public/build`.
-- **Stale assets after deploy** – Double-check your CDN invalidation strategy or
-  reference hashed filenames instead of fixed names.
-- **Incorrect MIME types** – Hono infers content types from file extensions.
-  Keep CSS/JS file extensions intact; avoid query-string cache busting because
-  static serving is path-based.
+```typescript
+// routes/main.ts
+import { Hono } from "hono";
 
-## Next steps
+const app = new Hono();
 
-- Continue with [Metadata](metadata.md) to understand how to link generated
-  assets into your layouts.
-- Review [CI/CD](ci-cd.md) for guidance on caching `public/build` between
-  pipeline stages.
+// Cache build assets for 1 year (they have hashed filenames)
+app.use("/build/*", async (c, next) => {
+  await next();
+  c.header("Cache-Control", "public, max-age=31536000, immutable");
+});
+
+// Cache other static assets for 1 day
+app.use("/images/*", async (c, next) => {
+  await next();
+  c.header("Cache-Control", "public, max-age=86400");
+});
+
+// Don't cache HTML
+app.use("*", async (c, next) => {
+  await next();
+  if (c.res.headers.get("Content-Type")?.includes("text/html")) {
+    c.header("Cache-Control", "no-cache, no-store, must-revalidate");
+  }
+});
+
+export default app;
+```
+
+**Cache strategies:**
+
+| Asset Type                | Cache-Control                 | Reason                          |
+| ------------------------- | ----------------------------- | ------------------------------- |
+| Build output (`/build/*`) | `max-age=31536000, immutable` | Filenames include content hash  |
+| Images/fonts              | `max-age=86400`               | May change, cache for 1 day     |
+| HTML                      | `no-cache`                    | Always fetch latest             |
+| API responses             | Varies                        | Depends on data freshness needs |
+
+## Next Steps
+
+**Next:** [Metadata](metadata.md) - Page titles and meta tags
+
+**Related topics:**
+
+- [Styling](styling.md) - CSS and TailwindCSS integration
+- [Configuration](configuration.md) - Project and build configuration
+- [Deployment](deployment.md) - Deploy to Deno Deploy, Docker, and more

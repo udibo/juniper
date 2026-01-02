@@ -4,17 +4,17 @@
       "description": "Runs the server in development mode.",
       "command": "deno run -P=serve --env-file ./main.ts"
     },
-    "serve-prod": {
+    "serve:prod": {
       "description": "Runs the server in production mode.",
       "command": "deno run -P=serve --env-file --env-file=.env.production ./main.ts"
     },
     "build": {
       "description": "Builds the application for development.",
-      "command": "export OTEL_SERVICE_NAME=build && deno run -P=build --env-file ./build.ts"
+      "command": "export OTEL_SERVICE_NAME=build && deno run -P=build --env-file @udibo/juniper/build"
     },
-    "build-prod": {
+    "build:prod": {
       "description": "Builds the application for production.",
-      "command": "export OTEL_SERVICE_NAME=build && deno run -P=build --env-file --env-file=.env.production ./build.ts"
+      "command": "export OTEL_SERVICE_NAME=build && deno run -P=build --env-file --env-file=.env.production @udibo/juniper/build"
     },
     "dev": {
       "description": "Runs the development server.",
