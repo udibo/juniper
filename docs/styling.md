@@ -184,10 +184,11 @@ deno run -A npm:degit udibo/juniper/templates/tailwindcss my-app
 
 Or add TailwindCSS to an existing project:
 
-**1. Add dependencies to deno.json:**
+**1. Add dependencies and configuration to deno.json:**
 
 ```json
 {
+  "nodeModulesDir": "auto",
   "imports": {
     "tailwindcss": "npm:tailwindcss@^4",
     "@tailwindcss/postcss": "npm:@tailwindcss/postcss@^4",
@@ -195,6 +196,10 @@ Or add TailwindCSS to an existing project:
   }
 }
 ```
+
+> **Note:** The `nodeModulesDir: "auto"` setting is required for TailwindCSS to
+> work correctly. This enables Deno to create a local `node_modules` directory
+> that TailwindCSS's internal resolver needs to locate dependencies.
 
 **2. Create your main CSS file outside `public/`:**
 

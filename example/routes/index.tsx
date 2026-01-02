@@ -15,18 +15,26 @@ export default function HomePage() {
           of the box.
         </p>
 
-        <div className="flex gap-4 justify-center">
-          <Link
-            to="/features"
+        <div className="flex gap-4 justify-center flex-wrap">
+          <a
+            href="https://jsr.io/@udibo/juniper"
+            target="_blank"
+            rel="noopener noreferrer"
             className="px-8 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold rounded-xl transition-all hover:scale-105 shadow-lg shadow-emerald-500/25"
           >
-            Explore Features
+            Documentation
+          </a>
+          <Link
+            to="/features"
+            className="px-8 py-4 border-2 border-slate-600 hover:border-emerald-400 text-slate-300 hover:text-emerald-400 font-semibold rounded-xl transition-all"
+          >
+            Features Demo
           </Link>
           <Link
             to="/blog"
             className="px-8 py-4 border-2 border-slate-600 hover:border-emerald-400 text-slate-300 hover:text-emerald-400 font-semibold rounded-xl transition-all"
           >
-            Read the Blog
+            Example Blog
           </Link>
         </div>
       </section>
