@@ -2,7 +2,9 @@
 
 ## Overview
 
-Juniper provides testing utilities built on Deno's standard testing library and Testing Library for React. Tests run with `deno test` and support component testing, route testing, and integration testing.
+Juniper provides testing utilities built on Deno's standard testing library and
+Testing Library for React. Tests run with `deno test` and support component
+testing, route testing, and integration testing.
 
 ## Test Setup
 
@@ -47,7 +49,8 @@ Configure test permissions and settings in your `deno.json`:
 }
 ```
 
-For testing React components, import the global JSDOM setup at the top of your test files:
+For testing React components, import the global JSDOM setup at the top of your
+test files:
 
 ```typescript
 import "@udibo/juniper/utils/global-jsdom";
@@ -55,7 +58,8 @@ import "@udibo/juniper/utils/global-jsdom";
 
 ## Testing Utilities
 
-Juniper provides several utilities in `@udibo/juniper/utils/testing` to simplify testing.
+Juniper provides several utilities in `@udibo/juniper/utils/testing` to simplify
+testing.
 
 ### createRoutesStub
 
@@ -129,20 +133,26 @@ import { assertEquals } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
 
 describe("Environment tests", () => {
-  it("should use simulated environment", simulateEnvironment({
-    "APP_ENV": "production",
-    "DEBUG": null, // Delete this variable
-  }, () => {
-    assertEquals(getEnv("APP_ENV"), "production");
-    assertEquals(getEnv("DEBUG"), undefined);
-  }));
+  it(
+    "should use simulated environment",
+    simulateEnvironment({
+      "APP_ENV": "production",
+      "DEBUG": null, // Delete this variable
+    }, () => {
+      assertEquals(getEnv("APP_ENV"), "production");
+      assertEquals(getEnv("DEBUG"), undefined);
+    }),
+  );
 
-  it("should support async callbacks", simulateEnvironment({
-    "APP_ENV": "test",
-  }, async () => {
-    assertEquals(getEnv("APP_ENV"), "test");
-    await Promise.resolve();
-  }));
+  it(
+    "should support async callbacks",
+    simulateEnvironment({
+      "APP_ENV": "test",
+    }, async () => {
+      assertEquals(getEnv("APP_ENV"), "test");
+      await Promise.resolve();
+    }),
+  );
 });
 ```
 
@@ -231,7 +241,7 @@ describe("InfoBox", () => {
     render(
       <InfoBox title="Details">
         <p>Content</p>
-      </InfoBox>
+      </InfoBox>,
     );
 
     const heading = screen.getByRole("heading", { name: "Details" });
@@ -243,7 +253,7 @@ describe("InfoBox", () => {
     render(
       <InfoBox>
         <p>Body</p>
-      </InfoBox>
+      </InfoBox>,
     );
 
     assertEquals(screen.queryByRole("heading"), null);
@@ -254,7 +264,7 @@ describe("InfoBox", () => {
     const { container } = render(
       <InfoBox color="slate" className="extra-box">
         <p>Body</p>
-      </InfoBox>
+      </InfoBox>,
     );
 
     const el = container.firstElementChild;
@@ -412,8 +422,8 @@ describe("Blog Index Integration", () => {
 Use Deno's standard testing library for spies and stubs:
 
 ```typescript
-import { stub, spy, assertSpyCalls } from "@std/testing/mock";
-import { describe, it, afterEach } from "@std/testing/bdd";
+import { assertSpyCalls, spy, stub } from "@std/testing/mock";
+import { afterEach, describe, it } from "@std/testing/bdd";
 
 describe("Service tests", () => {
   it("should spy on function calls", () => {
@@ -429,7 +439,7 @@ describe("Service tests", () => {
     const fetchStub = stub(
       globalThis,
       "fetch",
-      () => Promise.resolve(Response.json({ data: "mocked" }))
+      () => Promise.resolve(Response.json({ data: "mocked" })),
     );
 
     const result = await fetchData();

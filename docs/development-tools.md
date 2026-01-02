@@ -2,13 +2,15 @@
 
 ## Development Server
 
-Juniper provides a development server with hot reload capabilities. Start it with:
+Juniper provides a development server with hot reload capabilities. Start it
+with:
 
 ```bash
 deno task dev
 ```
 
 The development server:
+
 - Watches for file changes
 - Automatically rebuilds the application
 - Notifies connected browsers to reload
@@ -23,11 +25,13 @@ When you save a file, the development server automatically:
 3. Restarts the application server
 4. Sends a reload signal to connected browsers via Server-Sent Events (SSE)
 
-The browser receives the reload signal through a development client script that's automatically injected in development mode.
+The browser receives the reload signal through a development client script
+that's automatically injected in development mode.
 
 ### File Watching
 
-The development server watches your project directory for changes. By default, it ignores:
+The development server watches your project directory for changes. By default,
+it ignores:
 
 - Files in `public/build/` (generated output)
 - Files containing `.test.` (test files)
@@ -38,7 +42,8 @@ The development server watches your project directory for changes. By default, i
 routes, but changes to them will still trigger rebuilds since they may be
 imported by route files.
 
-You can customize which paths are watched using the `watchPaths` option in your build configuration:
+You can customize which paths are watched using the `watchPaths` option in your
+build configuration:
 
 ```typescript
 // build.ts
@@ -50,17 +55,18 @@ export const builder = new Builder({
 
 ## Deno Tasks
 
-Juniper projects use Deno tasks for common operations. These are defined in your `deno.json`:
+Juniper projects use Deno tasks for common operations. These are defined in your
+`deno.json`:
 
-| Task | Description |
-|------|-------------|
-| `deno task dev` | Start the development server with hot reload |
-| `deno task build` | Build the application for development |
-| `deno task build:prod` | Build the application for production |
-| `deno task serve` | Run the built application |
-| `deno task serve:prod` | Run the production build |
-| `deno task test` | Run tests |
-| `deno task check` | Run type checking, linting, and format checking |
+| Task                   | Description                                     |
+| ---------------------- | ----------------------------------------------- |
+| `deno task dev`        | Start the development server with hot reload    |
+| `deno task build`      | Build the application for development           |
+| `deno task build:prod` | Build the application for production            |
+| `deno task serve`      | Run the built application                       |
+| `deno task serve:prod` | Run the production build                        |
+| `deno task test`       | Run tests                                       |
+| `deno task check`      | Run type checking, linting, and format checking |
 
 **Example task configuration:**
 
@@ -93,6 +99,7 @@ deno run --inspect-brk -A ./main.ts
 ```
 
 Connect using Chrome DevTools:
+
 1. Open `chrome://inspect` in Chrome
 2. Click "Configure" and add `localhost:9229`
 3. Your Deno process should appear under "Remote Target"
@@ -117,7 +124,9 @@ export default app;
 
 ### Error Stack Traces
 
-In development, Juniper preserves error stack traces and includes them in error responses. The `HttpError` class supports an `expose` option to control what information is shown to users:
+In development, Juniper preserves error stack traces and includes them in error
+responses. The `HttpError` class supports an `expose` option to control what
+information is shown to users:
 
 ```typescript
 import { HttpError } from "@udibo/juniper";
@@ -132,7 +141,9 @@ throw new HttpError(500, "Internal error details", {
 
 ### React Developer Tools
 
-Install the [React Developer Tools](https://react.dev/learn/react-developer-tools) browser extension to:
+Install the
+[React Developer Tools](https://react.dev/learn/react-developer-tools) browser
+extension to:
 
 - Inspect the React component tree
 - View and edit component props and state
@@ -164,7 +175,8 @@ Source maps are disabled in production for smaller bundle sizes.
 
 **Recommended Extensions:**
 
-- [Deno](https://marketplace.visualstudio.com/items?itemName=denoland.vscode-deno) - Official Deno extension for IntelliSense, linting, and formatting
+- [Deno](https://marketplace.visualstudio.com/items?itemName=denoland.vscode-deno) -
+  Official Deno extension for IntelliSense, linting, and formatting
 
 **Enable Deno for your workspace:**
 

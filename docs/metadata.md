@@ -2,7 +2,9 @@
 
 ## React 19 Document Metadata
 
-React 19 supports rendering `<title>`, `<meta>`, and `<link>` tags directly in components. These tags are automatically hoisted to the document `<head>` during rendering.
+React 19 supports rendering `<title>`, `<meta>`, and `<link>` tags directly in
+components. These tags are automatically hoisted to the document `<head>` during
+rendering.
 
 ```tsx
 export default function BlogPost({ loaderData }: RouteProps) {
@@ -269,7 +271,8 @@ export default function BlogPost({ loaderData }: RouteProps) {
 }
 ```
 
-React 19 automatically handles duplicate tags - the last rendered value wins, allowing child routes to override parent metadata.
+React 19 automatically handles duplicate tags - the last rendered value wins,
+allowing child routes to override parent metadata.
 
 ## Next Steps
 

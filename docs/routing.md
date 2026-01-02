@@ -334,12 +334,15 @@ interface DashboardLoaderData {
 
 export async function loader({
   serverLoader,
-}: RouteLoaderArgs<AnyParams, DashboardLoaderData>): Promise<DashboardLoaderData> {
+}: RouteLoaderArgs<AnyParams, DashboardLoaderData>): Promise<
+  DashboardLoaderData
+> {
   // Get server data
   const data = await serverLoader();
 
   // Enhance with client-side preference
-  const theme = (localStorage.getItem("theme") as "light" | "dark") ?? data.theme;
+  const theme = (localStorage.getItem("theme") as "light" | "dark") ??
+    data.theme;
 
   return { ...data, theme };
 }
@@ -347,7 +350,8 @@ export async function loader({
 export default function Dashboard(
   { loaderData }: RouteProps<AnyParams, DashboardLoaderData>,
 ) {
-  return <div className={loaderData.theme}>Welcome, {loaderData.user.name}</div>;
+  return <div className={loaderData.theme}>Welcome, {loaderData.user.name}
+  </div>;
 }
 ```
 
@@ -438,7 +442,9 @@ There are several reasons to use a client loader that calls the server loader:
 export async function loader({
   params,
   serverLoader,
-}: RouteLoaderArgs<{ id: string }, ProductLoaderData>): Promise<ProductLoaderData> {
+}: RouteLoaderArgs<{ id: string }, ProductLoaderData>): Promise<
+  ProductLoaderData
+> {
   const cacheKey = `product-${params.id}`;
   const cached = sessionStorage.getItem(cacheKey);
 
@@ -544,7 +550,9 @@ interface SettingsLoaderData {
 
 export async function loader({
   serverLoader,
-}: RouteLoaderArgs<AnyParams, SettingsLoaderData>): Promise<SettingsLoaderData> {
+}: RouteLoaderArgs<AnyParams, SettingsLoaderData>): Promise<
+  SettingsLoaderData
+> {
   // Check client-side authentication
   const token = localStorage.getItem("authToken");
   if (!token) {

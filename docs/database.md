@@ -2,11 +2,15 @@
 
 ## Overview
 
-Juniper doesn't prescribe a specific database solution, giving you the flexibility to choose what works best for your project. This guide covers Deno KV (built into Deno) and patterns for connecting to other databases.
+Juniper doesn't prescribe a specific database solution, giving you the
+flexibility to choose what works best for your project. This guide covers Deno
+KV (built into Deno) and patterns for connecting to other databases.
 
 ## Deno KV
 
-Deno KV is a key-value database built directly into Deno, requiring no external services for development. It provides a simple yet powerful API for storing and retrieving data.
+Deno KV is a key-value database built directly into Deno, requiring no external
+services for development. It provides a simple yet powerful API for storing and
+retrieving data.
 
 ### Setup
 
@@ -81,7 +85,7 @@ for await (const entry of entries) {
 // List with options
 const recentEntries = kv.list(
   { prefix: ["users"] },
-  { limit: 10, reverse: true }
+  { limit: 10, reverse: true },
 );
 ```
 
@@ -268,7 +272,9 @@ export async function createUser(user: { email: string; name: string }) {
 
 ## Data Access Patterns
 
-These are common patterns for organizing data access code. They are not framework-specific features but recommended approaches for maintainable applications.
+These are common patterns for organizing data access code. They are not
+framework-specific features but recommended approaches for maintainable
+applications.
 
 ### Services Pattern
 
@@ -312,9 +318,7 @@ class PostService {
 
   async list(authorId?: string): Promise<Post[]> {
     const kv = await this.getKv();
-    const prefix = authorId
-      ? ["posts", "authorId", authorId]
-      : ["posts", "id"];
+    const prefix = authorId ? ["posts", "authorId", authorId] : ["posts", "id"];
     const entries = kv.list<Post>({ prefix });
     const posts: Post[] = [];
     for await (const entry of entries) {
@@ -425,6 +429,7 @@ export class UserService {
 ```
 
 This pattern makes it easier to:
+
 - Switch between different database implementations
 - Mock the repository for testing
 - Keep business logic separate from data access

@@ -2,7 +2,8 @@
 
 ## Public Directory
 
-The `public` directory serves static files directly to clients. Place assets like images, fonts, and favicons here:
+The `public` directory serves static files directly to clients. Place assets
+like images, fonts, and favicons here:
 
 ```
 my-app/
@@ -30,7 +31,8 @@ export default function Header() {
 
 ## Serving Static Assets
 
-Juniper automatically serves files from the `public` directory. The built-in static file handler:
+Juniper automatically serves files from the `public` directory. The built-in
+static file handler:
 
 - Serves files with correct MIME types
 - Supports range requests for video/audio streaming
@@ -64,7 +66,8 @@ public/
 │   └── chunk-[hash].js   # Code-split chunks
 ```
 
-These files are automatically included in the HTML during SSR. You don't need to manually reference them.
+These files are automatically included in the HTML during SSR. You don't need to
+manually reference them.
 
 **Don't edit files in `public/build/`** - they're regenerated on each build.
 
@@ -88,7 +91,7 @@ For optimal image loading:
   height={600}
   alt="Hero image"
   loading="lazy" // Lazy load below-the-fold images
-/>
+/>;
 ```
 
 Consider using an image optimization service or CDN for production.
@@ -135,6 +138,7 @@ export default function Main() {
 ### Bundle Size
 
 The build system automatically:
+
 - Minifies JavaScript and CSS in production
 - Enables tree-shaking to remove unused code
 - Splits code by route for lazy loading
@@ -181,12 +185,12 @@ export default app;
 
 **Cache strategies:**
 
-| Asset Type | Cache-Control | Reason |
-|-----------|---------------|--------|
-| Build output (`/build/*`) | `max-age=31536000, immutable` | Filenames include content hash |
-| Images/fonts | `max-age=86400` | May change, cache for 1 day |
-| HTML | `no-cache` | Always fetch latest |
-| API responses | Varies | Depends on data freshness needs |
+| Asset Type                | Cache-Control                 | Reason                          |
+| ------------------------- | ----------------------------- | ------------------------------- |
+| Build output (`/build/*`) | `max-age=31536000, immutable` | Filenames include content hash  |
+| Images/fonts              | `max-age=86400`               | May change, cache for 1 day     |
+| HTML                      | `no-cache`                    | Always fetch latest             |
+| API responses             | Varies                        | Depends on data freshness needs |
 
 ## Next Steps
 

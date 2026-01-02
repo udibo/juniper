@@ -140,7 +140,8 @@ Comprehensive guides for using the framework:
 
 ### Tutorials
 
-- [Tutorials](docs/tutorials/README.md) - Step-by-step guides for building applications
+- [Tutorials](docs/tutorials/README.md) - Step-by-step guides for building
+  applications
 
 ### API Reference
 

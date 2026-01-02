@@ -178,7 +178,9 @@ interface SettingsActionData {
 export async function action({
   request,
   serverAction,
-}: RouteActionArgs<AnyParams, SettingsActionData>): Promise<SettingsActionData> {
+}: RouteActionArgs<AnyParams, SettingsActionData>): Promise<
+  SettingsActionData
+> {
   const formData = await request.formData();
 
   // Save to local storage
@@ -247,7 +249,9 @@ interface EditPostActionData {
 
 export async function action({
   serverAction,
-}: RouteActionArgs<{ id: string }, EditPostActionData>): Promise<EditPostActionData> {
+}: RouteActionArgs<{ id: string }, EditPostActionData>): Promise<
+  EditPostActionData
+> {
   // Call the server action to save the post
   const result = await serverAction();
 
@@ -296,7 +300,9 @@ interface SettingsActionData {
 export async function action({
   request,
   serverAction,
-}: RouteActionArgs<AnyParams, SettingsActionData>): Promise<SettingsActionData> {
+}: RouteActionArgs<AnyParams, SettingsActionData>): Promise<
+  SettingsActionData
+> {
   const formData = await request.formData();
   const previousValue = localStorage.getItem("settings");
 

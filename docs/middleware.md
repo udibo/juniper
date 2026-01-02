@@ -85,16 +85,19 @@ app.use(compress());
 app.use(timing());
 ```
 
-See [Hono's middleware documentation](https://hono.dev/docs/middleware/builtin/basic-auth) for the full list.
+See
+[Hono's middleware documentation](https://hono.dev/docs/middleware/builtin/basic-auth)
+for the full list.
 
 ### Middleware Order
 
-Middleware executes in the order defined. Earlier middleware wraps later middleware:
+Middleware executes in the order defined. Earlier middleware wraps later
+middleware:
 
 ```typescript
-app.use(first);  // Runs first, completes last
+app.use(first); // Runs first, completes last
 app.use(second); // Runs second
-app.use(third);  // Runs third, completes first
+app.use(third); // Runs third, completes first
 
 // Execution order:
 // first (before next) → second (before next) → third
@@ -247,7 +250,8 @@ app.use(async (c, next) => {
 
 ## Client Middleware
 
-Client middleware is defined in `.tsx` files and runs during client-side navigation.
+Client middleware is defined in `.tsx` files and runs during client-side
+navigation.
 
 ### Creating Client Middleware
 
@@ -279,9 +283,9 @@ Client middleware receives these arguments:
 
 ```typescript
 interface MiddlewareArgs {
-  context: RouterContextProvider;  // Shared context object
-  request: Request;                // The current request
-  params: Record<string, string>;  // Route parameters
+  context: RouterContextProvider; // Shared context object
+  request: Request; // The current request
+  params: Record<string, string>; // Route parameters
 }
 ```
 
@@ -416,20 +420,22 @@ export const middleware: MiddlewareFunction[] = [
 
 ## When Each Type Runs
 
-| Scenario | Server Middleware | Client Middleware |
-|----------|-------------------|-------------------|
-| Initial page load (SSR) | Yes | No |
-| Client-side navigation | No | Yes |
-| Form submission to server | Yes | No |
-| Direct URL access | Yes | No |
+| Scenario                  | Server Middleware | Client Middleware |
+| ------------------------- | ----------------- | ----------------- |
+| Initial page load (SSR)   | Yes               | No                |
+| Client-side navigation    | No                | Yes               |
+| Form submission to server | Yes               | No                |
+| Direct URL access         | Yes               | No                |
 
 Use server middleware for:
+
 - Authentication token verification
 - Request logging
 - CORS and security headers
 - Server-side request validation
 
 Use client middleware for:
+
 - Client-side auth state checks
 - Navigation tracking
 - Client-side feature flags

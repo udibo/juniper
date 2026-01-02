@@ -2,11 +2,15 @@
 
 ## Overview
 
-Juniper provides comprehensive error handling through the `HttpError` class and React Router's error boundary system. Errors thrown in loaders, actions, or middleware are automatically caught and rendered by the nearest error boundary.
+Juniper provides comprehensive error handling through the `HttpError` class and
+React Router's error boundary system. Errors thrown in loaders, actions, or
+middleware are automatically caught and rendered by the nearest error boundary.
 
 ## HttpError Class
 
-The `HttpError` class from `@udibo/http-error` (re-exported by `@udibo/juniper`) provides a structured way to throw HTTP errors with appropriate status codes and messages.
+The `HttpError` class from `@udibo/http-error` (re-exported by `@udibo/juniper`)
+provides a structured way to throw HTTP errors with appropriate status codes and
+messages.
 
 ### Creating HTTP Errors
 
@@ -43,7 +47,8 @@ try {
 
 ### Error Exposure
 
-HttpError distinguishes between internal error messages and messages safe to expose to clients:
+HttpError distinguishes between internal error messages and messages safe to
+expose to clients:
 
 ```typescript
 // Create an error with an exposed message
@@ -56,7 +61,9 @@ console.log(error.message); // "Database connection failed"
 console.log(error.exposedMessage); // Generic message based on status code
 ```
 
-The `exposedMessage` property returns a client-safe message that won't leak sensitive information. For 4xx client errors, the message is typically exposed; for 5xx server errors, a generic message is returned by default.
+The `exposedMessage` property returns a client-safe message that won't leak
+sensitive information. For 4xx client errors, the message is typically exposed;
+for 5xx server errors, a generic message is returned by default.
 
 ### Custom Messages
 
@@ -81,11 +88,13 @@ export function ErrorBoundary({ error }: ErrorBoundaryProps) {
 
 ## Error Boundaries
 
-Error boundaries catch errors thrown during rendering, in loaders, actions, or middleware, and display fallback UI.
+Error boundaries catch errors thrown during rendering, in loaders, actions, or
+middleware, and display fallback UI.
 
 ### Route Error Boundaries
 
-Export an `ErrorBoundary` component from your route to handle errors for that route and its children:
+Export an `ErrorBoundary` component from your route to handle errors for that
+route and its children:
 
 ```tsx
 // routes/blog/[id].tsx
@@ -121,7 +130,8 @@ export function ErrorBoundary({
 
 ### Root Error Boundary
 
-The root error boundary in `routes/main.tsx` catches errors that aren't handled by child error boundaries:
+The root error boundary in `routes/main.tsx` catches errors that aren't handled
+by child error boundaries:
 
 ```tsx
 // routes/main.tsx
@@ -148,7 +158,9 @@ export default function Main() {
   );
 }
 
-export function ErrorBoundary({ error, resetErrorBoundary }: ErrorBoundaryProps) {
+export function ErrorBoundary(
+  { error, resetErrorBoundary }: ErrorBoundaryProps,
+) {
   return (
     <Shell>
       <div className="text-center py-12">
@@ -179,13 +191,14 @@ export function ErrorBoundary({ error, resetErrorBoundary }: ErrorBoundaryProps)
 
 ### ErrorBoundaryProps
 
-The `ErrorBoundaryProps` interface provides access to error details and route context:
+The `ErrorBoundaryProps` interface provides access to error details and route
+context:
 
 ```typescript
 interface ErrorBoundaryProps<
   Params = Record<string, string | undefined>,
   LoaderData = unknown,
-  ActionData = unknown
+  ActionData = unknown,
 > {
   /** The error that was thrown */
   error: unknown;
@@ -220,7 +233,11 @@ export function ErrorBoundary({
 
 ## Error Serialization
 
-Errors thrown on the server are serialized for the client. Juniper handles this automatically, but you can customize it for custom error types. Juniper's serialization (used for context, loader data, action data, and errors) supports all standard JSON types plus: `undefined`, `bigint`, `Date`, `RegExp`, `Set`, `Map`, `Error`, and `URL`.
+Errors thrown on the server are serialized for the client. Juniper handles this
+automatically, but you can customize it for custom error types. Juniper's
+serialization (used for context, loader data, action data, and errors) supports
+all standard JSON types plus: `undefined`, `bigint`, `Date`, `RegExp`, `Set`,
+`Map`, `Error`, and `URL`.
 
 ### Custom Error Serialization
 
@@ -262,7 +279,9 @@ import { CustomError, type SerializedCustomError } from "@/errors/custom.ts";
 
 const app = new Hono<AppEnv>();
 
-export function serializeError(error: unknown): SerializedCustomError | undefined {
+export function serializeError(
+  error: unknown,
+): SerializedCustomError | undefined {
   if (error instanceof CustomError) {
     const serialized: SerializedCustomError = {
       __type: "Error",
@@ -290,7 +309,9 @@ import { Outlet } from "react-router";
 import { isSerializedError } from "@udibo/juniper/client";
 import { CustomError, type SerializedCustomError } from "@/errors/custom.ts";
 
-function isSerializedCustomError(value: unknown): value is SerializedCustomError {
+function isSerializedCustomError(
+  value: unknown,
+): value is SerializedCustomError {
   return isSerializedError(value) && value.__subType === "CustomError";
 }
 
@@ -298,7 +319,7 @@ export function deserializeError(serializedError: unknown) {
   if (isSerializedCustomError(serializedError)) {
     const error = new CustomError(
       serializedError.message,
-      serializedError.code
+      serializedError.code,
     );
     error.stack = serializedError.stack;
     return error;
@@ -341,7 +362,9 @@ export async function loader({ params }: RouteLoaderArgs<{ id: string }>) {
 
 ### Validation Errors
 
-Return validation errors as action data instead of throwing. See [Forms - Server-Side Validation](forms.md#server-side-validation) for more details:
+Return validation errors as action data instead of throwing. See
+[Forms - Server-Side Validation](forms.md#server-side-validation) for more
+details:
 
 ```typescript
 // routes/blog/create.ts
@@ -355,7 +378,9 @@ interface ActionData {
   };
 }
 
-export async function action({ request }: RouteActionArgs): Promise<ActionData | Response> {
+export async function action(
+  { request }: RouteActionArgs,
+): Promise<ActionData | Response> {
   const formData = await request.formData();
   const title = formData.get("title") as string;
   const content = formData.get("content") as string;
@@ -414,8 +439,9 @@ export default function CreatePost({ actionData }: RouteProps) {
 
 Juniper automatically logs all errors, so you don't need to catch and log them
 yourself. The main reason to catch errors is to provide a user-friendly
-`exposedMessage`. For server errors (status >= 500), without an `exposedMessage`,
-users will only see the default status message (e.g., "Internal Server Error"):
+`exposedMessage`. For server errors (status >= 500), without an
+`exposedMessage`, users will only see the default status message (e.g.,
+"Internal Server Error"):
 
 ```typescript
 // routes/dashboard.ts
@@ -447,7 +473,8 @@ throw new HttpError(500, "Internal error details", {
 
 ### Error Handling in Middleware
 
-Middleware errors are caught by error boundaries. See [Middleware](middleware.md) for more details:
+Middleware errors are caught by error boundaries. See
+[Middleware](middleware.md) for more details:
 
 ```typescript
 // routes/admin/main.ts
@@ -485,11 +512,14 @@ routes/
 │       └── index.tsx  # Catches individual post errors
 ```
 
-If the `[id]/index.tsx` error boundary isn't defined or doesn't handle an error, it bubbles up to `blog/main.tsx`, then to `main.tsx`.
+If the `[id]/index.tsx` error boundary isn't defined or doesn't handle an error,
+it bubbles up to `blog/main.tsx`, then to `main.tsx`.
 
 ```tsx
 // routes/blog/main.tsx
-export function ErrorBoundary({ error, resetErrorBoundary }: ErrorBoundaryProps) {
+export function ErrorBoundary(
+  { error, resetErrorBoundary }: ErrorBoundaryProps,
+) {
   return (
     <div>
       <h1>Blog Error</h1>

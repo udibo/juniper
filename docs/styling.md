@@ -36,8 +36,8 @@ body {
 Files in `public/` are served directly without any build step. This is the
 simplest approach for plain CSS.
 
-Optionally, you can add plain CSS files as build entrypoints to get
-minification from esbuild:
+Optionally, you can add plain CSS files as build entrypoints to get minification
+from esbuild:
 
 ```typescript
 // build.ts
@@ -121,8 +121,9 @@ public/
 
 ## PostCSS Integration
 
-For advanced CSS processing like TailwindCSS, CSS Modules, Sass, Less, or Stylus,
-use the [@udibo/esbuild-plugin-postcss](https://jsr.io/@udibo/esbuild-plugin-postcss)
+For advanced CSS processing like TailwindCSS, CSS Modules, Sass, Less, or
+Stylus, use the
+[@udibo/esbuild-plugin-postcss](https://jsr.io/@udibo/esbuild-plugin-postcss)
 plugin. Unlike plain CSS files that go directly in `public/`, files that need
 transformation are placed outside `public/` and added as build entrypoints.
 
@@ -168,7 +169,7 @@ if (import.meta.main) {
 
 ```tsx
 // routes/main.tsx
-<link rel="stylesheet" href="/build/main.css" precedence="default" />
+<link rel="stylesheet" href="/build/main.css" precedence="default" />;
 ```
 
 Transformed CSS files are output to `public/build/`.
@@ -233,7 +234,7 @@ if (import.meta.main) {
 
 ```tsx
 // routes/main.tsx
-<link rel="stylesheet" href="/build/main.css" precedence="default" />
+<link rel="stylesheet" href="/build/main.css" precedence="default" />;
 ```
 
 **5. Customize your theme** using TailwindCSS 4's CSS-based configuration:
@@ -323,7 +324,11 @@ The CSS output goes to `public/build/`. Link it in your layout or component:
 
 ```tsx
 // routes/main.tsx or in the component that uses the styles
-<link rel="stylesheet" href="/build/components/Button.module.css" precedence="default" />
+<link
+  rel="stylesheet"
+  href="/build/components/Button.module.css"
+  precedence="default"
+/>;
 ```
 
 **5. Import and use the scoped class names:**
@@ -427,7 +432,7 @@ The output is compiled to CSS in `public/build/`:
 
 ```tsx
 // routes/main.tsx
-<link rel="stylesheet" href="/build/main.css" precedence="default" />
+<link rel="stylesheet" href="/build/main.css" precedence="default" />;
 ```
 
 ### Less
@@ -476,7 +481,7 @@ if (import.meta.main) {
 
 ```tsx
 // routes/main.tsx
-<link rel="stylesheet" href="/build/main.css" precedence="default" />
+<link rel="stylesheet" href="/build/main.css" precedence="default" />;
 ```
 
 ### Stylus
@@ -525,7 +530,7 @@ if (import.meta.main) {
 
 ```tsx
 // routes/main.tsx
-<link rel="stylesheet" href="/build/main.css" precedence="default" />
+<link rel="stylesheet" href="/build/main.css" precedence="default" />;
 ```
 
 ### Combining Features

@@ -195,7 +195,8 @@ export const postService = {
     const post: Post = {
       id,
       ...data,
-      excerpt: data.content.slice(0, 150) + (data.content.length > 150 ? "..." : ""),
+      excerpt: data.content.slice(0, 150) +
+        (data.content.length > 150 ? "..." : ""),
       createdAt: now,
       updatedAt: now,
     };
@@ -257,28 +258,42 @@ export default function BlogIndex({
     <>
       <title>Blog</title>
       <div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "2rem",
+          }}
+        >
           <h1>Blog</h1>
           <Link to="/blog/new">New Post</Link>
         </div>
 
-        {loaderData.posts.length === 0 ? (
-          <p>No posts yet. Create your first post!</p>
-        ) : (
-          <div>
-            {loaderData.posts.map((post) => (
-              <article key={post.id} style={{ marginBottom: "2rem", paddingBottom: "1rem", borderBottom: "1px solid #eee" }}>
-                <Link to={`/blog/${post.id}`}>
-                  <h2>{post.title}</h2>
-                </Link>
-                <p>{post.excerpt}</p>
-                <time style={{ color: "#666", fontSize: "0.875rem" }}>
-                  {new Date(post.createdAt).toLocaleDateString()}
-                </time>
-              </article>
-            ))}
-          </div>
-        )}
+        {loaderData.posts.length === 0
+          ? <p>No posts yet. Create your first post!</p>
+          : (
+            <div>
+              {loaderData.posts.map((post) => (
+                <article
+                  key={post.id}
+                  style={{
+                    marginBottom: "2rem",
+                    paddingBottom: "1rem",
+                    borderBottom: "1px solid #eee",
+                  }}
+                >
+                  <Link to={`/blog/${post.id}`}>
+                    <h2>{post.title}</h2>
+                  </Link>
+                  <p>{post.excerpt}</p>
+                  <time style={{ color: "#666", fontSize: "0.875rem" }}>
+                    {new Date(post.createdAt).toLocaleDateString()}
+                  </time>
+                </article>
+              ))}
+            </div>
+          )}
       </div>
     </>
   );
@@ -306,7 +321,7 @@ Create `routes/blog/[id]/index.tsx`:
 
 ```tsx
 // routes/blog/[id]/index.tsx
-import { Link, Form } from "react-router";
+import { Form, Link } from "react-router";
 import { HttpError } from "@udibo/juniper";
 import type { ErrorBoundaryProps, RouteProps } from "@udibo/juniper";
 import type { Post } from "@/services/post.ts";
@@ -369,7 +384,7 @@ Create the server loader and action at `routes/blog/[id]/index.ts`:
 
 ```typescript
 // routes/blog/[id]/index.ts
-import type { RouteLoaderArgs, RouteActionArgs } from "@udibo/juniper";
+import type { RouteActionArgs, RouteLoaderArgs } from "@udibo/juniper";
 import { redirect } from "react-router";
 import { postService } from "@/services/post.ts";
 
@@ -410,7 +425,9 @@ interface ActionData {
   values?: { title: string; content: string };
 }
 
-export default function NewPost({ actionData }: RouteProps<Record<string, never>, never, ActionData>) {
+export default function NewPost(
+  { actionData }: RouteProps<Record<string, never>, never, ActionData>,
+) {
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
 
@@ -426,7 +443,14 @@ export default function NewPost({ actionData }: RouteProps<Record<string, never>
 
         <Form method="post">
           {actionData?.errors && (
-            <div style={{ padding: "1rem", background: "#fee", border: "1px solid #fcc", marginBottom: "1rem" }}>
+            <div
+              style={{
+                padding: "1rem",
+                background: "#fee",
+                border: "1px solid #fcc",
+                marginBottom: "1rem",
+              }}
+            >
               <ul>
                 {Object.values(actionData.errors).map((error) => (
                   <li key={error}>{error}</li>
@@ -436,7 +460,10 @@ export default function NewPost({ actionData }: RouteProps<Record<string, never>
           )}
 
           <div style={{ marginBottom: "1rem" }}>
-            <label htmlFor="title" style={{ display: "block", marginBottom: "0.5rem" }}>
+            <label
+              htmlFor="title"
+              style={{ display: "block", marginBottom: "0.5rem" }}
+            >
               Title
             </label>
             <input
@@ -450,7 +477,10 @@ export default function NewPost({ actionData }: RouteProps<Record<string, never>
           </div>
 
           <div style={{ marginBottom: "1rem" }}>
-            <label htmlFor="content" style={{ display: "block", marginBottom: "0.5rem" }}>
+            <label
+              htmlFor="content"
+              style={{ display: "block", marginBottom: "0.5rem" }}
+            >
               Content
             </label>
             <textarea
@@ -533,7 +563,10 @@ export default function EditPost({
     <>
       <title>Edit: {post.title}</title>
       <div style={{ maxWidth: "600px", margin: "0 auto" }}>
-        <Link to={`/blog/${post.id}`} style={{ marginBottom: "1rem", display: "block" }}>
+        <Link
+          to={`/blog/${post.id}`}
+          style={{ marginBottom: "1rem", display: "block" }}
+        >
           &larr; Back to Post
         </Link>
 
@@ -541,7 +574,14 @@ export default function EditPost({
 
         <Form method="post">
           {actionData?.errors && (
-            <div style={{ padding: "1rem", background: "#fee", border: "1px solid #fcc", marginBottom: "1rem" }}>
+            <div
+              style={{
+                padding: "1rem",
+                background: "#fee",
+                border: "1px solid #fcc",
+                marginBottom: "1rem",
+              }}
+            >
               <ul>
                 {Object.values(actionData.errors).map((error) => (
                   <li key={error}>{error}</li>
@@ -551,7 +591,10 @@ export default function EditPost({
           )}
 
           <div style={{ marginBottom: "1rem" }}>
-            <label htmlFor="title" style={{ display: "block", marginBottom: "0.5rem" }}>
+            <label
+              htmlFor="title"
+              style={{ display: "block", marginBottom: "0.5rem" }}
+            >
               Title
             </label>
             <input
@@ -565,7 +608,10 @@ export default function EditPost({
           </div>
 
           <div style={{ marginBottom: "1rem" }}>
-            <label htmlFor="content" style={{ display: "block", marginBottom: "0.5rem" }}>
+            <label
+              htmlFor="content"
+              style={{ display: "block", marginBottom: "0.5rem" }}
+            >
               Content
             </label>
             <textarea
@@ -592,7 +638,7 @@ Create the server loader and action at `routes/blog/[id]/edit.ts`:
 
 ```typescript
 // routes/blog/[id]/edit.ts
-import type { RouteLoaderArgs, RouteActionArgs } from "@udibo/juniper";
+import type { RouteActionArgs, RouteLoaderArgs } from "@udibo/juniper";
 import { redirect } from "react-router";
 import { postService } from "@/services/post.ts";
 
@@ -652,7 +698,7 @@ Create `routes/api/posts.ts`:
 ```typescript
 // routes/api/posts.ts
 import { Hono } from "hono";
-import { postService, type NewPost } from "@/services/post.ts";
+import { type NewPost, postService } from "@/services/post.ts";
 
 const app = new Hono();
 
