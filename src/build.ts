@@ -5,7 +5,7 @@ import * as path from "@std/path";
 import { toText } from "@std/streams";
 import * as esbuild from "esbuild";
 
-import { isProduction } from "@udibo/juniper/utils/env";
+import { isProduction } from "./utils/env.ts";
 
 import {
   type GeneratedRoute,
