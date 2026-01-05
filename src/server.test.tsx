@@ -518,6 +518,69 @@ describe("mergeServerRoutes", () => {
   });
 });
 
+describe("build artifact cache control", () => {
+  it("should set no-cache headers with etag for /build/main.js", async () => {
+    // Create a minimal public/build directory structure for serving
+    const tempDir = await Deno.makeTempDir();
+    try {
+      const buildDir = `${tempDir}/public/build`;
+      await Deno.mkdir(buildDir, { recursive: true });
+      await Deno.writeTextFile(`${buildDir}/main.js`, "console.log('test');");
+
+      const client = new Client({
+        path: "/",
+        main: { default: () => <div>Home</div> },
+      });
+
+      const server = createServer(`file://${tempDir}/server.ts`, client, {
+        path: "/",
+      });
+
+      const res = await server.request("http://localhost/build/main.js");
+      assertEquals(res.status, 200);
+      assertEquals(
+        res.headers.get("Cache-Control"),
+        "private, no-cache, must-revalidate, max-age=0",
+      );
+      assertExists(res.headers.get("ETag"));
+      await res.body?.cancel();
+    } finally {
+      await Deno.remove(tempDir, { recursive: true });
+    }
+  });
+
+  it("should set long cache headers for other /build/* files", async () => {
+    const tempDir = await Deno.makeTempDir();
+    try {
+      const buildDir = `${tempDir}/public/build`;
+      await Deno.mkdir(buildDir, { recursive: true });
+      await Deno.writeTextFile(
+        `${buildDir}/chunk-abc123.js`,
+        "export const x = 1;",
+      );
+
+      const client = new Client({
+        path: "/",
+        main: { default: () => <div>Home</div> },
+      });
+
+      const server = createServer(`file://${tempDir}/server.ts`, client, {
+        path: "/",
+      });
+
+      const res = await server.request(
+        "http://localhost/build/chunk-abc123.js",
+      );
+      assertEquals(res.status, 200);
+      assertEquals(res.headers.get("Cache-Control"), "public, max-age=14400");
+      assertEquals(res.headers.get("ETag"), null);
+      await res.body?.cancel();
+    } finally {
+      await Deno.remove(tempDir, { recursive: true });
+    }
+  });
+});
+
 describe("serializeErrorDefault", () => {
   it("should pass through non-Error values unchanged", () => {
     const value = { foo: "bar" };

@@ -785,6 +785,38 @@ To prevent FOUC during SSR:
 <link rel="stylesheet" href="/critical.css" precedence="high" />
 ```
 
+## Caching Considerations
+
+When using CSS entry points like `main.css` (from TailwindCSS, Sass, or other
+preprocessors), the built file at `/build/main.css` doesn't include a content
+hash in its filename. This means CDNs and browsers may serve stale styles after
+deployments.
+
+To ensure users always get the latest styles while still benefiting from browser
+caching, consider adding ETag validation for your CSS entry points:
+
+```typescript
+// routes/main.ts
+import { Hono } from "hono";
+import { etag } from "hono/etag";
+
+const app = new Hono();
+
+// Require revalidation for main.css (same strategy as main.js)
+app.use("/build/main.css", etag(), async (c, next) => {
+  c.header("Cache-Control", "private, no-cache, must-revalidate, max-age=0");
+  await next();
+});
+
+export default app;
+```
+
+This prevents CDNs from caching your stylesheet while allowing browsers to use
+ETags for efficient cache validation.
+
+See [Static Files - Cache Headers](static-files.md#cache-headers) for more
+details on build artifact caching and how to customize it.
+
 ## Next Steps
 
 **Next:** [Static Files](static-files.md) - Serving static assets
