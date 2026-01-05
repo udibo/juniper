@@ -10,6 +10,7 @@ import * as path from "@std/path";
 import { HttpError } from "./mod.ts";
 import { Hono } from "hono";
 import type { Schema, TypedResponse } from "hono";
+import { etag } from "hono/etag";
 import { trimTrailingSlash } from "hono/trailing-slash";
 import type { RedirectStatusCode } from "hono/utils/http-status";
 import { RouterContextProvider } from "react-router";
@@ -98,6 +99,18 @@ export function createServer<
   });
 
   appWrapper.use(trimTrailingSlash());
+
+  appWrapper.use("/build/main.js", etag(), async (c, next) => {
+    c.header("Cache-Control", "private, no-cache, must-revalidate, max-age=0");
+    await next();
+  });
+  appWrapper.use("/build/*", async (c, next) => {
+    const pathname = new URL(c.req.url).pathname;
+    if (pathname !== "/build/main.js") {
+      c.header("Cache-Control", "public, max-age=14400");
+    }
+    await next();
+  });
 
   appWrapper.onError((cause) => {
     if (

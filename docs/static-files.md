@@ -152,7 +152,30 @@ ls -la public/build/
 
 ## Cache Headers
 
-Configure caching for static assets using Hono middleware:
+### Default Build Artifact Caching
+
+Juniper automatically applies cache headers to build artifacts in `/build/`:
+
+| File             | Cache-Control                                   | Reason                                             |
+| ---------------- | ----------------------------------------------- | -------------------------------------------------- |
+| `/build/main.js` | `private, no-cache, must-revalidate, max-age=0` | Main entry point changes on each build, uses ETag  |
+| Other `/build/*` | `public, max-age=14400` (4 hours)               | Chunk files have content hashes in their filenames |
+
+The `main.js` bundle uses `no-cache` with ETag validation because:
+
+- It doesn't have a content hash in its filename
+- CDNs and proxies should not cache it (hence `private`)
+- Browsers can still use their cache if the ETag matches, avoiding re-downloads
+  when unchanged
+
+Other build files like `chunk-[hash].js` can be cached longer because the hash
+in the filename changes when content changes.
+
+### Overriding Default Cache Headers
+
+The framework sets cache headers _before_ your route handlers run, so you can
+override them with your own middleware. For example, to extend caching for
+chunked build files (which have content hashes in their filenames):
 
 ```typescript
 // routes/main.ts
@@ -160,24 +183,67 @@ import { Hono } from "hono";
 
 const app = new Hono();
 
-// Cache build assets for 1 year (they have hashed filenames)
+// Extend caching for chunked files (skip main.js which needs revalidation)
 app.use("/build/*", async (c, next) => {
-  await next();
-  c.header("Cache-Control", "public, max-age=31536000, immutable");
-});
-
-// Cache other static assets for 1 day
-app.use("/images/*", async (c, next) => {
-  await next();
-  c.header("Cache-Control", "public, max-age=86400");
-});
-
-// Don't cache HTML
-app.use("*", async (c, next) => {
-  await next();
-  if (c.res.headers.get("Content-Type")?.includes("text/html")) {
-    c.header("Cache-Control", "no-cache, no-store, must-revalidate");
+  const pathname = new URL(c.req.url).pathname;
+  if (pathname !== "/build/main.js") {
+    c.header("Cache-Control", "public, max-age=31536000");
   }
+  await next();
+});
+
+export default app;
+```
+
+**Why set headers before `next()`?** Setting cache headers before calling
+`next()` allows downstream route handlers to override them if needed. If you set
+headers after `next()`, your middleware has the final say and routes cannot
+customize the caching behavior for specific responses.
+
+### Adding ETag Validation for CSS Entry Points
+
+If you have a CSS entry point (like `main.css` from TailwindCSS or Sass), you
+may want to apply the same caching strategy as `main.js` - preventing CDN
+caching while allowing efficient browser cache validation with ETags:
+
+```typescript
+// routes/main.ts
+import { Hono } from "hono";
+import { etag } from "hono/etag";
+
+const app = new Hono();
+
+// Apply no-cache with ETag for main.css (same strategy as main.js)
+app.use("/build/main.css", etag(), async (c, next) => {
+  c.header("Cache-Control", "private, no-cache, must-revalidate, max-age=0");
+  await next();
+});
+
+export default app;
+```
+
+This is useful for CSS entry points because:
+
+- The filename doesn't include a content hash
+- Users get the latest styles immediately after deployment
+- ETags prevent unnecessary re-downloads when the file hasn't changed
+
+### Custom Static Asset Caching
+
+Static files in the `public/` directory outside of `/build/` (such as images,
+fonts, and other assets) do not have cache headers set automatically. Add
+middleware in your route handlers to control caching for these files:
+
+```typescript
+// routes/main.ts
+import { Hono } from "hono";
+
+const app = new Hono();
+
+// Cache images for 1 day
+app.use("/images/*", async (c, next) => {
+  c.header("Cache-Control", "public, max-age=86400");
+  await next();
 });
 
 export default app;
@@ -185,12 +251,14 @@ export default app;
 
 **Cache strategies:**
 
-| Asset Type                | Cache-Control                 | Reason                          |
-| ------------------------- | ----------------------------- | ------------------------------- |
-| Build output (`/build/*`) | `max-age=31536000, immutable` | Filenames include content hash  |
-| Images/fonts              | `max-age=86400`               | May change, cache for 1 day     |
-| HTML                      | `no-cache`                    | Always fetch latest             |
-| API responses             | Varies                        | Depends on data freshness needs |
+| Asset Type                | Cache-Control                               | Reason                          |
+| ------------------------- | ------------------------------------------- | ------------------------------- |
+| `main.js` (framework)     | `private, no-cache, must-revalidate` + ETag | No hash, needs revalidation     |
+| Chunked JS (`chunk-*.js`) | `public, max-age=14400`                     | Content hash in filename        |
+| CSS entry points          | Consider `no-cache` + ETag (see above)      | No hash, may want revalidation  |
+| Images/fonts              | `max-age=86400`                             | May change, cache for 1 day     |
+| HTML                      | `no-cache`                                  | Always fetch latest             |
+| API responses             | Varies                                      | Depends on data freshness needs |
 
 ## Next Steps
 

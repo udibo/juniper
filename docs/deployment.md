@@ -313,22 +313,16 @@ const cacheMaxAge = isProduction() ? 3600 : 0;
 
 ### Caching Headers
 
-Configure appropriate cache headers for static assets:
+Juniper automatically applies cache headers to build artifacts:
 
-```typescript
-// routes/main.ts
-import { Hono } from "hono";
+- **`/build/main.js`**: Uses `no-cache` with ETag validation (prevents CDN
+  caching, allows browser validation)
+- **Other `/build/*` files**: Cached for 4 hours (content hashes in filenames
+  allow safe caching)
 
-const app = new Hono();
-
-// Cache static files for 1 year (immutable)
-app.use("/build/*", async (c, next) => {
-  await next();
-  c.header("Cache-Control", "public, max-age=31536000, immutable");
-});
-
-export default app;
-```
+You can override these defaults in your route handlers. See
+[Static Files - Cache Headers](static-files.md#cache-headers) for details on
+customizing cache behavior.
 
 ### Compression
 
