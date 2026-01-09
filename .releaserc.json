@@ -39,6 +39,7 @@
       "@sebbo2002/semantic-release-jsr",
       {
         "configFile": "src/deno.json",
+        "cwd": "src",
         "allowDirty": true
       }
     ],
