@@ -99,6 +99,8 @@ jobs:
         with:
           deno-version: v2.x
           cache: true
+      - name: Install dependencies
+        run: deno install
       - name: Copy README, LICENSE, and docs to src
         run: |
           cp README.md src/
