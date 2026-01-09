@@ -240,24 +240,62 @@ Use descriptive branch names:
 - `docs/update-routing-guide`
 - `refactor/simplify-build-process`
 
+### PR Title Convention (Required)
+
+We use [Conventional Commits](https://www.conventionalcommits.org/) for PR
+titles. When your PR is merged, the squash commit message will use your PR
+title, so it must follow this format:
+
+```
+<type>(<scope>): <description>
+```
+
+**Types:**
+
+| Type       | Description                                         | Version Bump |
+| ---------- | --------------------------------------------------- | ------------ |
+| `feat`     | A new feature                                       | Minor        |
+| `fix`      | A bug fix                                           | Patch        |
+| `docs`     | Documentation only changes                          | None         |
+| `style`    | Code style changes (formatting, semicolons)         | None         |
+| `refactor` | Code changes that neither fix bugs nor add features | None         |
+| `perf`     | Performance improvements                            | Patch        |
+| `test`     | Adding or updating tests                            | None         |
+| `build`    | Build system or external dependency changes         | None         |
+| `ci`       | CI configuration changes                            | None         |
+| `chore`    | Other changes that don't modify src or test files   | None         |
+
+**Scope** (optional): The area of the codebase affected (e.g., `router`,
+`build`, `server`).
+
+**Examples:**
+
+```
+feat: add server-side caching for loaders
+fix(router): handle undefined params gracefully
+docs: update installation instructions
+feat!: change loader API signature
+```
+
+**Breaking Changes:**
+
+For breaking changes, add `!` after the type/scope or include `BREAKING CHANGE:`
+in the PR description body:
+
+```
+feat!: change loader return type to Response
+
+BREAKING CHANGE: Loaders now return Response objects instead of plain data.
+```
+
 ### Commit Messages
 
-Write clear, descriptive commit messages:
+Individual commits within a PR don't need to follow the convention (they will be
+squashed). Write clear, descriptive messages:
 
 - Use present tense: "Add feature" not "Added feature"
 - Start with a verb: "Fix", "Add", "Update", "Remove", "Refactor"
 - Keep the subject line under 50 characters
-- Add detail in the body if needed
-
-```
-Add server-side caching for loaders
-
-Implement a caching layer for server loaders to improve
-performance for frequently accessed data. Cache entries
-are automatically invalidated after 5 minutes.
-
-Closes #123
-```
 
 ### PR Description
 
@@ -313,12 +351,21 @@ Data flows from server loaders to client components through serialization.
 
 ## Release Process
 
-Releases are managed by maintainers:
+Releases are fully automated using
+[semantic-release](https://github.com/semantic-release/semantic-release):
 
-1. Update version in `src/deno.json`
-2. Update CHANGELOG.md
-3. Create a GitHub release
-4. Publish to JSR
+1. PRs are merged to `main` using squash merge
+2. semantic-release analyzes commit messages (from PR titles)
+3. Version is automatically determined based on commit types
+4. CHANGELOG.md is updated automatically
+5. Package is published to JSR
+6. GitHub release is created with release notes
+
+**Version bumps are determined by PR titles:**
+
+- `fix:` → Patch release (0.1.x)
+- `feat:` → Minor release (0.x.0)
+- `feat!:` or `BREAKING CHANGE:` → Minor release during v0.x, Major after v1.0
 
 ## Getting Help
 
