@@ -40,7 +40,8 @@
       {
         "configFile": "src/deno.json",
         "cwd": "src",
-        "allowDirty": true
+        "allowDirty": true,
+        "publishArgs": ["--no-check"]
       }
     ],
     [
