@@ -240,7 +240,9 @@ export default function Main() {
   );
 }
 
-export function ErrorBoundary({ error, resetErrorBoundary }: ErrorBoundaryProps) {
+export function ErrorBoundary(
+  { error, resetErrorBoundary }: ErrorBoundaryProps,
+) {
   return (
     <Layout>
       <h1>Something went wrong</h1>
@@ -293,7 +295,9 @@ export default function BlogMain() {
   );
 }
 
-export function ErrorBoundary({ error, resetErrorBoundary }: ErrorBoundaryProps) {
+export function ErrorBoundary(
+  { error, resetErrorBoundary }: ErrorBoundaryProps,
+) {
   return (
     <BlogLayout>
       <h1>Blog Error</h1>
