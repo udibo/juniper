@@ -26,14 +26,16 @@
     "jsr:@udibo/esbuild-plugin-postcss@0.3": "0.3.0",
     "jsr:@udibo/esbuild-plugin-postcss@0.3.0": "0.3.0",
     "jsr:@udibo/http-error@~0.11.1": "0.11.1",
+    "jsr:@udibo/juniper@~0.2.1": "0.2.1",
     "npm:@babel/core@^7.28.5": "7.28.5",
-    "npm:@modelcontextprotocol/sdk@^1.25.1": "1.25.1_zod@4.3.2_hono@4.11.3_ajv@8.17.1_express@5.2.1",
+    "npm:@modelcontextprotocol/sdk@^1.25.1": "1.25.1_zod@4.3.5_hono@4.11.3_ajv@8.17.1_express@5.2.1",
     "npm:@opentelemetry/api@^1.9.0": "1.9.0",
     "npm:@tailwindcss/postcss@^4.1.18": "4.1.18",
     "npm:@tanstack/react-query@^5.90.16": "5.90.16_react@19.2.3",
-    "npm:@testing-library/react@^16.3.1": "16.3.1_@testing-library+dom@10.4.1_@types+react@19.2.7_react@19.2.3_react-dom@19.2.3__react@19.2.3",
+    "npm:@testing-library/react@^16.3.1": "16.3.1_@testing-library+dom@10.4.1_@types+react@19.2.8_react@19.2.3_react-dom@19.2.3__react@19.2.3",
     "npm:@testing-library/user-event@^14.6.1": "14.6.1_@testing-library+dom@10.4.1",
-    "npm:@types/react@^19.2.7": "19.2.7",
+    "npm:@types/react@^19.2.7": "19.2.8",
+    "npm:@types/react@^19.2.8": "19.2.8",
     "npm:babel-plugin-react-compiler@1": "1.0.0",
     "npm:cbor2@^2.0.1": "2.0.1",
     "npm:esbuild@~0.25.12": "0.25.12",
@@ -49,12 +51,13 @@
     "npm:quick-lru@^7.3.0": "7.3.0",
     "npm:react-dom@^19.2.3": "19.2.3_react@19.2.3",
     "npm:react-error-boundary@^6.0.1": "6.0.1_react@19.2.3_react-dom@19.2.3__react@19.2.3",
-    "npm:react-router@^7.11.0": "7.11.0_react@19.2.3_react-dom@19.2.3__react@19.2.3",
+    "npm:react-router@^7.11.0": "7.12.0_react@19.2.3_react-dom@19.2.3__react@19.2.3",
+    "npm:react-router@^7.12.0": "7.12.0_react@19.2.3_react-dom@19.2.3__react@19.2.3",
     "npm:react@^19.2.3": "19.2.3",
     "npm:sass@^1.93.3": "1.97.1",
     "npm:stylus@0.64": "0.64.0",
     "npm:tailwindcss@^4.1.18": "4.1.18",
-    "npm:zod@^4.3.2": "4.3.2"
+    "npm:zod@^4.3.5": "4.3.5"
   },
   "jsr": {
     "@deno/esbuild-plugin@1.2.1": {
@@ -157,6 +160,32 @@
       "integrity": "b2a4cc4ff325b1863ac8e803fae9286b185988cee08dd0d19feedffc96171327",
       "dependencies": [
         "jsr:@std/http"
+      ]
+    },
+    "@udibo/juniper@0.2.1": {
+      "integrity": "56c389e5c7134a173bacfa2b4816928c748ff5c56bb48444e8ec6c159c616f04",
+      "dependencies": [
+        "jsr:@deno/esbuild-plugin",
+        "jsr:@std/async@^1.0.16",
+        "jsr:@std/cli",
+        "jsr:@std/collections",
+        "jsr:@std/fs@^1.0.21",
+        "jsr:@std/path@^1.1.4",
+        "jsr:@std/streams",
+        "jsr:@std/testing",
+        "jsr:@udibo/http-error",
+        "npm:@babel/core",
+        "npm:@opentelemetry/api",
+        "npm:babel-plugin-react-compiler",
+        "npm:cbor2",
+        "npm:esbuild@~0.27.2",
+        "npm:global-jsdom",
+        "npm:hono",
+        "npm:isbot",
+        "npm:quick-lru",
+        "npm:react",
+        "npm:react-dom",
+        "npm:react-router@^7.11.0"
       ]
     }
   },
@@ -657,7 +686,7 @@
         "@jridgewell/sourcemap-codec"
       ]
     },
-    "@modelcontextprotocol/sdk@1.25.1_zod@4.3.2_hono@4.11.3_ajv@8.17.1_express@5.2.1": {
+    "@modelcontextprotocol/sdk@1.25.1_zod@4.3.5_hono@4.11.3_ajv@8.17.1_express@5.2.1": {
       "integrity": "sha512-yO28oVFFC7EBoiKdAn+VqRm+plcfv4v0xp6osG/VsCB0NlPZWi87ajbCZZ8f/RvOFLEu7//rSRmuZZ7lMoe3gQ==",
       "dependencies": [
         "@hono/node-server",
@@ -895,7 +924,7 @@
         "pretty-format"
       ]
     },
-    "@testing-library/react@16.3.1_@testing-library+dom@10.4.1_@types+react@19.2.7_react@19.2.3_react-dom@19.2.3__react@19.2.3": {
+    "@testing-library/react@16.3.1_@testing-library+dom@10.4.1_@types+react@19.2.8_react@19.2.3_react-dom@19.2.3__react@19.2.3": {
       "integrity": "sha512-gr4KtAWqIOQoucWYD/f6ki+j5chXfcPc74Col/6poTyqTmn7zRmodWahWRCp8tYd+GMqBonw6hstNzqjbs6gjw==",
       "dependencies": [
         "@babel/runtime",
@@ -917,8 +946,8 @@
     "@types/aria-query@5.0.4": {
       "integrity": "sha512-rfT93uj5s0PRL7EzccGMs3brplhcrghnDoV26NqKhCAS1hVo+WdNsPvE/yb6ilfr5hi2MEk6d5EWJTKdxg8jVw=="
     },
-    "@types/react@19.2.7": {
-      "integrity": "sha512-MWtvHrGZLFttgeEj28VXHxpmwYbor/ATPYbBfSFZEIRK0ecCFLl2Qo55z52Hss+UV9CRN7trSeq1zbgx7YDWWg==",
+    "@types/react@19.2.8": {
+      "integrity": "sha512-3MbSL37jEchWZz2p2mjntRZtPt837ij10ApxKfgmXCTuHWagYg7iA5bqPw6C8BMPfwidlvfPI/fxOc42HLhcyg==",
       "dependencies": [
         "csstype"
       ]
@@ -1989,8 +2018,8 @@
     "react-is@17.0.2": {
       "integrity": "sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w=="
     },
-    "react-router@7.11.0_react@19.2.3_react-dom@19.2.3__react@19.2.3": {
-      "integrity": "sha512-uI4JkMmjbWCZc01WVP2cH7ZfSzH91JAZUDd7/nIprDgWxBV1TkkmLToFh7EbMTcMak8URFRa2YoBL/W8GWnCTQ==",
+    "react-router@7.12.0_react@19.2.3_react-dom@19.2.3__react@19.2.3": {
+      "integrity": "sha512-kTPDYPFzDVGIIGNLS5VJykK0HfHLY5MF3b+xj0/tTyNYL1gF1qs7u67Z9jEhQk2sQ98SUaHxlG31g1JtF7IfVw==",
       "dependencies": [
         "cookie@1.1.1",
         "react",
@@ -2314,19 +2343,19 @@
     "yallist@3.1.1": {
       "integrity": "sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g=="
     },
-    "zod-to-json-schema@3.25.1_zod@4.3.2": {
+    "zod-to-json-schema@3.25.1_zod@4.3.5": {
       "integrity": "sha512-pM/SU9d3YAggzi6MtR4h7ruuQlqKtad8e9S0fmxcMi+ueAK5Korys/aWcV9LIIHTVbj01NdzxcnXSN+O74ZIVA==",
       "dependencies": [
         "zod"
       ]
     },
-    "zod@4.3.2": {
-      "integrity": "sha512-b8L8yn4rIVfiXyHAmnr52/ZEpDumlT0bmxiq3Ws1ybrinhflGpt12Hvv54kYnEsGPRs6o/Ka3/ppA2OWY21IVg=="
+    "zod@4.3.5": {
+      "integrity": "sha512-k7Nwx6vuWx1IJ9Bjuf4Zt1PEllcwe7cls3VNzm4CQ1/hgtFUK2bRNG3rvnpPUhFjmqJKAKtjV576KnUkHocg/g=="
     }
   },
   "workspace": {
     "dependencies": [
-      "npm:@types/react@^19.2.7",
+      "npm:@types/react@^19.2.8",
       "npm:react@^19.2.3"
     ],
     "members": {
@@ -2341,18 +2370,18 @@
           "jsr:@std/testing@^1.0.16",
           "jsr:@std/uuid@^1.1.0",
           "jsr:@udibo/esbuild-plugin-postcss@0.3",
-          "jsr:@udibo/juniper@0.2",
+          "jsr:@udibo/juniper@~0.2.1",
           "npm:@opentelemetry/api@^1.9.0",
           "npm:@tailwindcss/postcss@^4.1.18",
           "npm:@testing-library/react@^16.3.1",
           "npm:@testing-library/user-event@^14.6.1",
-          "npm:@types/react@^19.2.7",
+          "npm:@types/react@^19.2.8",
           "npm:hono@^4.11.3",
           "npm:playwright@^1.57.0",
-          "npm:react-router@^7.11.0",
+          "npm:react-router@^7.12.0",
           "npm:react@^19.2.3",
           "npm:tailwindcss@^4.1.18",
-          "npm:zod@^4.3.2"
+          "npm:zod@^4.3.5"
         ]
       },
       "src": {
@@ -2391,12 +2420,12 @@
           "jsr:@std/path@^1.1.4",
           "jsr:@std/streams@^1.0.16",
           "jsr:@std/testing@^1.0.16",
-          "jsr:@udibo/juniper@0.2",
+          "jsr:@udibo/juniper@~0.2.1",
           "npm:@opentelemetry/api@^1.9.0",
           "npm:@testing-library/react@^16.3.1",
-          "npm:@types/react@^19.2.7",
+          "npm:@types/react@^19.2.8",
           "npm:hono@^4.11.3",
-          "npm:react-router@^7.11.0",
+          "npm:react-router@^7.12.0",
           "npm:react@^19.2.3"
         ]
       },
@@ -2407,13 +2436,13 @@
           "jsr:@std/streams@^1.0.16",
           "jsr:@std/testing@^1.0.16",
           "jsr:@udibo/esbuild-plugin-postcss@0.3.0",
-          "jsr:@udibo/juniper@0.2",
+          "jsr:@udibo/juniper@~0.2.1",
           "npm:@opentelemetry/api@^1.9.0",
           "npm:@tailwindcss/postcss@^4.1.18",
           "npm:@testing-library/react@^16.3.1",
-          "npm:@types/react@^19.2.7",
+          "npm:@types/react@^19.2.8",
           "npm:hono@^4.11.3",
-          "npm:react-router@^7.11.0",
+          "npm:react-router@^7.12.0",
           "npm:react@^19.2.3",
           "npm:tailwindcss@^4.1.18"
         ]
@@ -2425,14 +2454,14 @@
           "jsr:@std/path@^1.1.4",
           "jsr:@std/streams@^1.0.16",
           "jsr:@std/testing@^1.0.16",
-          "jsr:@udibo/juniper@0.2",
+          "jsr:@udibo/juniper@~0.2.1",
           "npm:@opentelemetry/api@^1.9.0",
           "npm:@tanstack/react-query@^5.90.16",
           "npm:@testing-library/react@^16.3.1",
           "npm:@testing-library/user-event@^14.6.1",
-          "npm:@types/react@^19.2.7",
+          "npm:@types/react@^19.2.8",
           "npm:hono@^4.11.3",
-          "npm:react-router@^7.11.0",
+          "npm:react-router@^7.12.0",
           "npm:react@^19.2.3"
         ]
       },
@@ -2442,12 +2471,12 @@
           "jsr:@std/path@^1.1.4",
           "jsr:@std/streams@^1.0.16",
           "jsr:@std/testing@^1.0.16",
-          "jsr:@udibo/juniper@0.2",
+          "jsr:@udibo/juniper@~0.2.1",
           "npm:@opentelemetry/api@^1.9.0",
           "npm:@testing-library/react@^16.3.1",
-          "npm:@types/react@^19.2.7",
+          "npm:@types/react@^19.2.8",
           "npm:hono@^4.11.3",
-          "npm:react-router@^7.11.0",
+          "npm:react-router@^7.12.0",
           "npm:react@^19.2.3"
         ]
       }
