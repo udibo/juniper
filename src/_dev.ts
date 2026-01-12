@@ -223,8 +223,11 @@ export class DevServer {
       return false;
     }
     // Check if the path is in the ignorePaths list
+    // Normalize to forward slashes for cross-platform comparison
+    const normalizedAbsPath = absolutePath.replace(/\\/g, "/");
     for (const ignorePath of this.builder.ignorePaths) {
-      if (absolutePath.startsWith(ignorePath)) {
+      const normalizedIgnorePath = ignorePath.replace(/\\/g, "/");
+      if (normalizedAbsPath.startsWith(normalizedIgnorePath)) {
         return false;
       }
     }
