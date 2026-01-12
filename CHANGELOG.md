@@ -1,3 +1,10 @@
+## [0.2.1](https://github.com/udibo/juniper/compare/0.2.0...0.2.1) (2026-01-12)
+
+
+### Bug Fixes
+
+* Make semantic release update all deno.json files ([#66](https://github.com/udibo/juniper/issues/66)) ([d31c4b1](https://github.com/udibo/juniper/commit/d31c4b103f97c42cad49985df0a98fb3c31ebe40))
+
 # [0.2.0](https://github.com/udibo/juniper/compare/0.1.2...0.2.0) (2026-01-12)
 
 ### Bug Fixes
