@@ -21,16 +21,11 @@ import {
   generateRouteId,
   JuniperContextProvider,
 } from "./_client.tsx";
-import type {
-  HydrationData,
-  LazyRoute,
-  SerializedError,
-  SerializedHydrationData,
-  ServerFlags,
-} from "./_client.tsx";
+import type { HydrationData, LazyRoute, ServerFlags } from "./_client.tsx";
+import { deserializeAllContext } from "./_serialization.ts";
 import { env } from "./utils/_env.ts";
 
-export type { HydrationData, SerializedError, ServerFlags };
+export type { HydrationData, ServerFlags };
 
 /** Loads a non-root route module on demand. */
 type RouteModuleLoader = () => Promise<RouteModule>;
@@ -83,21 +78,6 @@ export interface RootClientRoute extends ClientRoute {
 }
 
 /**
- * Checks if a value is a serialized error.
- *
- * @param serializedError - The value to check.
- * @returns True if the value is a serialized error, false otherwise.
- */
-export function isSerializedError(
-  serializedError: unknown,
-): serializedError is SerializedError {
-  return typeof serializedError === "object" &&
-    serializedError !== null &&
-    "__type" in serializedError &&
-    serializedError.__type === "Error";
-}
-
-/**
  * The client for a Juniper application.
  *
  * @example Creating a client
@@ -142,12 +122,6 @@ export class Client {
     this.routeObjects = [{ id: rootRouteId, path: rootRoute.path }];
     this.routeObjectMap = new Map();
 
-    // Extract deserializeError from root module if available (not lazy-loaded)
-    const rootMainModule = typeof rootRoute.main === "function"
-      ? undefined
-      : rootRoute.main;
-    const deserializeError = rootMainModule?.deserializeError;
-
     const parentPathStack: string[] = ["/"];
     const routeStack: ClientRoute[] = [rootRoute];
     const routeObjectStack: RouteObject[] = [...this.routeObjects];
@@ -162,7 +136,6 @@ export class Client {
           route.main,
           route.server,
           routeId,
-          deserializeError,
         );
       } else if (route.main) {
         const {
@@ -172,7 +145,7 @@ export class Client {
           loader,
           action,
           middleware,
-        } = createRoute(route.main, route.server, routeId, deserializeError);
+        } = createRoute(route.main, route.server, routeId);
         routeObject.Component = Component;
         routeObject.ErrorBoundary = ErrorBoundary;
         routeObject.HydrateFallback = HydrateFallback;
@@ -194,7 +167,6 @@ export class Client {
             route.index,
             route.serverIndex,
             indexRouteId,
-            deserializeError,
           ),
         };
         routeObjectChildren.push(indexRouteObject);
@@ -228,7 +200,6 @@ export class Client {
             route.catchall,
             route.serverCatchall,
             catchallRouteId,
-            deserializeError,
           ),
         };
         routeObjectChildren.push(catchallRouteObject);
@@ -254,16 +225,11 @@ export class Client {
    * @returns The hydration data for the application.
    */
   getHydrationData(): HydrationData {
-    const serializedHydrationData: SerializedHydrationData =
-      env.getHydrationData() ?? { json: {} };
-    const rootMainModule = typeof this.rootRoute.main === "function"
-      ? undefined
-      : this.rootRoute.main;
-    const deserializeError = rootMainModule?.deserializeError;
-
-    return deserializeHydrationData(serializedHydrationData, {
-      deserializeError,
-    });
+    const serializedHydrationData = env.getHydrationData();
+    if (!serializedHydrationData) {
+      throw new Error("No hydration data available");
+    }
+    return deserializeHydrationData(serializedHydrationData);
   }
 
   /**
@@ -305,17 +271,11 @@ export class Client {
 
     await this.loadLazyMatches(matches);
 
-    const rootMainModule = typeof this.rootRoute.main === "function"
-      ? undefined
-      : this.rootRoute.main;
-    const deserializeContext = rootMainModule?.deserializeContext;
-
-    let context: RouterContextProvider;
-    if (deserializeContext) {
-      context = deserializeContext(serializedContext);
-    } else {
-      context = new RouterContextProvider();
-    }
+    const context = new RouterContextProvider();
+    deserializeAllContext(
+      serializedContext as Record<string, unknown> | undefined,
+      context,
+    );
 
     const router = createBrowserRouter(this.routeObjects, {
       hydrationData,

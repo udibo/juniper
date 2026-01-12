@@ -1,9 +1,296 @@
 import type { ReactElement } from "react";
+import type { RouterContext } from "react-router";
 import { RouterContextProvider } from "react-router";
 import { HttpError } from "@udibo/http-error";
 
+import {
+  _addContextSerializer,
+  _addErrorSerializer,
+  _addTypeSerializer,
+} from "./_serialization.ts";
+
 export { HttpError, RouterContextProvider };
 
+/**
+ * A serializer for custom types that need to be transferred between server and client.
+ *
+ * Use this interface with {@linkcode registerType} to register custom classes or objects
+ * that should be serialized in loader/action data.
+ *
+ * @template T - The type being serialized
+ * @template S - The serialized representation type (defaults to `unknown`)
+ *
+ * @example Registering a custom Money class
+ * ```ts
+ * import { registerType, type TypeSerializer } from "@udibo/juniper";
+ *
+ * class Money {
+ *   constructor(public amount: number, public currency: string) {}
+ * }
+ *
+ * registerType<Money, { amount: number; currency: string }>({
+ *   name: "Money",
+ *   is: (value): value is Money => value instanceof Money,
+ *   serialize: (money) => ({ amount: money.amount, currency: money.currency }),
+ *   deserialize: (data) => new Money(data.amount, data.currency),
+ * });
+ * ```
+ */
+export interface TypeSerializer<T, S = unknown> {
+  /** Unique name identifying this type. Used in serialized data to identify the type. */
+  name: string;
+  /** Type guard function that returns true if the value is of this type. */
+  is: (value: unknown) => value is T;
+  /** Converts the value to its serialized representation. */
+  serialize: (value: T) => S;
+  /** Reconstructs the original value from its serialized representation. */
+  deserialize: (data: S) => T;
+}
+
+/**
+ * A serializer for custom error types that need to be transferred between server and client.
+ *
+ * Use this interface with {@linkcode registerError} to register custom error classes
+ * that should preserve their type when thrown in loaders/actions and caught on the client.
+ *
+ * @template E - The error type being serialized (must extend Error)
+ *
+ * @example Registering a ValidationError
+ * ```ts
+ * import { registerError, type ErrorSerializer } from "@udibo/juniper";
+ *
+ * class ValidationError extends Error {
+ *   constructor(message: string, public fields: string[]) {
+ *     super(message);
+ *     this.name = "ValidationError";
+ *   }
+ * }
+ *
+ * registerError<ValidationError>({
+ *   name: "ValidationError",
+ *   is: (error): error is ValidationError => error instanceof ValidationError,
+ *   serialize: (error) => ({
+ *     message: error.message,
+ *     fields: error.fields,
+ *   }),
+ *   deserialize: (data) => new ValidationError(
+ *     data.message as string,
+ *     data.fields as string[],
+ *   ),
+ * });
+ * ```
+ */
+export interface ErrorSerializer<E extends Error> {
+  /** Unique name identifying this error type. Used in serialized data to identify the error. */
+  name: string;
+  /** Type guard function that returns true if the error is of this type. */
+  is: (error: unknown) => error is E;
+  /** Converts the error to a plain object representation. */
+  serialize: (error: E) => Record<string, unknown>;
+  /** Reconstructs the error from its serialized representation. */
+  deserialize: (data: Record<string, unknown>) => E;
+}
+
+/**
+ * A serializer for React Router context values that need to be transferred from server to client.
+ *
+ * Use this interface with {@linkcode registerContext} to register context values
+ * that should be available on both server and client during hydration.
+ *
+ * @template T - The context value type
+ * @template S - The serialized representation type (defaults to `unknown`)
+ *
+ * @example Registering a user context
+ * ```ts
+ * import { createContext } from "react-router";
+ * import { registerContext, type ContextSerializer } from "@udibo/juniper";
+ *
+ * interface User {
+ *   id: string;
+ *   name: string;
+ *   role: "admin" | "user";
+ * }
+ *
+ * const userContext = createContext<User | null>();
+ *
+ * registerContext<User | null>({
+ *   name: "user",
+ *   context: userContext,
+ *   serialize: (user) => user,
+ *   deserialize: (data) => data ?? null,
+ * });
+ * ```
+ */
+export interface ContextSerializer<T, S = unknown> {
+  /** Unique name identifying this context. Used in serialized data to identify the context. */
+  name: string;
+  /** The React Router context object created with createContext(). */
+  context: RouterContext<T>;
+  /** Converts the context value to its serialized representation. */
+  serialize: (value: T) => S;
+  /** Reconstructs the context value from its serialized representation. */
+  deserialize: (data: S | undefined) => T;
+}
+
+/**
+ * Registers a custom type serializer for use in loader/action data.
+ *
+ * When data containing instances of registered types is returned from loaders or actions,
+ * it will be automatically serialized on the server and deserialized on the client,
+ * preserving the original type.
+ *
+ * @template T - The type being registered
+ * @template S - The serialized representation type
+ * @param serializer - The type serializer configuration
+ * @throws Error if a type with the same name is already registered
+ *
+ * @example
+ * ```ts
+ * import { registerType } from "@udibo/juniper";
+ *
+ * class Point {
+ *   constructor(public x: number, public y: number) {}
+ * }
+ *
+ * registerType<Point, { x: number; y: number }>({
+ *   name: "Point",
+ *   is: (value): value is Point => value instanceof Point,
+ *   serialize: (point) => ({ x: point.x, y: point.y }),
+ *   deserialize: (data) => new Point(data.x, data.y),
+ * });
+ *
+ * // Now Points can be returned from loaders and will be properly deserialized on the client
+ * export function loader() {
+ *   return { location: new Point(10, 20) };
+ * }
+ * ```
+ */
+export function registerType<T, S = unknown>(
+  serializer: TypeSerializer<T, S>,
+): void {
+  _addTypeSerializer(serializer);
+}
+
+/**
+ * Registers a custom error serializer for use in loaders and actions.
+ *
+ * When errors of registered types are thrown in loaders or actions,
+ * they will be automatically serialized on the server and deserialized on the client,
+ * preserving the error type and any custom properties.
+ *
+ * Built-in error types (Error, TypeError, RangeError, etc.) and HttpError are
+ * already registered by default.
+ *
+ * @template E - The error type being registered (must extend Error)
+ * @param serializer - The error serializer configuration
+ * @throws Error if an error with the same name is already registered
+ *
+ * @example
+ * ```ts
+ * import { registerError } from "@udibo/juniper";
+ *
+ * class NotFoundError extends Error {
+ *   constructor(public resourceType: string, public resourceId: string) {
+ *     super(`${resourceType} with id ${resourceId} not found`);
+ *     this.name = "NotFoundError";
+ *   }
+ * }
+ *
+ * registerError<NotFoundError>({
+ *   name: "NotFoundError",
+ *   is: (error): error is NotFoundError => error instanceof NotFoundError,
+ *   serialize: (error) => ({
+ *     message: error.message,
+ *     resourceType: error.resourceType,
+ *     resourceId: error.resourceId,
+ *   }),
+ *   deserialize: (data) => new NotFoundError(
+ *     data.resourceType as string,
+ *     data.resourceId as string,
+ *   ),
+ * });
+ * ```
+ */
+export function registerError<E extends Error>(
+  serializer: ErrorSerializer<E>,
+): void {
+  _addErrorSerializer(serializer);
+}
+
+/**
+ * Registers a context serializer for transferring context values from server to client.
+ *
+ * When context values are set on the server (e.g., in middleware), they can be
+ * serialized and sent to the client during hydration if a serializer is registered.
+ *
+ * @template T - The context value type
+ * @template S - The serialized representation type
+ * @param serializer - The context serializer configuration
+ * @throws Error if a context with the same name is already registered
+ *
+ * @example
+ * ```ts
+ * import { createContext } from "react-router";
+ * import { registerContext } from "@udibo/juniper";
+ *
+ * interface Theme {
+ *   mode: "light" | "dark";
+ *   primaryColor: string;
+ * }
+ *
+ * const themeContext = createContext<Theme>();
+ *
+ * registerContext<Theme>({
+ *   name: "theme",
+ *   context: themeContext,
+ *   serialize: (theme) => theme,
+ *   deserialize: (data) => data ?? { mode: "light", primaryColor: "#0066cc" },
+ * });
+ *
+ * // In middleware, set the context
+ * export const middleware = [
+ *   async ({ context, request }, next) => {
+ *     const theme = await getThemePreference(request);
+ *     context.set(themeContext, theme);
+ *     await next();
+ *   },
+ * ];
+ *
+ * export function loader({ context }: RouteLoaderArgs): Theme {
+ *   return context.get(themeContext);
+ * }
+ *
+ * // In components, access the context
+ * export default function Page({ loaderData }: RouteProps<AnyParams, Theme>) {
+ *   return <div style={{ color: loaderData.primaryColor }}>...</div>;
+ * }
+ * ```
+ */
+export function registerContext<T, S = unknown>(
+  serializer: ContextSerializer<T, S>,
+): void {
+  _addContextSerializer(serializer);
+}
+
+/**
+ * The default type of route params. Equivalent to `Record<string, string | undefined>`.
+ * This is useful when you want to be able to set the LoaderData or ActionData type without having to
+ * create a new type for the params.
+ *
+ * @example
+ * ```ts
+ * import type { AnyParams } from "@udibo/juniper";
+ *
+ * interface LoaderData {
+ *   post: Post;
+ * }
+ *
+ * export function PostsList({ loaderData }: RouteProps<AnyParams, LoaderData>) {
+ *   const { posts } = loaderData;
+ *   return <div>{posts.map(post => <div key={post.id}>{post.title}</div>)}</div>;
+ * }
+ * ```
+ */
 export type AnyParams = Record<string, string | undefined>;
 
 /**
@@ -699,11 +986,10 @@ export interface RouteModule<
  * @template LoaderData - The loader return value type.
  * @template ActionData - The action return value type.
  *
- * @example Root route module with error deserialization
+ * @example Root route module with ErrorBoundary
  * ```tsx
  * import { Outlet } from "react-router";
  * import type { ErrorBoundaryProps } from "@udibo/juniper";
- * import { isSerializedError, type SerializedError } from "@udibo/juniper/client";
  *
  * export default function Root() {
  *   return (
@@ -724,44 +1010,39 @@ export interface RouteModule<
  *     </div>
  *   );
  * }
+ * ```
  *
- * interface SerializedCustomError extends SerializedError {
- *   __subType: "CustomError";
+ * @example Custom error serialization with registerError
+ * ```tsx
+ * // In a shared module (e.g., errors.ts)
+ * import { registerError } from "@udibo/juniper";
+ *
+ * class CustomError extends Error {
  *   code: string;
- * }
- *
- * function isSerializedCustomError(value: unknown): value is SerializedCustomError {
- *   return isSerializedError(value) && value.__subType === "CustomError";
- * }
- *
- * export function deserializeError(serializedError: unknown) {
- *   if (isSerializedCustomError(serializedError)) {
- *     const error = new CustomError(serializedError.message, serializedError.code);
- *     error.stack = serializedError.stack;
- *     return error;
+ *   constructor(message: string, code: string) {
+ *     super(message);
+ *     this.name = "CustomError";
+ *     this.code = code;
  *   }
  * }
+ *
+ * registerError<CustomError>({
+ *   name: "CustomError",
+ *   is: (e): e is CustomError => e instanceof CustomError,
+ *   serialize: (error) => ({
+ *     message: error.message,
+ *     code: error.code,
+ *   }),
+ *   deserialize: (data) => new CustomError(
+ *     data.message as string,
+ *     data.code as string,
+ *   ),
+ * });
  * ```
  */
 export interface RootRouteModule<
   Params extends AnyParams = AnyParams,
   LoaderData = unknown,
   ActionData = unknown,
-  SerializedContext = unknown,
 > extends RouteModule<Params, LoaderData, ActionData> {
-  /**
-   * Extends the default error deserialization used on the client when rehydrating errors
-   * thrown by loaders or actions on the server.
-   */
-  deserializeError?: (serializedError: unknown) => unknown;
-  /**
-   * Deserializes the context from the server during client-side hydration.
-   * This allows server-side context values to be transferred to the client.
-   *
-   * @param serializedContext - The serialized context from the server's serializeContext function.
-   * @returns A RouterContextProvider populated with the deserialized context values.
-   */
-  deserializeContext?(
-    serializedContext?: SerializedContext,
-  ): RouterContextProvider;
 }

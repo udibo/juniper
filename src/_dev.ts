@@ -214,11 +214,24 @@ export class DevServer {
 
   /**
    * Determines if changes to a file should trigger a rebuild.
-   * Default implementation excludes temporary, lock, log, and build files.
+   * Default implementation excludes temporary, lock, log, and build files,
+   * as well as any paths in the builder's ignorePaths configuration.
    */
-  shouldTriggerRebuild(relativePath: string): boolean {
+  shouldTriggerRebuild(absolutePath: string, relativePath: string): boolean {
     const posixPath = relativePath.replace(/\\/g, "/");
-    return !SHOULD_IGNORE_REGEX.test(posixPath);
+    if (SHOULD_IGNORE_REGEX.test(posixPath)) {
+      return false;
+    }
+    // Check if the path is in the ignorePaths list
+    // Normalize to forward slashes for cross-platform comparison
+    const normalizedAbsPath = absolutePath.replace(/\\/g, "/");
+    for (const ignorePath of this.builder.ignorePaths) {
+      const normalizedIgnorePath = ignorePath.replace(/\\/g, "/");
+      if (normalizedAbsPath.startsWith(normalizedIgnorePath)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -229,11 +242,16 @@ export class DevServer {
       events
         .filter((e) => e.kind !== "access")
         .flatMap((e) =>
-          e.paths.map((p) =>
-            path.relative(this.builder.projectRoot, p).replace(/\\/g, "/")
-          )
+          e.paths.map((absolutePath) => ({
+            absolutePath,
+            relativePath: path.relative(this.builder.projectRoot, absolutePath)
+              .replace(/\\/g, "/"),
+          }))
         )
-        .filter((p) => this.shouldTriggerRebuild(p)),
+        .filter(({ absolutePath, relativePath }) =>
+          this.shouldTriggerRebuild(absolutePath, relativePath)
+        )
+        .map(({ relativePath }) => relativePath),
     );
 
     if (relativePaths.size === 0) return;

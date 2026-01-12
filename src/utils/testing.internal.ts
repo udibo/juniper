@@ -1,10 +1,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import type { HydrationData, SerializedHydrationData } from "../_client.tsx";
-import {
-  DEFAULT_PUBLIC_ENV_KEYS,
-  serializeHydrationData,
-} from "../_server.tsx";
+import { DEFAULT_PUBLIC_ENV_KEYS } from "../_server.tsx";
+import { serializeHydrationData } from "../_serialization.ts";
 import { env } from "./_env.ts";
 
 interface HydrationDataStore {
@@ -33,7 +31,6 @@ function patchedIsServer(): boolean {
 }
 
 export interface SimulateBrowserOptions {
-  serializeError?: (error: unknown) => unknown;
   publicEnvKeys?: string[];
 }
 
@@ -98,13 +95,10 @@ export function simulateBrowser<T extends void | Promise<void>>(
         publicEnv[key] = value;
       }
     }
-    const serializedHydrationData = await serializeHydrationData(
-      {
-        ...hydrationData,
-        publicEnv: { ...publicEnv, ...hydrationData.publicEnv },
-      },
-      { serializeError: options.serializeError },
-    );
+    const serializedHydrationData = await serializeHydrationData({
+      ...hydrationData,
+      publicEnv: { ...publicEnv, ...hydrationData.publicEnv },
+    });
 
     const store: HydrationDataStore = {
       hydrationData: serializedHydrationData,

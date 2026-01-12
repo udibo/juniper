@@ -75,8 +75,28 @@ export interface BuildOptions {
    * The paths to watch for changes when using the dev server.
    *
    * Defaults to the project root.
+   *
+   * Note: If you only need to exclude certain directories, consider using
+   * `ignorePaths` instead, which is easier to maintain as your project grows.
    */
   watchPaths?: string | string[];
+  /**
+   * Paths to ignore when watching for file changes during development.
+   *
+   * Use this to exclude directories that cause permission errors (like Docker
+   * volumes) or directories you don't want to trigger rebuilds.
+   *
+   * This option is recommended over `watchPaths` because it allows new
+   * directories to be watched automatically without updating your configuration.
+   *
+   * Paths can be relative to the project root or absolute.
+   *
+   * @example
+   * ```ts
+   * ignorePaths: ["./docker", "./node_modules", "./.git"]
+   * ```
+   */
+  ignorePaths?: string[];
   /**
    * Whether to write the esbuild results to the public directory's build subdirectory.
    * This is used for testing purposes.
@@ -123,6 +143,7 @@ export class Builder implements AsyncDisposable {
   readonly clientPath: string;
   readonly entryPoint: string;
   readonly watchPaths: string | string[];
+  readonly ignorePaths: string[];
   readonly outdir: string;
   readonly entryPoints: string[];
   protected write: boolean;
@@ -142,6 +163,9 @@ export class Builder implements AsyncDisposable {
   constructor(options: BuildOptions = {}) {
     this.projectRoot = options.projectRoot ?? Deno.cwd();
     this.watchPaths = options.watchPaths ?? this.projectRoot;
+    this.ignorePaths = (options.ignorePaths ?? []).map((p) =>
+      path.resolve(this.projectRoot, p)
+    );
     this.routesPath = path.resolve(this.projectRoot, "./routes");
     this.publicPath = path.resolve(this.projectRoot, "./public");
     this.configPath = path.resolve(

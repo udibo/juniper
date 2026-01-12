@@ -42,16 +42,52 @@ it ignores:
 routes, but changes to them will still trigger rebuilds since they may be
 imported by route files.
 
-You can customize which paths are watched using the `watchPaths` option in your
-build configuration:
+You can customize file watching behavior using `ignorePaths` to exclude specific
+directories, or `watchPaths` to explicitly list directories to watch:
 
 ```typescript
-// build.ts
+// build.ts - Recommended: exclude specific directories
+export const builder = new Builder({
+  projectRoot,
+  ignorePaths: ["./docker", "./data"],
+});
+
+// Alternative: explicitly list directories to watch
 export const builder = new Builder({
   projectRoot,
   watchPaths: ["./routes", "./components", "./utils"],
 });
 ```
+
+See [Watch Paths Configuration](configuration.md#watch-paths-configuration) for
+detailed information.
+
+### Troubleshooting
+
+**Permission Denied errors during file watching**
+
+If you see an error like:
+
+```
+❌ Dev server error: PermissionDenied: Permission denied (os error 13)
+   about ["/path/to/restricted/directory"]
+```
+
+This occurs when the dev server tries to watch a directory it doesn't have
+permission to access (commonly Docker volume directories or other system
+folders).
+
+**Solution:** Use `ignorePaths` to exclude the problematic directory:
+
+```typescript
+export const builder = new Builder({
+  projectRoot,
+  ignorePaths: ["./docker"],
+});
+```
+
+See [Watch Paths Configuration](configuration.md#watch-paths-configuration) for
+a complete example.
 
 ## Deno Tasks
 

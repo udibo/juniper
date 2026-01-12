@@ -20,7 +20,7 @@ export default function CreatePost() {
           <input
             type="hidden"
             name="authorId"
-            value="00000000-0000-0000-0000-000000000001"
+            value="00000000-0000-4000-8000-000000000001"
           />
           <div>
             <label

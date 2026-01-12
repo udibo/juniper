@@ -262,6 +262,35 @@ if (import.meta.main) {
 }
 ```
 
+**6. Exclude directories from scanning** if needed:
+
+TailwindCSS v4 automatically scans your project directory for class names and
+respects your `.gitignore` file. However, you may encounter permission errors if
+Tailwind tries to read a directory before checking if a nested path is ignored.
+For example, if your `.gitignore` has `docker/volumes` but not `docker/`,
+Tailwind will start scanning `docker/`, and may hit permission errors in
+subdirectories before it can check if those paths should be ignored.
+
+Use the `@source not` directive to explicitly exclude directories:
+
+```css
+/* main.css */
+@import "tailwindcss";
+
+/* Exclude directories from Tailwind's class scanning */
+@source not "./docker";
+```
+
+This is useful for:
+
+- Directories with permission-restricted files (e.g., Docker volumes)
+- Large directories you want to skip for faster builds
+- Directories that aren't covered by your `.gitignore`
+
+> **Tip:** Prefer `@source not` over modifying `.gitignore` when you want to
+> track some files in a directory (like `docker-compose.yml`) but exclude others
+> from Tailwind's scanning.
+
 ### CSS Modules
 
 CSS Modules provide scoped class names to avoid style conflicts. Enable them

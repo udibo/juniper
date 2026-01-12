@@ -1,6 +1,48 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import * as path from "@std/path";
+import { parseArgs } from "@std/cli/parse-args";
+import { HttpError } from "./mod.ts";
+import { SpanStatusCode } from "@opentelemetry/api";
+import { Hono } from "hono";
+import type { Context, Env, Schema } from "hono";
+import { createFactory } from "hono/factory";
+import { serveStatic } from "hono/deno";
+import { stream } from "hono/streaming";
+import type { StatusCode } from "hono/utils/http-status";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
+import {
+  createStaticHandler,
+  createStaticRouter,
+  StaticRouterProvider,
+} from "react-router";
+import type {
+  DataRouteObject,
+  RouterContextProvider,
+  StaticHandlerContext,
+} from "react-router";
+import type { RouteObject } from "react-router";
+import { StrictMode, Suspense, use } from "react";
+import { renderToReadableStream } from "react-dom/server";
+import { isbot } from "isbot";
+
+import type { ClientRoute } from "./client.tsx";
+import { getInstance } from "./utils/otel.ts";
+
+import { App, generateRouteId, JuniperContextProvider } from "./_client.tsx";
+import {
+  cborEncode,
+  containsPromises,
+  createStreamingLoaderData,
+  serializeAllContext,
+  serializeError,
+  serializeHydrationData,
+  serializeLoaderData,
+} from "./_serialization.ts";
+import type { SerializedHydrationData } from "./_serialization.ts";
+import { startActiveSpan } from "./utils/_otel.ts";
+import type { ActionFunction, LoaderFunction } from "./mod.ts";
+import { isHttpErrorLike } from "@udibo/http-error";
 
 /**
  * Inlined dev-client.js content for hot reload functionality.
@@ -61,51 +103,6 @@ if (document.readyState === "loading") {
   connectToDevServer();
 }
 `;
-import { parseArgs } from "@std/cli/parse-args";
-import { HttpError } from "./mod.ts";
-import { SpanStatusCode } from "@opentelemetry/api";
-import { Hono } from "hono";
-import type { Context, Env, Schema } from "hono";
-import { createFactory } from "hono/factory";
-import { serveStatic } from "hono/deno";
-import { stream } from "hono/streaming";
-import type { StatusCode } from "hono/utils/http-status";
-import type {
-  ActionFunctionArgs,
-  HydrationState,
-  LoaderFunctionArgs,
-} from "react-router";
-import {
-  createStaticHandler,
-  createStaticRouter,
-  StaticRouterProvider,
-} from "react-router";
-import type {
-  DataRouteObject,
-  RouterContextProvider,
-  StaticHandlerContext,
-} from "react-router";
-import type { RouteObject } from "react-router";
-import { StrictMode, Suspense, use } from "react";
-import { renderToReadableStream } from "react-dom/server";
-import serialize from "serialize-javascript";
-import SuperJSON from "superjson";
-import { isbot } from "isbot";
-
-import type { ClientRoute, HydrationData, SerializedError } from "./client.tsx";
-import { isDevelopment } from "./utils/env.ts";
-import { getInstance } from "./utils/otel.ts";
-
-import {
-  App,
-  generateRouteId,
-  JuniperContextProvider,
-  type SerializedHydrationData,
-  type SerializedHydrationDataPromises,
-} from "./_client.tsx";
-import { startActiveSpan } from "./utils/_otel.ts";
-import type { ActionFunction, LoaderFunction } from "./mod.ts";
-import { isHttpErrorLike } from "@udibo/http-error";
 
 const args = parseArgs(Deno.args, {
   boolean: ["hot-reload"],
@@ -174,32 +171,10 @@ interface ServerRouteModule {
 }
 
 interface ServerMainRouteModule extends ServerRouteModule {
-  serializeError?: (error: unknown) => SerializedError | unknown;
-  serializeContext?: (context: RouterContextProvider) => unknown;
   publicEnvKeys?: string[];
 }
 
 export const DEFAULT_PUBLIC_ENV_KEYS = ["APP_NAME", "APP_ENV", "NODE_ENV"];
-
-type SerializeErrorFn = (error: unknown) => SerializedError | unknown;
-
-function getSerializeError<
-  E extends AppEnv = AppEnv,
-  S extends Schema = Schema,
-  BasePath extends string = "/",
->(route: Route<E, S, BasePath>): SerializeErrorFn {
-  return route.main?.serializeError ?? (() => {});
-}
-
-type SerializeContextFn = (context: RouterContextProvider) => unknown;
-
-function getSerializeContext<
-  E extends AppEnv = AppEnv,
-  S extends Schema = Schema,
-  BasePath extends string = "/",
->(route: Route<E, S, BasePath>): SerializeContextFn | undefined {
-  return route.main?.serializeContext;
-}
 
 function getAllPublicEnvKeys<
   E extends AppEnv = AppEnv,
@@ -229,196 +204,6 @@ export interface Route<
   catchall?: ServerRouteModule;
   /** Optional array of child routes */
   children?: Route<E, S, BasePath>[];
-}
-
-/**
- * Serializes an error to a serialized error.
- * The default serialize error function supports HttpError, Error, and global Error subclasses like TypeError.
- *
- * @param error - The error to serialize.
- * @returns The serialized error.
- */
-export function serializeErrorDefault(
-  error: unknown,
-): SerializedError | unknown {
-  let serializedError: SerializedError | unknown = error;
-  if (error instanceof Error) {
-    if (error instanceof HttpError) {
-      if (!error.instance) error.instance = getInstance();
-      serializedError = {
-        __type: "Error",
-        __subType: "HttpError",
-        ...error.toJSON(),
-      };
-    } else {
-      serializedError = { __type: "Error" };
-      if (error.name !== "Error") {
-        (serializedError as SerializedError).__subType = error.name;
-      }
-      (serializedError as SerializedError).message = error.message;
-    }
-    if (isDevelopment()) {
-      (serializedError as SerializedError).stack = error.stack;
-    }
-  }
-  return serializedError;
-}
-
-/**
- * Processes a single route data object or array, resolving any Promises and tracking
- * which keys were resolved or rejected for later reconstruction.
- * Uses custom serializeError function if provided, otherwise falls back to default.
- */
-async function processRouteData(
-  routeData: Record<string, unknown> | unknown[],
-  serializeError?: (error: unknown) => unknown,
-): Promise<{
-  resolvedData: Record<string, unknown> | unknown[];
-  resolvedKeys: string[];
-  rejectedKeys: string[];
-}> {
-  const resolvedKeys: string[] = [];
-  const rejectedKeys: string[] = [];
-  let resolvedData: Record<string, unknown> | unknown[];
-
-  if (Array.isArray(routeData)) {
-    resolvedData = [];
-
-    for (let i = 0; i < routeData.length; i++) {
-      const value = routeData[i];
-      if (value instanceof Promise) {
-        try {
-          const resolvedValue = await Promise.resolve(value);
-          resolvedData[i] = resolvedValue;
-          resolvedKeys.push(String(i));
-        } catch (error) {
-          resolvedData[i] = serializeError?.(error) ??
-            serializeErrorDefault(error);
-          rejectedKeys.push(String(i));
-        }
-      } else {
-        resolvedData[i] = value;
-      }
-    }
-  } else {
-    resolvedData = {};
-
-    for (const [key, value] of Object.entries(routeData)) {
-      if (value instanceof Promise) {
-        try {
-          const resolvedValue = await Promise.resolve(value);
-          resolvedData[key] = resolvedValue;
-          resolvedKeys.push(key);
-        } catch (error) {
-          resolvedData[key] = serializeError?.(error) ??
-            serializeErrorDefault(error);
-          rejectedKeys.push(key);
-        }
-      } else {
-        resolvedData[key] = value;
-      }
-    }
-  }
-
-  return { resolvedData, resolvedKeys, rejectedKeys };
-}
-
-/**
- * Serializes hydration data by resolving all Promises and tracking their states.
- * Returns both the serialized data and metadata about which promises were resolved/rejected.
- * Uses custom serializeError function if provided, otherwise falls back to default.
- */
-export async function serializeHydrationData(
-  hydrationData: HydrationData,
-  options: {
-    serializeError?: (error: unknown) => unknown;
-  } = {},
-): Promise<SerializedHydrationData> {
-  const { serializeError } = options;
-  const resolved: SerializedHydrationDataPromises = {
-    loaderData: {},
-    actionData: {},
-  };
-  const rejected: SerializedHydrationDataPromises = {
-    loaderData: {},
-    actionData: {},
-  };
-
-  const { publicEnv, serializedContext, matches } = hydrationData;
-
-  // Serialize errors
-  let errors: HydrationState["errors"];
-  if (hydrationData.errors) {
-    errors = {};
-    for (const [key, serializedError] of Object.entries(hydrationData.errors)) {
-      errors[key] = serializeError?.(serializedError) ??
-        serializeErrorDefault(serializedError);
-    }
-  }
-
-  // Process loader data
-  let loaderData: HydrationState["loaderData"];
-  if (hydrationData.loaderData) {
-    loaderData = {};
-    for (
-      const [routeId, routeData] of Object.entries(hydrationData.loaderData)
-    ) {
-      if (!routeData) continue;
-      const { resolvedData, resolvedKeys, rejectedKeys } =
-        await processRouteData(
-          routeData,
-          serializeError,
-        );
-      loaderData[routeId] = resolvedData;
-
-      if (resolvedKeys.length > 0) {
-        resolved.loaderData![routeId] = resolvedKeys;
-      }
-      if (rejectedKeys.length > 0) {
-        rejected.loaderData![routeId] = rejectedKeys;
-      }
-    }
-  }
-
-  // Process action data
-  let actionData: HydrationState["actionData"];
-  if (hydrationData.actionData) {
-    actionData = {};
-    for (
-      const [routeId, routeData] of Object.entries(hydrationData.actionData)
-    ) {
-      if (!routeData) continue;
-      const { resolvedData, resolvedKeys, rejectedKeys } =
-        await processRouteData(
-          routeData,
-          serializeError,
-        );
-      actionData[routeId] = resolvedData;
-
-      if (resolvedKeys.length > 0) {
-        resolved.actionData![routeId] = resolvedKeys;
-      }
-      if (rejectedKeys.length > 0) {
-        rejected.actionData![routeId] = rejectedKeys;
-      }
-    }
-  }
-
-  const { json, meta } = SuperJSON.serialize({
-    serializedContext,
-    matches,
-    errors,
-    loaderData,
-    actionData,
-  });
-
-  return {
-    json,
-    meta,
-    publicEnv,
-    resolved,
-    rejected,
-  };
 }
 
 function HydrationScript(
@@ -482,8 +267,6 @@ async function convertToHttpError(cause: unknown): Promise<HttpError> {
 }
 
 interface RenderOptions {
-  serializeError: SerializeErrorFn;
-  serializeContext?: SerializeContextFn;
   allPublicEnvKeys: string[];
 }
 
@@ -510,7 +293,7 @@ async function renderDocument(
     waitForAllReady,
     presetError,
   } = options;
-  const { serializeError, serializeContext, allPublicEnvKeys } = renderOptions;
+  const { allPublicEnvKeys } = renderOptions;
 
   const router = createStaticRouter(dataRoutes, context);
 
@@ -525,23 +308,23 @@ async function renderDocument(
     await startActiveSpan("render.attempt", async (renderAttemptSpan) => {
       renderAttemptSpan.setAttribute("render.attempt.index", renderAttempts);
       try {
+        // Use CBOR-based serialization
         const hydrationData = {
           publicEnv: getPublicEnv(allPublicEnvKeys),
-          serializedContext: serializeContext?.(requestContext),
+          serializedContext: serializeAllContext(requestContext),
           matches: context.matches.map((match) => ({
             id: match.route.id,
           })),
-          errors: context.errors,
-          loaderData: context.loaderData,
-          actionData: context.actionData,
+          errors: context.errors ?? undefined,
+          loaderData: context.loaderData ?? undefined,
+          actionData: context.actionData ?? undefined,
         };
 
         const serializedHydrationData = serializeHydrationData(
           hydrationData,
-          { serializeError },
-        ).then((data) =>
+        ).then((data: SerializedHydrationData) =>
           `import { client } from "/build/main.js"; window.__juniperHydrationData = ${
-            serialize(data, { isJSON: true })
+            JSON.stringify(data)
           }; await client.hydrate();`
         );
 
@@ -893,14 +676,10 @@ export function createHandlers<
   BasePath extends string = "/",
 >(route: Route<E, S, BasePath>, routes: RouteObject[]): HandlersResult {
   const factory = createFactory<AppEnv>();
-  const serializeError = getSerializeError(route);
-  const serializeContext = getSerializeContext(route);
   const allPublicEnvKeys = getAllPublicEnvKeys(route);
   const { query, dataRoutes, queryRoute } = createStaticHandler(routes);
 
   const renderOptions: RenderOptions = {
-    serializeError,
-    serializeContext,
     allPublicEnvKeys,
   };
 
@@ -961,8 +740,24 @@ export function createHandlers<
           return dataOrResponse;
         }
 
-        c.header("X-Juniper", "serialized");
-        return c.json(SuperJSON.serialize(dataOrResponse));
+        // Check if data contains promises - if so, use streaming
+        if (containsPromises(dataOrResponse)) {
+          c.header("Content-Type", "application/cbor-stream");
+
+          const dataStream = createStreamingLoaderData(dataOrResponse);
+          return stream(c, async (streamInstance) => {
+            await streamInstance.pipe(dataStream);
+          });
+        }
+
+        // No promises - use non-streaming response for better performance
+        const cborData = await serializeLoaderData(dataOrResponse);
+        return new Response(cborData as unknown as BodyInit, {
+          headers: {
+            "Content-Type": "application/cbor",
+            "Vary": "Accept",
+          },
+        });
       });
     },
   );
@@ -978,18 +773,34 @@ export function createHandlers<
     console.error(error);
 
     if (c.req.header("X-Juniper-Route-Id")) {
-      c.status(error.status as StatusCode);
-      c.header("Vary", "Accept");
-      c.header("X-Juniper", "serialized");
+      // Use registry-based error serialization
+      const serialized = serializeError(error);
+      const cborData = cborEncode(serialized);
+      const headers = new Headers({
+        "Content-Type": "application/cbor",
+        "Vary": "Accept",
+      });
       if (error.headers) {
         for (const [key, value] of error.headers.entries()) {
           if (key.toLowerCase() !== "content-type") {
-            c.header(key, value);
+            headers.set(key, value);
           }
         }
       }
-      const serialized = serializeError(error) ?? serializeErrorDefault(error);
-      return c.json(SuperJSON.serialize(serialized));
+      return new Response(cborData as unknown as BodyInit, {
+        status: error.status,
+        headers,
+      });
+    }
+
+    // For 404s on paths with file extensions, return simple response
+    // to avoid wasting resources rendering pages for bot requests
+    if (error.status === 404) {
+      const url = new URL(c.req.url);
+      const lastSegment = url.pathname.split("/").pop() ?? "";
+      if (lastSegment.includes(".")) {
+        return error.getResponse();
+      }
     }
 
     try {

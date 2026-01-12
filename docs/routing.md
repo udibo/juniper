@@ -134,15 +134,13 @@ app.use(async (c, next) => {
 // Optional: Define which environment variables are public
 export const publicEnvKeys = ["API_URL"];
 
-// Optional: Serialize context for client hydration
-export function serializeContext(context: RouterContextProvider) {
-  return {
-    user: context.get(userContext),
-  };
-}
-
 export default app;
 ```
+
+Context values set here are automatically serialized to the client if registered
+with `registerContext`. See
+[State Management](state-management.md#sharing-server-context-with-the-client)
+for details.
 
 ### Client Routes (main.tsx)
 
@@ -153,7 +151,6 @@ The `.tsx` files define React components and client-side behavior:
 import { Outlet } from "react-router";
 import type { ErrorBoundaryProps } from "@udibo/juniper";
 
-// Root layout wraps all routes
 export default function Main() {
   return (
     <main>
@@ -165,7 +162,6 @@ export default function Main() {
   );
 }
 
-// Error boundary for unhandled errors
 export function ErrorBoundary(
   { error, resetErrorBoundary }: ErrorBoundaryProps,
 ) {
@@ -183,18 +179,15 @@ export function ErrorBoundary(
 
 A route module can export:
 
-| Export               | Type      | Description                                         |
-| -------------------- | --------- | --------------------------------------------------- |
-| `default`            | Component | The React component to render                       |
-| `loader`             | Function  | Fetches data before rendering                       |
-| `action`             | Function  | Handles form submissions                            |
-| `middleware`         | Array     | Functions that run before loaders/actions           |
-| `ErrorBoundary`      | Component | Displays errors for this route                      |
-| `HydrateFallback`    | Component | Shows during client hydration                       |
-| `serializeContext`   | Function  | Serializes context for client (root only)           |
-| `deserializeContext` | Function  | Deserializes context on client (root only)          |
-| `deserializeError`   | Function  | Custom error deserialization (root only)            |
-| `publicEnvKeys`      | Array     | Environment variables exposed to client (root only) |
+| Export            | Type      | Description                                         |
+| ----------------- | --------- | --------------------------------------------------- |
+| `default`         | Component | The React component to render                       |
+| `loader`          | Function  | Fetches data before rendering                       |
+| `action`          | Function  | Handles form submissions                            |
+| `middleware`      | Array     | Functions that run before loaders/actions           |
+| `ErrorBoundary`   | Component | Displays errors for this route                      |
+| `HydrateFallback` | Component | Shows during client hydration                       |
+| `publicEnvKeys`   | Array     | Environment variables exposed to client (root only) |
 
 Juniper's serialization (used for context, loader data, action data, and errors)
 supports all standard JSON types plus: `undefined`, `bigint`, `Date`, `RegExp`,
@@ -202,6 +195,118 @@ supports all standard JSON types plus: `undefined`, `bigint`, `Date`, `RegExp`,
 values. See
 [State Management](state-management.md#sharing-server-context-with-the-client)
 for details.
+
+### Layout Wrapper Pattern
+
+When you want a route's default component, `ErrorBoundary`, and/or
+`HydrateFallback` to share the same layout, use a separate layout component that
+wraps the content in each export. This ensures that:
+
+1. **Shared UI stays mounted** - Navigation, headers, and metadata don't
+   re-render when transitioning between states.
+2. **Consistent visual structure** - Users see the same layout shell whether
+   viewing content, an error, or a loading state.
+3. **Smoother transitions** - React can efficiently reconcile the component tree
+   when the layout hierarchy matches.
+
+The layout component should be the **outermost wrapper** in each export. Any
+providers (like `QueryClientProvider`) go inside the layout:
+
+```tsx
+// routes/main.tsx
+import { HttpError } from "@udibo/juniper";
+import type { ErrorBoundaryProps, HydrateFallbackProps } from "@udibo/juniper";
+import { Outlet } from "react-router";
+
+// Shared layout component
+function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <meta charSet="utf-8" />
+      <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+      <link rel="stylesheet" href="/build/main.css" precedence="default" />
+      <nav>...</nav>
+      <main>{children}</main>
+    </>
+  );
+}
+
+export default function Main() {
+  return (
+    <Layout>
+      {/* Providers go inside the layout */}
+      <Outlet />
+    </Layout>
+  );
+}
+
+export function ErrorBoundary(
+  { error, resetErrorBoundary }: ErrorBoundaryProps,
+) {
+  return (
+    <Layout>
+      <h1>Something went wrong</h1>
+      <p>
+        {error instanceof HttpError
+          ? error.exposedMessage
+          : error instanceof Error
+          ? error.message
+          : String(error)}
+      </p>
+      <button onClick={resetErrorBoundary}>Try again</button>
+    </Layout>
+  );
+}
+
+export function HydrateFallback(props: HydrateFallbackProps) {
+  return (
+    <Layout>
+      <p>Loading...</p>
+    </Layout>
+  );
+}
+```
+
+This pattern can be used on any route, not just the root route. For example, a
+blog section might have its own layout:
+
+```tsx
+// routes/blog/main.tsx
+import type { ErrorBoundaryProps } from "@udibo/juniper";
+import { Link, Outlet } from "react-router";
+
+function BlogLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="max-w-4xl mx-auto">
+      <nav className="mb-8">
+        <Link to="/blog">All Posts</Link>
+        <Link to="/blog/create">New Post</Link>
+      </nav>
+      {children}
+    </div>
+  );
+}
+
+export default function BlogMain() {
+  return (
+    <BlogLayout>
+      <Outlet />
+    </BlogLayout>
+  );
+}
+
+export function ErrorBoundary(
+  { error, resetErrorBoundary }: ErrorBoundaryProps,
+) {
+  return (
+    <BlogLayout>
+      <h1>Blog Error</h1>
+      <p>{error instanceof Error ? error.message : "Unknown error"}</p>
+      <button onClick={resetErrorBoundary}>Try again</button>
+    </BlogLayout>
+  );
+}
+```
 
 ## Data Loading
 
@@ -580,6 +685,66 @@ export async function action({
   throw redirect("/settings/saved");
 }
 ```
+
+### Forcing a Page Refresh
+
+Redirecting to the exact same URL as the current request triggers a full browser
+refresh instead of a client-side navigation. This is useful when you need
+clients to load new client-side code, such as after a deployment.
+
+The redirect URL must match the request URL exactly (including query parameters)
+to trigger a refresh. A common pattern is to use a version cookie that the
+server sets on initial page load, then check during client-side navigation.
+
+To distinguish between full page loads and client-side data requests, check for
+the `X-Juniper-Route-Id` header. Juniper sets this header on all client-side
+requests for loader and action data:
+
+```typescript
+// routes/main.ts
+import { Hono } from "hono";
+import { redirect } from "react-router";
+import { getCookie, setCookie } from "hono/cookie";
+import type { AppEnv } from "@udibo/juniper/server";
+
+const CURRENT_VERSION = "1.2.3"; // Update with each deployment
+
+const app = new Hono<AppEnv>();
+
+app.use(async (c, next) => {
+  const clientVersion = getCookie(c, "app-version");
+  const isClientNavigation = c.req.header("X-Juniper-Route-Id");
+
+  // Force refresh if client has outdated code during client-side navigation
+  if (
+    isClientNavigation && clientVersion && clientVersion !== CURRENT_VERSION
+  ) {
+    throw redirect(c.req.url); // Redirect to exact same URL triggers refresh
+  }
+
+  // Set/update version cookie on full page loads
+  if (!isClientNavigation) {
+    setCookie(c, "app-version", CURRENT_VERSION, { path: "/" });
+  }
+
+  await next();
+});
+
+export default app;
+```
+
+Common use cases for forcing a refresh:
+
+- **After deployments**: When new client code is available but the user's
+  browser has cached the old bundle.
+- **Version mismatches**: When the client and server versions are out of sync
+  and need to reload to get compatible code.
+- **Cache invalidation**: When you need to clear client-side state and start
+  fresh.
+
+To prevent infinite reload loops, Juniper limits same-location refreshes to 2
+attempts within a 30-second window. If the refresh doesn't resolve the issue
+after 2 attempts, the client stops refreshing.
 
 ## Navigation
 

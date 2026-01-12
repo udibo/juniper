@@ -319,13 +319,22 @@ describe("Builder", () => {
 
       const clientSrcPath = path.resolve(projectRootDir, "client.tsx");
       const clientInternalSrcPath = path.resolve(projectRootDir, "_client.tsx");
+      const serializationSrcPath = path.resolve(
+        projectRootDir,
+        "_serialization.ts",
+      );
+      const envSrcPath = path.resolve(projectRootDir, "utils/env.ts");
       const envInternalSrcPath = path.resolve(projectRootDir, "utils/_env.ts");
       const clientDstPath = path.resolve(tmp, "client.tsx");
       const clientInternalDstPath = path.resolve(tmp, "_client.tsx");
+      const serializationDstPath = path.resolve(tmp, "_serialization.ts");
+      const envDstPath = path.resolve(tmp, "utils/env.ts");
       const envInternalDstPath = path.resolve(tmp, "utils/_env.ts");
 
       await Deno.copyFile(clientSrcPath, clientDstPath);
       await Deno.copyFile(clientInternalSrcPath, clientInternalDstPath);
+      await Deno.copyFile(serializationSrcPath, serializationDstPath);
+      await Deno.copyFile(envSrcPath, envDstPath);
       await Deno.copyFile(envInternalSrcPath, envInternalDstPath);
 
       await Deno.writeTextFile(

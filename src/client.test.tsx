@@ -11,15 +11,14 @@ import { assertSpyCalls, stub } from "@std/testing/mock";
 import { HttpError } from "./mod.ts";
 import { Outlet } from "react-router";
 import type { ActionFunctionArgs } from "react-router";
-import SuperJSON from "superjson";
-import serialize from "serialize-javascript";
 
-import { Client, isSerializedError } from "./client.tsx";
-import type {
-  HydrationData,
-  RootClientRoute,
-  SerializedError,
-} from "./client.tsx";
+import { Client } from "./client.tsx";
+import {
+  _addErrorSerializer,
+  cborEncode,
+  resetRegistries,
+} from "./_serialization.ts";
+import type { HydrationData, RootClientRoute } from "./client.tsx";
 import type { RouteModule } from "./mod.ts";
 
 import { simulateBrowser } from "./utils/testing.internal.ts";
@@ -27,10 +26,9 @@ import { simulateBrowser } from "./utils/testing.internal.ts";
 import {
   createLazyRoute,
   createRoute,
-  deserializeErrorDefault,
   deserializeHydrationData,
 } from "./_client.tsx";
-import { serializeHydrationData } from "./_server.tsx";
+import { serializeHydrationData } from "./_serialization.ts";
 
 const routes = {
   path: "/",
@@ -72,37 +70,21 @@ class CustomError extends Error {
   }
 }
 
-interface SerializedCustomError extends SerializedError {
-  __subType: "CustomError";
-  message: string;
-  detail: string;
-}
-function isSerializedCustomError(
-  serializedError: unknown,
-): serializedError is SerializedCustomError {
-  return isSerializedError(serializedError) &&
-    serializedError.__subType === "CustomError";
-}
-
-function serializeError(
-  error: unknown,
-): SerializedCustomError | undefined {
-  if (error instanceof CustomError) {
-    return {
-      __type: "Error",
-      __subType: "CustomError",
+/**
+ * Registers CustomError serializer with CBOR registry.
+ * Must be called before serialization tests that use CustomError.
+ */
+function registerCustomError(): void {
+  _addErrorSerializer<CustomError>({
+    name: "CustomError",
+    is: (e): e is CustomError => e instanceof CustomError,
+    serialize: (error) => ({
       message: error.message,
       detail: error.detail,
-    };
-  }
-}
-
-function deserializeError(serializedError: unknown): CustomError | undefined {
-  if (
-    isSerializedCustomError(serializedError)
-  ) {
-    return new CustomError(serializedError.message, serializedError.detail);
-  }
+    }),
+    deserialize: (data) =>
+      new CustomError(data.message as string, data.detail as string),
+  });
 }
 
 describe("Client", () => {
@@ -290,12 +272,11 @@ describe("createRoute", () => {
       globalThis,
       "fetch",
       (_input: RequestInfo | URL, _init?: RequestInit) => {
-        const serialized = SuperJSON.serialize(payload);
+        const cborData = cborEncode(payload);
         return Promise.resolve(
-          new Response(JSON.stringify(serialized), {
+          new Response(new Uint8Array(cborData), {
             headers: {
-              "Content-Type": "application/json",
-              "X-Juniper": "serialized",
+              "Content-Type": "application/cbor",
             },
           }),
         );
@@ -381,77 +362,6 @@ describe("createLazyRoute", () => {
   });
 });
 
-describe("isSerializedError", () => {
-  it("should return true if the value is a serialized error", () => {
-    assertEquals(isSerializedError({ __type: "Error" }), true);
-    assertEquals(
-      isSerializedError({ __type: "Error", __subType: "HttpError" }),
-      true,
-    );
-    assertEquals(
-      isSerializedError({ __type: "Error", __subType: "CustomError" }),
-      true,
-    );
-  });
-
-  it("should return false if the value is not a serialized error", () => {
-    assertEquals(isSerializedError({}), false);
-    assertEquals(isSerializedError({ __type: "Unknown" }), false);
-    assertEquals(isSerializedError(null), false);
-    assertEquals(isSerializedError(undefined), false);
-  });
-});
-
-describe("deserializeErrorDefault", () => {
-  it("should deserialize a serialized HttpError", () => {
-    const error = deserializeErrorDefault({
-      __type: "Error",
-      __subType: "HttpError",
-      status: 500,
-      detail: "Oops",
-    });
-    assertIsError(error, HttpError, "Oops");
-    assertEquals(error.name, "Internal Server Error");
-    assertEquals(error.status, 500);
-  });
-
-  it("should deserialize a serialized TypeError", () => {
-    const error = deserializeErrorDefault({
-      __type: "Error",
-      __subType: "TypeError",
-      message: "Oops",
-    });
-    assertIsError(error, TypeError, "Oops");
-  });
-
-  it("should deserialize a serialized Error", () => {
-    const error = deserializeErrorDefault({
-      __type: "Error",
-      message: "Oops",
-    });
-    assertIsError(error, Error, "Oops");
-  });
-
-  it("should deserialize a serialized error with a stack", () => {
-    const error = deserializeErrorDefault({
-      __type: "Error",
-      message: "Oops",
-      stack: "Error: Oops\n    at test.ts:1:1",
-    });
-    assertIsError(error, Error, "Oops");
-    assertEquals(error.stack, "Error: Oops\n    at test.ts:1:1");
-  });
-
-  it("should deserialize a serialized error without global error constructor for subtype", () => {
-    const error = deserializeErrorDefault({
-      __type: "Error",
-      __subType: "Unknown",
-      message: "Oops",
-    });
-    assertIsError(error, Error, "Oops");
-  });
-});
-
 describe("getHydrationData", () => {
   const errorHydrationData: HydrationData = {
     matches: [],
@@ -466,8 +376,8 @@ describe("getHydrationData", () => {
 
   describe("deserializes errors", () => {
     it(
-      "with default deserializeError function",
-      simulateBrowser(errorHydrationData, { serializeError }, () => {
+      "with default deserializeError function (CustomError falls back to Error)",
+      simulateBrowser(errorHydrationData, () => {
         const client = new Client(routes);
         const data = client.getHydrationData();
         assertObjectMatch(data, {
@@ -481,36 +391,45 @@ describe("getHydrationData", () => {
         assertEquals(data.errors["/blog"].name, "Bad Request");
         assertEquals(data.errors["/blog"].status, 400);
 
+        // CustomError without registered serializer falls back to generic Error
         assertIsError(data.errors["/blog/create"], Error, "Custom error");
         assertEquals(data.errors["/blog/create"] instanceof CustomError, false);
       }),
     );
 
     it(
-      "with custom deserializeError function",
-      simulateBrowser(errorHydrationData, { serializeError }, () => {
-        const client = new Client({
-          ...routes,
-          main: {
-            ...routes.main,
-            deserializeError,
-          },
-        });
-        const data = client.getHydrationData();
-        assertObjectMatch(data, {
-          loaderData: {},
-        });
-        assertExists(data.errors);
-        assertIsError(data.errors["/"], Error, "Oops");
-        assertIsError(data.errors["/about"], TypeError, "Wrong type");
+      "with registered CustomError serializer",
+      async () => {
+        // Register CustomError serializer for this test
+        registerCustomError();
+        try {
+          await simulateBrowser(errorHydrationData, () => {
+            const client = new Client(routes);
+            const data = client.getHydrationData();
+            assertObjectMatch(data, {
+              loaderData: {},
+            });
+            assertExists(data.errors);
+            assertIsError(data.errors["/"], Error, "Oops");
+            assertIsError(data.errors["/about"], TypeError, "Wrong type");
 
-        assertIsError(data.errors["/blog"], HttpError, "Bad request");
-        assertEquals(data.errors["/blog"].name, "Bad Request");
-        assertEquals(data.errors["/blog"].status, 400);
+            assertIsError(data.errors["/blog"], HttpError, "Bad request");
+            assertEquals(data.errors["/blog"].name, "Bad Request");
+            assertEquals(data.errors["/blog"].status, 400);
 
-        assertIsError(data.errors["/blog/create"], CustomError, "Custom error");
-        assertEquals(data.errors["/blog/create"].detail, "Custom detail");
-      }),
+            // CustomError with registered serializer deserializes properly
+            assertIsError(
+              data.errors["/blog/create"],
+              CustomError,
+              "Custom error",
+            );
+            assertEquals(data.errors["/blog/create"].detail, "Custom detail");
+          })();
+        } finally {
+          // Reset registries to clean up for other tests
+          resetRegistries();
+        }
+      },
     );
   });
 
@@ -550,7 +469,10 @@ describe("getHydrationData", () => {
 
         assertExists(data.loaderData["/about"]);
 
-        const loaderData = data.loaderData["/about"];
+        const loaderData = data.loaderData["/about"] as {
+          posts: unknown;
+          asyncData: Promise<string>;
+        };
         assertExists(loaderData);
         assertExists(loaderData.posts);
         assertExists(loaderData.asyncData);
@@ -584,13 +506,13 @@ describe("getHydrationData", () => {
         const data = client.getHydrationData();
 
         await assertRejects(
-          () => data.loaderData!["/blog"].error,
+          () => (data.loaderData!["/blog"] as { error: Promise<never> }).error,
           Error,
           "Loader failed",
         );
 
         const error = await assertRejects(
-          () => data.actionData!["/about"].error,
+          () => (data.actionData!["/about"] as { error: Promise<never> }).error,
           HttpError,
           "Validation failed",
         );
@@ -612,13 +534,13 @@ describe("getHydrationData", () => {
     );
 
     it(
-      "should handle null actionData",
+      "should handle undefined actionData",
       simulateBrowser({
         matches: [],
         loaderData: {
           "/": { data: "test" },
         },
-        actionData: null,
+        actionData: undefined,
       }, () => {
         const client = new Client(routes);
         const data = client.getHydrationData();
@@ -741,6 +663,9 @@ describe("HydrationData serialization and deserialization", () => {
   let hydrationData: HydrationData, deserializedHydrationData: HydrationData;
 
   beforeAll(async () => {
+    // Register CustomError for this test suite
+    registerCustomError();
+
     hydrationData = {
       publicEnv: { APP_ENV: "test", APP_NAME: "TestApp" },
       serializedContext: { testKey: "testValue" },
@@ -799,22 +724,23 @@ describe("HydrationData serialization and deserialization", () => {
         },
       },
     };
-    const serializedHydrationData = JSON.parse(
-      serialize(
-        await serializeHydrationData(hydrationData, { serializeError }),
-        { isJSON: true },
-      ),
-    );
+    const serializedHydrationData = await serializeHydrationData(hydrationData);
     deserializedHydrationData = deserializeHydrationData(
       serializedHydrationData,
-      { deserializeError },
     );
   });
 
   it("hydrationData keys are the same", () => {
     assertEquals(
       Object.keys(deserializedHydrationData),
-      ["serializedContext", "matches", "errors", "loaderData", "actionData"],
+      [
+        "publicEnv",
+        "serializedContext",
+        "matches",
+        "errors",
+        "loaderData",
+        "actionData",
+      ],
     );
   });
 
@@ -853,20 +779,27 @@ describe("HydrationData serialization and deserialization", () => {
     messagePrefix: string,
     routeData: HydrationData["loaderData"] | HydrationData["actionData"],
   ) {
+    const blogData = routeData!["/blog"] as {
+      error: Promise<never>;
+      typeError: Promise<never>;
+      httpError: Promise<never>;
+      customError: Promise<never>;
+    };
+
     await assertRejects(
-      () => routeData!["/blog"].error,
+      () => blogData.error,
       Error,
       `${messagePrefix} failed`,
     );
 
     await assertRejects(
-      () => routeData!["/blog"].typeError,
+      () => blogData.typeError,
       TypeError,
       `${messagePrefix} wrong type`,
     );
 
     const httpError = await assertRejects(
-      () => routeData!["/blog"].httpError,
+      () => blogData.httpError,
       HttpError,
       `${messagePrefix} bad request`,
     );
@@ -874,7 +807,7 @@ describe("HydrationData serialization and deserialization", () => {
     assertEquals(httpError.status, 400);
 
     const customError = await assertRejects(
-      () => routeData!["/blog"].customError,
+      () => blogData.customError,
       CustomError,
       `${messagePrefix} custom error`,
     );

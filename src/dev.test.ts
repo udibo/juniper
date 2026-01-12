@@ -1027,33 +1027,123 @@ describe("DevServer", () => {
 
     it("shouldTriggerRebuild honors ignore rules", () => {
       const devServer = new DevServer({ builder });
+      const abs = (p: string) => `${builder.projectRoot}/${p}`;
       // Ignored by suffixes
-      assertEquals(devServer.shouldTriggerRebuild("somefile~"), false);
-      assertEquals(devServer.shouldTriggerRebuild("temp.tmp"), false);
-      assertEquals(devServer.shouldTriggerRebuild("file.lock"), false);
-      assertEquals(devServer.shouldTriggerRebuild("app.log"), false);
+      assertEquals(
+        devServer.shouldTriggerRebuild(abs("somefile~"), "somefile~"),
+        false,
+      );
+      assertEquals(
+        devServer.shouldTriggerRebuild(abs("temp.tmp"), "temp.tmp"),
+        false,
+      );
+      assertEquals(
+        devServer.shouldTriggerRebuild(abs("file.lock"), "file.lock"),
+        false,
+      );
+      assertEquals(
+        devServer.shouldTriggerRebuild(abs("app.log"), "app.log"),
+        false,
+      );
       // Ignored build/dev entrypoints
-      assertEquals(devServer.shouldTriggerRebuild("build.ts"), false);
-      assertEquals(devServer.shouldTriggerRebuild("dev.ts"), false);
+      assertEquals(
+        devServer.shouldTriggerRebuild(abs("build.ts"), "build.ts"),
+        false,
+      );
+      assertEquals(
+        devServer.shouldTriggerRebuild(abs("dev.ts"), "dev.ts"),
+        false,
+      );
       // Ignored public build outputs
       assertEquals(
-        devServer.shouldTriggerRebuild("public/build/app.js"),
+        devServer.shouldTriggerRebuild(
+          abs("public/build/app.js"),
+          "public/build/app.js",
+        ),
         false,
       );
       // Underscore prefixed files/dirs trigger rebuilds (they may be imported by routes)
-      assertEquals(devServer.shouldTriggerRebuild("_private.ts"), true);
       assertEquals(
-        devServer.shouldTriggerRebuild("routes/_partial.tsx"),
+        devServer.shouldTriggerRebuild(abs("_private.ts"), "_private.ts"),
+        true,
+      );
+      assertEquals(
+        devServer.shouldTriggerRebuild(
+          abs("routes/_partial.tsx"),
+          "routes/_partial.tsx",
+        ),
         true,
       );
       // Ignored tests
       assertEquals(
-        devServer.shouldTriggerRebuild("routes/page.test.tsx"),
+        devServer.shouldTriggerRebuild(
+          abs("routes/page.test.tsx"),
+          "routes/page.test.tsx",
+        ),
         false,
       );
       // Allowed others
-      assertEquals(devServer.shouldTriggerRebuild("routes/page.tsx"), true);
-      assertEquals(devServer.shouldTriggerRebuild("routes/page.ts"), true);
+      assertEquals(
+        devServer.shouldTriggerRebuild(
+          abs("routes/page.tsx"),
+          "routes/page.tsx",
+        ),
+        true,
+      );
+      assertEquals(
+        devServer.shouldTriggerRebuild(abs("routes/page.ts"), "routes/page.ts"),
+        true,
+      );
+    });
+
+    it("shouldTriggerRebuild respects ignorePaths configuration", () => {
+      const builderWithIgnore = new Builder({
+        projectRoot: exampleDir,
+        configPath: "../deno.json",
+        write: false,
+        ignorePaths: ["./docker", "./data"],
+      });
+      const devServer = new DevServer({ builder: builderWithIgnore });
+      const abs = (p: string) => `${builderWithIgnore.projectRoot}/${p}`;
+
+      // Paths in ignored directories should not trigger rebuilds
+      assertEquals(
+        devServer.shouldTriggerRebuild(
+          abs("docker/compose.yml"),
+          "docker/compose.yml",
+        ),
+        false,
+      );
+      assertEquals(
+        devServer.shouldTriggerRebuild(
+          abs("docker/volumes/grafana/data"),
+          "docker/volumes/grafana/data",
+        ),
+        false,
+      );
+      assertEquals(
+        devServer.shouldTriggerRebuild(
+          abs("data/cache.json"),
+          "data/cache.json",
+        ),
+        false,
+      );
+
+      // Paths not in ignored directories should still trigger rebuilds
+      assertEquals(
+        devServer.shouldTriggerRebuild(
+          abs("routes/page.tsx"),
+          "routes/page.tsx",
+        ),
+        true,
+      );
+      assertEquals(
+        devServer.shouldTriggerRebuild(
+          abs("components/Button.tsx"),
+          "components/Button.tsx",
+        ),
+        true,
+      );
     });
 
     it("handleFileEvents triggers rebuild with server and client flags", async () => {

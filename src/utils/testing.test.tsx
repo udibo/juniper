@@ -11,7 +11,7 @@ import { createRoutesStub, simulateEnvironment } from "./testing.ts";
 import { simulateBrowser } from "./testing.internal.ts";
 
 import type { HydrationData } from "../_client.tsx";
-import { serializeHydrationData } from "../_server.tsx";
+import { serializeHydrationData } from "../_serialization.ts";
 import { env } from "./_env.ts";
 
 describe("simulateEnvironment", () => {
@@ -202,7 +202,7 @@ describe("simulateBrowser", () => {
     "should simulate browser globals with callback",
     simulateBrowser({
       matches: [],
-      errors: null,
+      errors: undefined,
       loaderData: {},
     }, async () => {
       assertEquals(isBrowser(), true);
@@ -214,7 +214,7 @@ describe("simulateBrowser", () => {
         env.getHydrationData(),
         await serializeHydrationData({
           matches: [],
-          errors: null,
+          errors: undefined,
           loaderData: {},
           publicEnv,
         }),
@@ -259,7 +259,7 @@ describe("simulateBrowser", () => {
   it("should restore browser globals after callback completes", async () => {
     const hydrationData: HydrationData = {
       matches: [],
-      errors: null,
+      errors: undefined,
       loaderData: {},
     };
     await simulateBrowser(hydrationData, () => {
@@ -275,7 +275,7 @@ describe("simulateBrowser", () => {
   it("should restore browser globals after callback throws", async () => {
     const hydrationData: HydrationData = {
       matches: [],
-      errors: null,
+      errors: undefined,
       loaderData: {},
     };
     const wrapper = simulateBrowser(hydrationData, () => {
@@ -294,7 +294,7 @@ describe("simulateBrowser", () => {
     async () => {
       const hydrationData: HydrationData = {
         matches: [],
-        errors: null,
+        errors: undefined,
         loaderData: {},
       };
       const wrapper = simulateBrowser(hydrationData, async () => {
