@@ -1,6 +1,6 @@
 {
   "name": "@udibo/juniper",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Juniper is a web framework for building React applications with Deno.",
   "license": "MIT",
   "exports": {

@@ -1,3 +1,11 @@
+## [0.2.2](https://github.com/udibo/juniper/compare/0.2.1...0.2.2) (2026-01-12)
+
+### Bug Fixes
+
+- Update dependencies and improve semantic release
+  ([#69](https://github.com/udibo/juniper/issues/69))
+  ([3137eb0](https://github.com/udibo/juniper/commit/3137eb01ffaf5edeb2b9a477f917f22241de871a))
+
 ## [0.2.1](https://github.com/udibo/juniper/compare/0.2.0...0.2.1) (2026-01-12)
 
 ### Bug Fixes
