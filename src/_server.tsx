@@ -793,6 +793,16 @@ export function createHandlers<
       });
     }
 
+    // For 404s on paths with file extensions, return simple response
+    // to avoid wasting resources rendering pages for bot requests
+    if (error.status === 404) {
+      const url = new URL(c.req.url);
+      const lastSegment = url.pathname.split("/").pop() ?? "";
+      if (lastSegment.includes(".")) {
+        return error.getResponse();
+      }
+    }
+
     try {
       const requestContext = c.get("context");
       const contextOrResponse = await createErrorContext(
