@@ -151,7 +151,6 @@ The `.tsx` files define React components and client-side behavior:
 import { Outlet } from "react-router";
 import type { ErrorBoundaryProps } from "@udibo/juniper";
 
-// Root layout wraps all routes
 export default function Main() {
   return (
     <main>
@@ -163,7 +162,6 @@ export default function Main() {
   );
 }
 
-// Error boundary for unhandled errors
 export function ErrorBoundary(
   { error, resetErrorBoundary }: ErrorBoundaryProps,
 ) {
@@ -197,6 +195,114 @@ supports all standard JSON types plus: `undefined`, `bigint`, `Date`, `RegExp`,
 values. See
 [State Management](state-management.md#sharing-server-context-with-the-client)
 for details.
+
+### Layout Wrapper Pattern
+
+When you want a route's default component, `ErrorBoundary`, and/or
+`HydrateFallback` to share the same layout, use a separate layout component that
+wraps the content in each export. This ensures that:
+
+1. **Shared UI stays mounted** - Navigation, headers, and metadata don't
+   re-render when transitioning between states.
+2. **Consistent visual structure** - Users see the same layout shell whether
+   viewing content, an error, or a loading state.
+3. **Smoother transitions** - React can efficiently reconcile the component tree
+   when the layout hierarchy matches.
+
+The layout component should be the **outermost wrapper** in each export. Any
+providers (like `QueryClientProvider`) go inside the layout:
+
+```tsx
+// routes/main.tsx
+import { HttpError } from "@udibo/juniper";
+import type { ErrorBoundaryProps, HydrateFallbackProps } from "@udibo/juniper";
+import { Outlet } from "react-router";
+
+// Shared layout component
+function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <meta charSet="utf-8" />
+      <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+      <link rel="stylesheet" href="/build/main.css" precedence="default" />
+      <nav>...</nav>
+      <main>{children}</main>
+    </>
+  );
+}
+
+export default function Main() {
+  return (
+    <Layout>
+      {/* Providers go inside the layout */}
+      <Outlet />
+    </Layout>
+  );
+}
+
+export function ErrorBoundary({ error, resetErrorBoundary }: ErrorBoundaryProps) {
+  return (
+    <Layout>
+      <h1>Something went wrong</h1>
+      <p>
+        {error instanceof HttpError
+          ? error.exposedMessage
+          : error instanceof Error
+          ? error.message
+          : String(error)}
+      </p>
+      <button onClick={resetErrorBoundary}>Try again</button>
+    </Layout>
+  );
+}
+
+export function HydrateFallback(props: HydrateFallbackProps) {
+  return (
+    <Layout>
+      <p>Loading...</p>
+    </Layout>
+  );
+}
+```
+
+This pattern can be used on any route, not just the root route. For example, a
+blog section might have its own layout:
+
+```tsx
+// routes/blog/main.tsx
+import type { ErrorBoundaryProps } from "@udibo/juniper";
+import { Link, Outlet } from "react-router";
+
+function BlogLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="max-w-4xl mx-auto">
+      <nav className="mb-8">
+        <Link to="/blog">All Posts</Link>
+        <Link to="/blog/create">New Post</Link>
+      </nav>
+      {children}
+    </div>
+  );
+}
+
+export default function BlogMain() {
+  return (
+    <BlogLayout>
+      <Outlet />
+    </BlogLayout>
+  );
+}
+
+export function ErrorBoundary({ error, resetErrorBoundary }: ErrorBoundaryProps) {
+  return (
+    <BlogLayout>
+      <h1>Blog Error</h1>
+      <p>{error instanceof Error ? error.message : "Unknown error"}</p>
+      <button onClick={resetErrorBoundary}>Try again</button>
+    </BlogLayout>
+  );
+}
+```
 
 ## Data Loading
 

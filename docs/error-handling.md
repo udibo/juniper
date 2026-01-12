@@ -128,66 +128,14 @@ export function ErrorBoundary({
 }
 ```
 
-### Root Error Boundary
+### Sharing Layouts with Error Boundaries
 
-The root error boundary in `routes/main.tsx` catches errors that aren't handled
-by child error boundaries:
-
-```tsx
-// routes/main.tsx
-import { HttpError } from "@udibo/juniper";
-import type { ErrorBoundaryProps } from "@udibo/juniper";
-import { Outlet } from "react-router";
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <>
-      <meta charSet="utf-8" />
-      <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-      <link rel="stylesheet" href="/build/main.css" precedence="default" />
-      <main>{children}</main>
-    </>
-  );
-}
-
-export default function Main() {
-  return (
-    <Shell>
-      <Outlet />
-    </Shell>
-  );
-}
-
-export function ErrorBoundary(
-  { error, resetErrorBoundary }: ErrorBoundaryProps,
-) {
-  return (
-    <Shell>
-      <div className="text-center py-12">
-        <h1 className="text-4xl font-bold text-red-500 mb-4">
-          Something went wrong
-        </h1>
-        <p className="text-gray-600 mb-8">
-          {error instanceof HttpError
-            ? error.exposedMessage
-            : error instanceof Error
-            ? error.message
-            : String(error)}
-        </p>
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            resetErrorBoundary();
-          }}
-          className="px-6 py-3 bg-blue-500 text-white rounded-lg"
-        >
-          Try again
-        </button>
-      </div>
-    </Shell>
-  );
-}
-```
+If you want your error boundary to share the same layout as your route
+component, you can use the layout wrapper pattern. This keeps navigation and
+other shared UI mounted when transitioning to an error state, avoiding
+unnecessary re-renders. See
+[Routing - Layout Wrapper Pattern](routing.md#layout-wrapper-pattern) for
+details.
 
 ### ErrorBoundaryProps
 

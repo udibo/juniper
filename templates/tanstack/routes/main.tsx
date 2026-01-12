@@ -24,11 +24,11 @@ export default function Main({ context }: RouteProps) {
   const queryClient = context.get(queryClientContext);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <Layout>
+    <Layout>
+      <QueryClientProvider client={queryClient}>
         <Outlet />
-      </Layout>
-    </QueryClientProvider>
+      </QueryClientProvider>
+    </Layout>
   );
 }
 
