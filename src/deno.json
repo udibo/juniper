@@ -39,6 +39,7 @@
     "@deno/esbuild-plugin": "jsr:@deno/esbuild-plugin@^1.2.1",
     "@opentelemetry/api": "npm:@opentelemetry/api@^1.9.0",
     "babel-plugin-react-compiler": "npm:babel-plugin-react-compiler@^1.0.0",
+    "cbor2": "npm:cbor2@^2.0.1",
     "esbuild": "npm:esbuild@^0.27.2",
     "isbot": "npm:isbot@^5.1.32",
     "quick-lru": "npm:quick-lru@^7.3.0",
@@ -48,8 +49,6 @@
     "react-dom": "npm:react-dom@^19.2.3",
     "react-error-boundary": "npm:react-error-boundary@^6.0.1",
     "react-router": "npm:react-router@^7.11.0",
-    "serialize-javascript": "npm:serialize-javascript@^7.0.2",
-    "superjson": "npm:superjson@^2.2.6",
     "@testing-library/react": "npm:@testing-library/react@^16.3.1",
     "global-jsdom": "npm:global-jsdom@^27"
   },

@@ -241,13 +241,16 @@ all standard JSON types plus: `undefined`, `bigint`, `Date`, `RegExp`, `Set`,
 
 ### Custom Error Serialization
 
-For custom error classes, define `serializeError` in your server route and
-`deserializeError` in your client route.
+For custom error classes, use `registerError` to define how errors are
+serialized and deserialized. This registration works for both server and client.
 
-**Define the custom error and serialized type:**
+**Define and register the custom error:**
 
 ```typescript
 // errors/custom.ts
+import { registerError } from "@udibo/juniper";
+import { isDevelopment } from "@udibo/juniper/utils/env";
+
 export class CustomError extends Error {
   code: string;
   constructor(message: string, code: string) {
@@ -257,87 +260,46 @@ export class CustomError extends Error {
   }
 }
 
-// Serialized form of the custom error
-export interface SerializedCustomError {
-  __type: "Error";
-  __subType: "CustomError";
-  name: string;
-  message: string;
-  stack?: string;
-  code: string;
-}
-```
-
-**Serialize on the server:**
-
-```typescript
-// routes/main.ts
-import { Hono } from "hono";
-import type { AppEnv } from "@udibo/juniper/server";
-import { isDevelopment } from "@udibo/juniper/utils/env";
-import { CustomError, type SerializedCustomError } from "@/errors/custom.ts";
-
-const app = new Hono<AppEnv>();
-
-export function serializeError(
-  error: unknown,
-): SerializedCustomError | undefined {
-  if (error instanceof CustomError) {
-    const serialized: SerializedCustomError = {
-      __type: "Error",
-      __subType: "CustomError",
-      name: error.name,
+// Register the error serializer (call this early in your app initialization)
+registerError<CustomError>({
+  name: "CustomError",
+  is: (error): error is CustomError => error instanceof CustomError,
+  serialize: (error) => {
+    const data: Record<string, unknown> = {
       message: error.message,
       code: error.code,
     };
     if (isDevelopment()) {
-      serialized.stack = error.stack;
+      data.stack = error.stack;
     }
-    return serialized;
-  }
-  // Return undefined to use default serialization
-}
-
-export default app;
+    return data;
+  },
+  deserialize: (data) => {
+    const error = new CustomError(
+      data.message as string,
+      data.code as string,
+    );
+    if (data.stack) {
+      error.stack = data.stack as string;
+    }
+    return error;
+  },
+});
 ```
 
-**Deserialize on the client:**
+Import this file in your root route to ensure registration happens:
 
-```tsx
-// routes/main.tsx
-import { Outlet } from "react-router";
-import { isSerializedError } from "@udibo/juniper/client";
-import { CustomError, type SerializedCustomError } from "@/errors/custom.ts";
-
-function isSerializedCustomError(
-  value: unknown,
-): value is SerializedCustomError {
-  return isSerializedError(value) && value.__subType === "CustomError";
-}
-
-export function deserializeError(serializedError: unknown) {
-  if (isSerializedCustomError(serializedError)) {
-    const error = new CustomError(
-      serializedError.message,
-      serializedError.code,
-    );
-    error.stack = serializedError.stack;
-    return error;
-  }
-  // Return undefined to use default deserialization
-}
-
-export default function Main() {
-  return <Outlet />;
-}
+```typescript
+// routes/main.ts
+import "@/errors/custom.ts";
 ```
 
 ### Stack Traces
 
 For standard `Error` and `HttpError` classes, Juniper automatically includes
 stack traces in development and excludes them in production. For custom errors,
-use `isDevelopment()` in your `serializeError` function to control when stack
-traces are sent to the client, as shown in the example above.
+use `isDevelopment()` in your `serialize` function to control when stack traces
+are sent to the client, as shown in the example above.
 
 ## Common Patterns
 

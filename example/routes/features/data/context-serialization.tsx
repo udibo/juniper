@@ -74,8 +74,9 @@ export default function ContextSerializationDemo(
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-slate-200">How It Works</h3>
 
-        <CodeBlock title="1. Create shared context (context/server-session.ts)">
+        <CodeBlock title="1. Create and register context (context/server-session.ts)">
           {`import { createContext } from "react-router";
+import { registerContext } from "@udibo/juniper";
 
 export interface ServerSession {
   sessionId: string;
@@ -83,70 +84,46 @@ export interface ServerSession {
   serverPid: number;
 }
 
-export const serverSessionContext = createContext<ServerSession>();`}
-        </CodeBlock>
+export const serverSessionContext = createContext<ServerSession>();
 
-        <CodeBlock title="2. Deserialize context on client (routes/main.tsx)">
-          {`import { RouterContextProvider } from "react-router";
-import { serverSessionContext } from "@/context/server-session.ts";
-import type { ServerSession } from "@/context/server-session.ts";
-
-export interface SerializedContext {
-  serverSession?: ServerSession;
+export function createServerSession(): ServerSession {
+  return {
+    sessionId: crypto.randomUUID().slice(0, 8),
+    serverTimestamp: new Date().toISOString(),
+    serverPid: Deno.pid,
+  };
 }
 
-export function deserializeContext(
-  serializedContext?: SerializedContext,
-): RouterContextProvider {
-  const context = new RouterContextProvider();
-
-  if (serializedContext?.serverSession) {
-    context.set(serverSessionContext, serializedContext.serverSession);
-  }
-
-  return context;
-}`}
+// Register serialization for this context
+registerContext<ServerSession>({
+  name: "serverSession",
+  context: serverSessionContext,
+  serialize: (session) => session,
+  deserialize: (data) => data as ServerSession,
+});`}
         </CodeBlock>
 
-        <CodeBlock title="3. Set context and serialize (routes/main.ts)">
-          {`import type { RouterContextProvider } from "react-router";
+        <CodeBlock title="2. Set context in server middleware (routes/main.ts)">
+          {`import { Hono } from "hono";
 import type { AppEnv } from "@udibo/juniper/server";
-
-import { serverSessionContext } from "@/context/server-session.ts";
-import type { ServerSession } from "@/context/server-session.ts";
-import type { SerializedContext } from "./main.tsx";
+import {
+  createServerSession,
+  serverSessionContext,
+} from "@/context/server-session.ts";
 
 const app = new Hono<AppEnv>();
 
 // Set server session in context for all routes
 app.use(async (c, next) => {
   const context = c.get("context");
-  const serverSession: ServerSession = {
-    sessionId: crypto.randomUUID().slice(0, 8),
-    serverTimestamp: new Date().toISOString(),
-    serverPid: Deno.pid,
-  };
-  context.set(serverSessionContext, serverSession);
+  context.set(serverSessionContext, createServerSession());
   await next();
 });
 
-export function serializeContext(
-  context: RouterContextProvider,
-): SerializedContext {
-  const serializedContext: SerializedContext = {};
-
-  try {
-    const serverSession = context.get(serverSessionContext);
-    serializedContext.serverSession = serverSession;
-  } catch {
-    // serverSession not set in context
-  }
-
-  return serializedContext;
-}`}
+export default app;`}
         </CodeBlock>
 
-        <CodeBlock title="4. Access context in loaders (routes/my-route.tsx)">
+        <CodeBlock title="3. Access context in loaders (routes/my-route.tsx)">
           {`import type { AnyParams, RouteLoaderArgs, RouteProps } from "@udibo/juniper";
 import { serverSessionContext } from "@/context/server-session.ts";
 import type { ServerSession } from "@/context/server-session.ts";
@@ -161,7 +138,7 @@ export default function MyRoute({ loaderData }: RouteProps<AnyParams, ServerSess
 }`}
         </CodeBlock>
 
-        <CodeBlock title="5. Browser-only code in loaders (optional)">
+        <CodeBlock title="4. Browser-only code in loaders (optional)">
           {`import type { RouteLoaderArgs } from "@udibo/juniper";
 import { isBrowser } from "@udibo/juniper/utils/env";
 

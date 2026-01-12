@@ -134,15 +134,13 @@ app.use(async (c, next) => {
 // Optional: Define which environment variables are public
 export const publicEnvKeys = ["API_URL"];
 
-// Optional: Serialize context for client hydration
-export function serializeContext(context: RouterContextProvider) {
-  return {
-    user: context.get(userContext),
-  };
-}
-
 export default app;
 ```
+
+Context values set here are automatically serialized to the client if registered
+with `registerContext`. See
+[State Management](state-management.md#sharing-server-context-with-the-client)
+for details.
 
 ### Client Routes (main.tsx)
 
@@ -183,18 +181,15 @@ export function ErrorBoundary(
 
 A route module can export:
 
-| Export               | Type      | Description                                         |
-| -------------------- | --------- | --------------------------------------------------- |
-| `default`            | Component | The React component to render                       |
-| `loader`             | Function  | Fetches data before rendering                       |
-| `action`             | Function  | Handles form submissions                            |
-| `middleware`         | Array     | Functions that run before loaders/actions           |
-| `ErrorBoundary`      | Component | Displays errors for this route                      |
-| `HydrateFallback`    | Component | Shows during client hydration                       |
-| `serializeContext`   | Function  | Serializes context for client (root only)           |
-| `deserializeContext` | Function  | Deserializes context on client (root only)          |
-| `deserializeError`   | Function  | Custom error deserialization (root only)            |
-| `publicEnvKeys`      | Array     | Environment variables exposed to client (root only) |
+| Export            | Type      | Description                                         |
+| ----------------- | --------- | --------------------------------------------------- |
+| `default`         | Component | The React component to render                       |
+| `loader`          | Function  | Fetches data before rendering                       |
+| `action`          | Function  | Handles form submissions                            |
+| `middleware`      | Array     | Functions that run before loaders/actions           |
+| `ErrorBoundary`   | Component | Displays errors for this route                      |
+| `HydrateFallback` | Component | Shows during client hydration                       |
+| `publicEnvKeys`   | Array     | Environment variables exposed to client (root only) |
 
 Juniper's serialization (used for context, loader data, action data, and errors)
 supports all standard JSON types plus: `undefined`, `bigint`, `Date`, `RegExp`,
@@ -580,6 +575,66 @@ export async function action({
   throw redirect("/settings/saved");
 }
 ```
+
+### Forcing a Page Refresh
+
+Redirecting to the exact same URL as the current request triggers a full browser
+refresh instead of a client-side navigation. This is useful when you need
+clients to load new client-side code, such as after a deployment.
+
+The redirect URL must match the request URL exactly (including query parameters)
+to trigger a refresh. A common pattern is to use a version cookie that the
+server sets on initial page load, then check during client-side navigation.
+
+To distinguish between full page loads and client-side data requests, check for
+the `X-Juniper-Route-Id` header. Juniper sets this header on all client-side
+requests for loader and action data:
+
+```typescript
+// routes/main.ts
+import { Hono } from "hono";
+import { redirect } from "react-router";
+import { getCookie, setCookie } from "hono/cookie";
+import type { AppEnv } from "@udibo/juniper/server";
+
+const CURRENT_VERSION = "1.2.3"; // Update with each deployment
+
+const app = new Hono<AppEnv>();
+
+app.use(async (c, next) => {
+  const clientVersion = getCookie(c, "app-version");
+  const isClientNavigation = c.req.header("X-Juniper-Route-Id");
+
+  // Force refresh if client has outdated code during client-side navigation
+  if (
+    isClientNavigation && clientVersion && clientVersion !== CURRENT_VERSION
+  ) {
+    throw redirect(c.req.url); // Redirect to exact same URL triggers refresh
+  }
+
+  // Set/update version cookie on full page loads
+  if (!isClientNavigation) {
+    setCookie(c, "app-version", CURRENT_VERSION, { path: "/" });
+  }
+
+  await next();
+});
+
+export default app;
+```
+
+Common use cases for forcing a refresh:
+
+- **After deployments**: When new client code is available but the user's
+  browser has cached the old bundle.
+- **Version mismatches**: When the client and server versions are out of sync
+  and need to reload to get compatible code.
+- **Cache invalidation**: When you need to clear client-side state and start
+  fresh.
+
+To prevent infinite reload loops, Juniper limits same-location refreshes to 2
+attempts within a 30-second window. If the refresh doesn't resolve the issue
+after 2 attempts, the client stops refreshing.
 
 ## Navigation
 

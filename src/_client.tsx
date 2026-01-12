@@ -1,6 +1,7 @@
 import { HttpError } from "@udibo/http-error";
 import {
   Await,
+  isRouteErrorResponse,
   redirect,
   useActionData,
   useLoaderData,
@@ -12,17 +13,23 @@ import {
 import type {
   ActionFunction,
   ActionFunctionArgs,
-  HydrationState,
   LoaderFunction,
   LoaderFunctionArgs,
   MiddlewareFunction as ReactRouterMiddlewareFunction,
   RouterContextProvider,
 } from "react-router";
-import SuperJSON from "superjson";
-import type { SuperJSONResult } from "superjson";
 import React, { createContext, Suspense, useContext } from "react";
 import type { ComponentType } from "react";
 import { delay } from "@std/async/delay";
+
+import {
+  deserializeError,
+  deserializeHydrationData,
+  deserializeLoaderData,
+  deserializeStreamingLoaderData,
+  type HydrationData,
+  type SerializedHydrationData,
+} from "./_serialization.ts";
 
 import type {
   ErrorBoundaryProps,
@@ -131,173 +138,11 @@ function withCachedRequest(request: Request): RequestWithFormDataCache {
   }) as RequestWithFormDataCache;
 }
 
-/** A serialized error. */
-export type SerializedError = {
-  __type: "Error";
-  __subType?: string;
-  message?: string;
-  stack?: string;
+export {
+  deserializeHydrationData,
+  type HydrationData,
+  type SerializedHydrationData,
 };
-
-/**
- * Deserializes a serialized error to an error.
- * The default deserialize error function supports HttpError, Error, and Error subclasses like TypeError.
- */
-export function deserializeErrorDefault(
-  serializedError: SerializedError | unknown,
-): Error | unknown | undefined {
-  let error: Error | unknown = serializedError;
-  const { __type, __subType, stack, ...rest } =
-    (typeof error === "object" ? error : {}) as SerializedError;
-  if (__type === "Error") {
-    if (__subType === "HttpError") {
-      error = HttpError.from(rest);
-    } else {
-      const message = rest.message;
-      const ErrorConstructor = __subType
-        ? (globalThis as Record<string, unknown>)[__subType] as ErrorConstructor
-        : Error;
-      error = typeof ErrorConstructor === "function"
-        ? new ErrorConstructor(message)
-        : new Error(message);
-    }
-
-    if (stack) {
-      (error as Error).stack = stack;
-    }
-  }
-  return error;
-}
-
-/**
- * Tracks which data keys were successfully resolved or rejected during promise resolution.
- * Used to reconstruct the original Promise state during deserialization.
- */
-export interface SerializedHydrationDataPromises {
-  /** Keys of loader data that were resolved successfully */
-  loaderData?: {
-    [key: string]: string[];
-  };
-  /** Keys of action data that were resolved successfully */
-  actionData?: {
-    [key: string]: string[];
-  };
-}
-
-/**
- * Extended SuperJSON result that includes metadata about resolved and rejected promises
- * to enable proper reconstruction of Promise states during deserialization.
- */
-export interface SerializedHydrationData extends SuperJSONResult {
-  /** Public environment variables shared with the client */
-  publicEnv?: Record<string, string>;
-  /** Keys that were successfully resolved during serialization */
-  resolved?: SerializedHydrationDataPromises;
-  /** Keys that were rejected during serialization */
-  rejected?: SerializedHydrationDataPromises;
-}
-
-/**
- * Reconstructs Promise states for a specific data type (loader or action data)
- * based on the resolved and rejected keys metadata.
- * Uses custom deserializeError function if provided, otherwise falls back to default.
- */
-function reconstructPromiseStates(
-  data: Record<string, Record<string, unknown>>,
-  resolvedKeys: Record<string, string[]> | undefined,
-  rejectedKeys: Record<string, string[]> | undefined,
-  deserializeError?: (serializedError: unknown) => unknown,
-): void {
-  // Reconstruct resolved promises
-  if (resolvedKeys) {
-    for (const [routeId, keys] of Object.entries(resolvedKeys)) {
-      for (const key of keys) {
-        const value = data[routeId][key];
-        data[routeId][key] = Promise.resolve(value);
-      }
-    }
-  }
-
-  // Reconstruct rejected promises
-  if (rejectedKeys) {
-    for (const [routeId, keys] of Object.entries(rejectedKeys)) {
-      for (const key of keys) {
-        const serializedError = data[routeId][key];
-        data[routeId][key] = Promise.reject(
-          deserializeError?.(serializedError) ??
-            deserializeErrorDefault(serializedError),
-        );
-      }
-    }
-  }
-}
-
-/**
- * Represents the complete hydration state data structure containing route matches,
- * errors, loader data, and action data that needs to be serialized for client-side hydration.
- */
-export interface HydrationData {
-  /** Public environment variables shared with the client */
-  publicEnv?: Record<string, string>;
-  /** Serialized context from the server's serializeContext function */
-  serializedContext?: unknown;
-  /** Array of route matches with their IDs */
-  matches: {
-    id: string;
-  }[];
-  /** Route-level errors keyed by route ID */
-  errors?: HydrationState["errors"];
-  /** Loader data for each route, may contain Promises that need resolution */
-  loaderData?: HydrationState["loaderData"];
-  /** Action data for each route, may contain Promises that need resolution */
-  actionData?: HydrationState["actionData"];
-}
-
-/**
- * Deserializes hydration data and reconstructs the original Promise states
- * using the resolved/rejected metadata from serialization.
- * Uses custom deserializeError function if provided, otherwise falls back to default.
- */
-export function deserializeHydrationData(
-  serializedHydrationData: SerializedHydrationData,
-  options: {
-    deserializeError?: (serializedError: unknown) => unknown;
-  } = {},
-): HydrationData {
-  const { deserializeError } = options;
-  const { json, meta, resolved, rejected } = serializedHydrationData;
-  const result = SuperJSON.deserialize<HydrationData>({ json, meta });
-
-  // Deserialize errors
-  if (result.errors) {
-    for (const [key, serializedError] of Object.entries(result.errors)) {
-      result.errors[key] = deserializeError?.(serializedError) ??
-        deserializeErrorDefault(serializedError);
-    }
-  }
-
-  // Reconstruct loader data promises
-  if (result.loaderData) {
-    reconstructPromiseStates(
-      result.loaderData,
-      resolved?.loaderData,
-      rejected?.loaderData,
-      deserializeError,
-    );
-  }
-
-  // Reconstruct action data promises
-  if (result.actionData) {
-    reconstructPromiseStates(
-      result.actionData,
-      resolved?.actionData,
-      rejected?.actionData,
-      deserializeError,
-    );
-  }
-
-  return result;
-}
 
 /** The globals available in the browser for the application. */
 export type ClientGlobals = {
@@ -317,18 +162,17 @@ export function App({ children }: { children: React.ReactNode }) {
   );
 }
 
-const LAZY_LOAD_ERROR_KEY = "__juniper_lazy_load_error";
-const MAX_LAZY_LOAD_RETRIES = 2;
-const LAZY_LOAD_ERROR_WINDOW_MS = 30000; // 30 seconds
+const MAX_RELOAD_RETRIES = 2;
+const RELOAD_WINDOW_MS = 30000; // 30 seconds
 
-interface LazyLoadErrorState {
+interface ReloadState {
   count: number;
   timestamp: number;
 }
 
-function getLazyLoadErrorState(): LazyLoadErrorState {
+function getReloadState(key: string): ReloadState {
   try {
-    const stored = sessionStorage.getItem(LAZY_LOAD_ERROR_KEY);
+    const stored = sessionStorage.getItem(key);
     if (!stored) return { count: 0, timestamp: 0 };
     return JSON.parse(stored);
   } catch {
@@ -336,49 +180,51 @@ function getLazyLoadErrorState(): LazyLoadErrorState {
   }
 }
 
-function shouldRefreshOnLazyLoadError(): boolean {
-  const { count, timestamp } = getLazyLoadErrorState();
+function shouldReload(key: string): boolean {
+  const { count, timestamp } = getReloadState(key);
   const now = Date.now();
 
   // Reset counter if outside the time window
-  if (now - timestamp > LAZY_LOAD_ERROR_WINDOW_MS) return true;
+  if (now - timestamp > RELOAD_WINDOW_MS) return true;
 
   // Stop refreshing if we've exceeded max retries
-  return count < MAX_LAZY_LOAD_RETRIES;
+  return count < MAX_RELOAD_RETRIES;
 }
 
-function recordLazyLoadErrorRefresh(): void {
-  const { count, timestamp } = getLazyLoadErrorState();
+function recordReload(key: string): void {
+  const { count, timestamp } = getReloadState(key);
   const now = Date.now();
 
-  if (now - timestamp > LAZY_LOAD_ERROR_WINDOW_MS) {
+  if (now - timestamp > RELOAD_WINDOW_MS) {
     // Start new window
     sessionStorage.setItem(
-      LAZY_LOAD_ERROR_KEY,
+      key,
       JSON.stringify({ count: 1, timestamp: now }),
     );
   } else {
     // Increment within existing window
     sessionStorage.setItem(
-      LAZY_LOAD_ERROR_KEY,
+      key,
       JSON.stringify({ count: count + 1, timestamp }),
     );
   }
 }
 
-function clearLazyLoadErrorState(): void {
+function clearReloadState(key: string): void {
   try {
-    sessionStorage.removeItem(LAZY_LOAD_ERROR_KEY);
+    sessionStorage.removeItem(key);
   } catch {
     // Ignore errors (e.g., sessionStorage not available)
   }
 }
 
+const LAZY_LOAD_RELOAD_KEY = "__juniper_lazy_load_reload";
+const SAME_LOCATION_RELOAD_KEY = "__juniper_same_location_reload";
+
 async function fetchServerData(
   request: Request,
   method: "GET" | "POST",
   routeId: string,
-  deserializeError?: (serializedError: unknown) => unknown,
 ): Promise<unknown> {
   const headers: Record<string, string> = {
     "X-Juniper-Route-Id": routeId,
@@ -391,18 +237,52 @@ async function fetchServerData(
 
   const response = await fetch(request.url, fetchOptions);
 
-  const responseType = response.headers.get("X-Juniper");
-  if (responseType === "serialized") {
-    const serializedData = await response.json();
-    const deserialized = SuperJSON.deserialize(serializedData);
+  const contentType = response.headers.get("Content-Type");
+
+  // Handle streaming CBOR response (data with deferred promises)
+  if (contentType === "application/cbor-stream") {
+    if (!response.ok) {
+      // For errors, read the full stream and deserialize
+      const buffer = await response.arrayBuffer();
+      const deserialized = deserializeLoaderData(new Uint8Array(buffer));
+      throw deserializeError(deserialized as Record<string, unknown>);
+    }
+    // Stream the response - promises will be resolved as data arrives
+    return await deserializeStreamingLoaderData(response);
+  }
+
+  // Handle non-streaming CBOR response
+  if (contentType === "application/cbor") {
+    const buffer = await response.arrayBuffer();
+    const deserialized = deserializeLoaderData(new Uint8Array(buffer));
 
     if (!response.ok) {
-      throw deserializeError?.(deserialized) ??
-        deserializeErrorDefault(deserialized);
+      throw deserializeError(deserialized as Record<string, unknown>);
     }
+
     return deserialized;
-  } else if (responseType === "redirect") {
+  }
+
+  const responseType = response.headers.get("X-Juniper");
+  if (responseType === "redirect") {
     const location = (await response.json()).location;
+    const currentUrl = new URL(globalThis.location.href);
+    const redirectUrl = new URL(location, currentUrl);
+
+    // If redirecting to the same location, do a browser reload instead
+    if (redirectUrl.href === currentUrl.href) {
+      if (shouldReload(SAME_LOCATION_RELOAD_KEY)) {
+        recordReload(SAME_LOCATION_RELOAD_KEY);
+        delay(0).then(() => {
+          globalThis.location.reload();
+        });
+      }
+      // Return undefined to prevent further processing while reload happens
+      // or if we've exceeded reload retries
+      return undefined;
+    }
+
+    clearReloadState(SAME_LOCATION_RELOAD_KEY);
     throw redirect(location);
   }
 
@@ -416,17 +296,15 @@ async function fetchServerData(
 function fetchServerLoader(
   request: Request,
   routeId: string,
-  deserializeError?: (serializedError: unknown) => unknown,
 ): Promise<unknown> {
-  return fetchServerData(request, "GET", routeId, deserializeError);
+  return fetchServerData(request, "GET", routeId);
 }
 
 function fetchServerAction(
   request: Request,
   routeId: string,
-  deserializeError?: (serializedError: unknown) => unknown,
 ): Promise<unknown> {
-  return fetchServerData(request, "POST", routeId, deserializeError);
+  return fetchServerData(request, "POST", routeId);
 }
 
 export type Route = {
@@ -457,14 +335,12 @@ export type LazyRoute = () => Promise<LazyRouteResult>;
  * @param routeFile - The module exports for the route.
  * @param serverFlags - Flags indicating whether the route has server-side loader/action.
  * @param routeId - The route ID used for server data requests.
- * @param deserializeError - Optional custom error deserializer for server errors.
  * @returns A concrete `Route` instance.
  */
 export function createRoute(
   routeFile: RouteModule,
   serverFlags?: ServerFlags,
   routeId?: string,
-  deserializeError?: (serializedError: unknown) => unknown,
 ): Route {
   const {
     ErrorBoundary: _ErrorBoundary,
@@ -485,7 +361,7 @@ export function createRoute(
     if (!routeId) {
       throw new Error("Route ID is required to fetch server loader data");
     }
-    return fetchServerLoader(request, routeId, deserializeError);
+    return fetchServerLoader(request, routeId);
   }
 
   function getServerAction(request: Request) {
@@ -495,7 +371,7 @@ export function createRoute(
     if (!routeId) {
       throw new Error("Route ID is required to fetch server action data");
     }
-    return fetchServerAction(request, routeId, deserializeError);
+    return fetchServerAction(request, routeId);
   }
 
   let HydrateFallback: ComponentType | undefined;
@@ -607,10 +483,18 @@ export function createRoute(
       const params = useParams();
       const loaderData = useLoaderData();
       const actionData = useActionData();
-      const error = useRouteError();
+      const routeError = useRouteError();
       const navigate = useNavigate();
       const location = useLocation();
       const context = useJuniperContext();
+
+      let error: unknown = routeError;
+      if (isRouteErrorResponse(routeError)) {
+        const message = typeof routeError.data === "string"
+          ? routeError.data
+          : routeError.statusText;
+        error = new HttpError(routeError.status, message);
+      }
 
       function resetErrorBoundary() {
         navigate(location.pathname, { replace: true });
@@ -671,34 +555,32 @@ export function createRoute(
  * @param lazyRouteFile - The lazy route file to create a lazy route object from.
  * @param serverFlags - Flags indicating whether the route has server-side loader/action.
  * @param routeId - The route ID used for server data requests.
- * @param deserializeError - Optional custom error deserializer for server errors.
  * @returns A lazy route object.
  */
 export function createLazyRoute(
   lazyRouteFile: () => Promise<RouteModule>,
   serverFlags?: ServerFlags,
   routeId?: string,
-  deserializeError?: (serializedError: unknown) => unknown,
 ): LazyRoute {
   return async (): Promise<LazyRouteResult> => {
     let routeFile: RouteModule;
     try {
       routeFile = await lazyRouteFile();
-      clearLazyLoadErrorState();
+      clearReloadState(LAZY_LOAD_RELOAD_KEY);
     } catch (error) {
-      if (shouldRefreshOnLazyLoadError()) {
-        recordLazyLoadErrorRefresh();
+      if (shouldReload(LAZY_LOAD_RELOAD_KEY)) {
+        recordReload(LAZY_LOAD_RELOAD_KEY);
         delay(0).then(() => {
           globalThis.location.reload();
         });
       }
       throw error;
     }
-    const { middleware: _middleware, ...rest } = createRoute(
+    // Middleware can't be lazily loaded, so strip it from the result
+    const { middleware: _, ...rest } = createRoute(
       routeFile,
       serverFlags,
       routeId,
-      deserializeError,
     );
     return rest;
   };

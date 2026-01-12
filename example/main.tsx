@@ -77,6 +77,13 @@ export const client = new Client({
               main: () => import("./routes/features/data/loader.tsx"),
             },
             {
+              path: "server-deferred",
+              main: () => import("./routes/features/data/server-deferred.tsx"),
+              server: {
+                loader: true,
+              },
+            },
+            {
               path: "parent-data",
               main: () => import("./routes/features/data/parent-data/main.tsx"),
               server: {

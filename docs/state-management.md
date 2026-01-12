@@ -188,20 +188,41 @@ export function loader({ context }: RouteLoaderArgs) {
 
 ### Sharing Server Context with the Client
 
-For context values to be available on the client after hydration, you need to
-serialize them on the server and deserialize them on the client. These functions
-are only supported in your **root route files** (`routes/main.ts` and
-`routes/main.tsx`).
+For context values to be available on the client after hydration, register them
+using `registerContext`. This automatically handles serialization and
+deserialization.
 
-**Server route** - Export `serializeContext` to extract context values:
+**Define and register context:**
+
+```typescript
+// context/user.ts
+import { createContext } from "react-router";
+import { registerContext } from "@udibo/juniper";
+
+export interface User {
+  id: string;
+  name: string;
+  role: "admin" | "user";
+}
+
+export const userContext = createContext<User | null>();
+
+// Register for automatic serialization to client
+registerContext<User | null>({
+  name: "user",
+  context: userContext,
+  serialize: (user) => user,
+  deserialize: (data) => data ?? null,
+});
+```
+
+**Set context in middleware:**
 
 ```typescript
 // routes/main.ts
 import { Hono } from "hono";
-import type { RouterContextProvider } from "react-router";
 import type { AppEnv } from "@udibo/juniper/server";
 import { userContext } from "@/context/user.ts";
-import type { SerializedContext } from "./main.tsx";
 
 const app = new Hono<AppEnv>();
 
@@ -212,55 +233,62 @@ app.use(async (c, next) => {
   await next();
 });
 
-// Serialize context for client hydration
-export function serializeContext(
-  context: RouterContextProvider,
-): SerializedContext {
-  return {
-    user: context.get(userContext),
-  };
-}
-
 export default app;
 ```
 
-**Client route** - Define `SerializedContext` type and export
-`deserializeContext`:
+**Access in loaders and actions:**
+
+```typescript
+// routes/dashboard/index.ts
+import { HttpError } from "@udibo/juniper";
+import type { RouteLoaderArgs } from "@udibo/juniper";
+import { userContext } from "@/context/user.ts";
+
+export function loader({ context }: RouteLoaderArgs) {
+  const user = context.get(userContext);
+
+  if (!user) {
+    throw new HttpError(401, "Authentication required");
+  }
+
+  return { user, dashboardData: await fetchDashboard(user.id) };
+}
+```
+
+**Access in components:**
+
+Components receive the `context` prop, but note that **context changes do not
+trigger re-renders**. The primary use case for accessing context in components
+is to pass values to React providers, enabling loaders, actions, and components
+to share state through libraries like TanStack Query. See the
+[TanStack Query example](#tanstack-query) for this pattern.
 
 ```tsx
 // routes/main.tsx
-import { Outlet, RouterContextProvider } from "react-router";
-import type { User } from "@/context/user.ts";
-import { userContext } from "@/context/user.ts";
+import { Outlet } from "react-router";
+import { QueryClientProvider } from "@tanstack/react-query";
+import type { RouteProps } from "@udibo/juniper";
+import { queryClientContext } from "@/context/query.ts";
 
-// Define the shape of serialized context
-export interface SerializedContext {
-  user: User | null;
-}
-
-// Deserialize context on the client
-export function deserializeContext(
-  serialized: SerializedContext | undefined,
-): RouterContextProvider {
-  const context = new RouterContextProvider();
-  if (serialized?.user) {
-    context.set(userContext, serialized.user);
-  }
-  return context;
-}
-
-export default function Main() {
+export default function Main({ context }: RouteProps) {
+  // Pass context value to a provider for shared state
+  const queryClient = context.get(queryClientContext);
   return (
-    <main>
+    <QueryClientProvider client={queryClient}>
       <Outlet />
-    </main>
+    </QueryClientProvider>
   );
 }
 ```
 
-**Important:** Define the `SerializedContext` type in the client route (`.tsx`)
-to avoid importing server-only code into client bundles. The server route
-imports this type for type safety.
+The `registerContext` function accepts:
+
+| Property      | Description                                               |
+| ------------- | --------------------------------------------------------- |
+| `name`        | Unique identifier for the context (used in serialization) |
+| `context`     | The React Router context created with `createContext()`   |
+| `serialize`   | Converts the value to a serializable format               |
+| `deserialize` | Reconstructs the value on the client                      |
 
 **Supported types:** Juniper's serialization (used for context, loader data,
 action data, and errors) supports all standard JSON types plus: `undefined`,
@@ -385,12 +413,18 @@ caching, background refetching, and optimistic updates.
 Share the QueryClient via React Router context so it's accessible in loaders,
 actions, and components.
 
-**Create the context:**
+**Create and register the context:**
 
 ```typescript
 // context/query.ts
 import { createContext } from "react-router";
-import { QueryClient } from "@tanstack/react-query";
+import {
+  dehydrate,
+  hydrate as hydrateQueryClient,
+  QueryClient,
+} from "@tanstack/react-query";
+import type { DehydratedState } from "@tanstack/react-query";
+import { registerContext } from "@udibo/juniper";
 
 export const queryClientContext = createContext<QueryClient>();
 
@@ -403,6 +437,20 @@ export function createQueryClient(): QueryClient {
     },
   });
 }
+
+// Register for automatic serialization
+registerContext<QueryClient, DehydratedState | undefined>({
+  name: "queryClient",
+  context: queryClientContext,
+  serialize: (queryClient) => dehydrate(queryClient),
+  deserialize: (dehydratedState) => {
+    const queryClient = createQueryClient();
+    if (dehydratedState) {
+      hydrateQueryClient(queryClient, dehydratedState);
+    }
+    return queryClient;
+  },
+});
 ```
 
 **Initialize in server middleware:**
@@ -410,11 +458,8 @@ export function createQueryClient(): QueryClient {
 ```typescript
 // routes/main.ts
 import { Hono } from "hono";
-import { dehydrate } from "@tanstack/react-query";
-import type { RouterContextProvider } from "react-router";
 import type { AppEnv } from "@udibo/juniper/server";
 import { createQueryClient, queryClientContext } from "@/context/query.ts";
-import type { SerializedContext } from "./main.tsx";
 
 const app = new Hono<AppEnv>();
 
@@ -425,50 +470,17 @@ app.use(async (c, next) => {
   await next();
 });
 
-export function serializeContext(
-  context: RouterContextProvider,
-): SerializedContext {
-  const serializedContext: SerializedContext = {};
-  try {
-    const queryClient = context.get(queryClientContext);
-    serializedContext.dehydratedState = dehydrate(queryClient);
-  } catch {
-    // queryClient not set
-  }
-  return serializedContext;
-}
-
 export default app;
 ```
 
-**Hydrate on the client:**
+**Use in components:**
 
 ```tsx
 // routes/main.tsx
-import { Outlet, RouterContextProvider } from "react-router";
-import {
-  hydrate as hydrateQueryClient,
-  QueryClientProvider,
-} from "@tanstack/react-query";
-import type { DehydratedState } from "@tanstack/react-query";
+import { Outlet } from "react-router";
+import { QueryClientProvider } from "@tanstack/react-query";
 import type { RouteProps } from "@udibo/juniper";
-import { createQueryClient, queryClientContext } from "@/context/query.ts";
-
-export interface SerializedContext {
-  dehydratedState?: DehydratedState;
-}
-
-export function deserializeContext(
-  serialized?: SerializedContext,
-): RouterContextProvider {
-  const context = new RouterContextProvider();
-  const queryClient = createQueryClient();
-  if (serialized?.dehydratedState) {
-    hydrateQueryClient(queryClient, serialized.dehydratedState);
-  }
-  context.set(queryClientContext, queryClient);
-  return context;
-}
+import { queryClientContext } from "@/context/query.ts";
 
 export default function Main({ context }: RouteProps) {
   const queryClient = context.get(queryClientContext);

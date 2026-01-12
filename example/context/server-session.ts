@@ -1,5 +1,7 @@
 import { createContext } from "react-router";
 
+import { registerContext } from "@udibo/juniper";
+
 /** Server session data set by the server and serialized to the client. */
 export interface ServerSession {
   sessionId: string;
@@ -18,3 +20,11 @@ export function createServerSession(): ServerSession {
     serverPid: Deno.pid,
   };
 }
+
+// Register server session context serialization
+registerContext<ServerSession>({
+  name: "serverSession",
+  context: serverSessionContext,
+  serialize: (session) => session,
+  deserialize: (data) => data as ServerSession,
+});

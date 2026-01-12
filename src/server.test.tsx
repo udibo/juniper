@@ -2,14 +2,13 @@ import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
 import { Outlet, useLoaderData, useParams } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
-import { HttpError } from "./mod.ts";
 
 import type { RouteLoaderArgs } from "./mod.ts";
 import { Client } from "./client.tsx";
 import { createServer } from "./server.tsx";
-import { simulateEnvironment } from "./utils/testing.ts";
 
-import { mergeServerRoutes, serializeErrorDefault } from "./_server.tsx";
+import { mergeServerRoutes } from "./_server.tsx";
+import { cborDecode } from "./_serialization.ts";
 
 describe("createServer", () => {
   it("should return 404 for a non-existent route", async () => {
@@ -124,7 +123,7 @@ describe("createServer", () => {
     assertStringIncludes(html, "<div>Home</div>");
   });
 
-  it("should return JSON for data requests when X-Juniper-Route-Id is present", async () => {
+  it("should return CBOR for data requests when X-Juniper-Route-Id is present", async () => {
     const client = new Client({
       path: "/",
       main: {
@@ -143,9 +142,10 @@ describe("createServer", () => {
     });
     assertEquals(res.status, 200);
     const ct = res.headers.get("content-type");
-    assertEquals(ct && ct.startsWith("application/json"), true);
-    const data = await res.json();
-    assertEquals(data.json, { ok: true });
+    assertEquals(ct, "application/cbor");
+    const buffer = await res.arrayBuffer();
+    const data = cborDecode<{ ok: boolean }>(new Uint8Array(buffer));
+    assertEquals(data, { ok: true });
   });
 
   it("should handle index routes correctly", async () => {
@@ -578,55 +578,5 @@ describe("build artifact cache control", () => {
     } finally {
       await Deno.remove(tempDir, { recursive: true });
     }
-  });
-});
-
-describe("serializeErrorDefault", () => {
-  it("should pass through non-Error values unchanged", () => {
-    const value = { foo: "bar" };
-    const result = serializeErrorDefault(value);
-    assertEquals(result, value);
-  });
-
-  it(
-    "should serialize generic Error with message and stack in development",
-    simulateEnvironment({ "APP_ENV": null }, () => {
-      const err = new Error("Oops");
-      const result = serializeErrorDefault(err) as Record<string, unknown>;
-      assertEquals(result.__type, "Error");
-      assertEquals(result.message, "Oops");
-      assertEquals(typeof result.stack, "string");
-      assertEquals(result.__subType, undefined);
-    }),
-  );
-
-  it(
-    "should omit stack outside development",
-    simulateEnvironment({ "APP_ENV": "production" }, () => {
-      const err = new Error("No stack");
-      const result = serializeErrorDefault(err) as Record<string, unknown>;
-      assertEquals(result.__type, "Error");
-      assertEquals(result.message, "No stack");
-      assertEquals(result.stack, undefined);
-    }),
-  );
-
-  it("should set __subType for Error subclasses", () => {
-    const err = new TypeError("Wrong type");
-    const result = serializeErrorDefault(err) as Record<string, unknown>;
-    assertEquals(result.__type, "Error");
-    assertEquals(result.__subType, "TypeError");
-    assertEquals(result.message, "Wrong type");
-  });
-
-  it("should serialize HttpError with RFC7807 fields", () => {
-    const err = new HttpError(400, "Bad request");
-    const result = serializeErrorDefault(err) as Record<string, unknown>;
-    assertEquals(result.__type, "Error");
-    assertEquals(result.__subType, "HttpError");
-    assertEquals(result.status, 400);
-    const detailOrMessage = (result as Record<string, unknown>)["detail"] ??
-      result.message;
-    assertEquals(detailOrMessage, "Bad request");
   });
 });

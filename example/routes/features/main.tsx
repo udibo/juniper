@@ -46,6 +46,10 @@ const featureGroups: FeatureGroup[] = [
         name: "Client Calls Server",
         path: "/features/data/server-loaders/client-calls-server",
       },
+      {
+        name: "Server Deferred",
+        path: "/features/data/server-deferred",
+      },
     ],
   },
   {
