@@ -114,6 +114,7 @@ jobs:
           npx
           --package semantic-release
           --package @semantic-release/changelog
+          --package @semantic-release/exec
           --package @semantic-release/git
           --package @semantic-release/github
           --package @sebbo2002/semantic-release-jsr
