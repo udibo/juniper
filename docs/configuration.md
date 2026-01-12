@@ -81,6 +81,94 @@ if (import.meta.main) {
 }
 ```
 
+### Watch Paths Configuration
+
+By default, the development server watches your entire project directory for
+file changes. This works well for most projects, but you may need to customize
+this behavior if:
+
+- **Permission errors**: Some directories (like Docker volumes) may have
+  restricted permissions that prevent Deno from watching them
+- **Performance**: Large directories with many files can slow down file watching
+- **Noise reduction**: You want to limit rebuilds to specific directories
+
+#### Using `ignorePaths` (Recommended)
+
+The `ignorePaths` option lets you exclude specific directories from file
+watching while still watching everything else. This is the recommended approach
+because new directories you add to your project will be watched automatically
+without updating your configuration.
+
+**Example: Excluding Docker volumes**
+
+If your project contains directories that Deno cannot access (e.g., Docker
+volume data), you'll see a `PermissionDenied` error:
+
+```
+❌ Dev server error: PermissionDenied: Permission denied (os error 13)
+   about ["/home/user/project/docker/volumes/grafana/data"]
+```
+
+To fix this, use `ignorePaths` to exclude the problematic directory:
+
+```typescript
+// build.ts
+import * as path from "@std/path";
+import { Builder } from "@udibo/juniper/build";
+import { postCSSPlugin } from "@udibo/esbuild-plugin-postcss";
+import tailwindcss from "@tailwindcss/postcss";
+
+const projectRoot = path.dirname(path.fromFileUrl(import.meta.url));
+
+export const builder = new Builder({
+  projectRoot,
+  configPath: "./deno.json",
+  // Exclude directories that cause permission errors or shouldn't trigger rebuilds
+  ignorePaths: ["./docker"],
+  plugins: [
+    postCSSPlugin({
+      plugins: [tailwindcss()],
+    }),
+  ],
+  entryPoints: ["./main.css"],
+});
+
+if (import.meta.main) {
+  await builder.build();
+  await builder.dispose();
+}
+```
+
+**Common directories to ignore:**
+
+- `./docker` - Docker configuration and volume data
+- `./data` - Local data directories
+- `./logs` - Log files
+- `./tmp` - Temporary files
+
+#### Using `watchPaths`
+
+Alternatively, you can use `watchPaths` to explicitly list the directories to
+watch. This gives you more control but requires updating your configuration
+whenever you add new directories to your project.
+
+```typescript
+export const builder = new Builder({
+  projectRoot,
+  // Only watch these specific directories
+  watchPaths: [
+    "./routes",
+    "./components",
+    "./utils",
+    "./context",
+    "./main.css",
+  ],
+});
+```
+
+**Note:** When using `watchPaths`, new directories won't be watched until you
+add them to the list.
+
 ### esbuild Plugins
 
 You can add custom esbuild plugins to process files during the build. A common
