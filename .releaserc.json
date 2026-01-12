@@ -36,6 +36,12 @@
       }
     ],
     [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "deno fmt CHANGELOG.md"
+      }
+    ],
+    [
       "@sebbo2002/semantic-release-jsr",
       {
         "configFile": "src/deno.json",
@@ -61,6 +67,7 @@
       {
         "assets": [
           "CHANGELOG.md",
+          "deno.lock",
           "src/deno.json",
           "example/deno.json",
           "templates/minimal/deno.json",
