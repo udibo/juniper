@@ -61,6 +61,7 @@
       {
         "assets": [
           "CHANGELOG.md",
+          "deno.lock",
           "src/deno.json",
           "example/deno.json",
           "templates/minimal/deno.json",
