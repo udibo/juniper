@@ -1,3 +1,11 @@
+# [0.3.0](https://github.com/udibo/juniper/compare/0.2.2...0.3.0) (2026-01-27)
+
+### Features
+
+- Add htmlProps and suppressHydrationWarning to html tag
+  ([#71](https://github.com/udibo/juniper/issues/71))
+  ([48fa396](https://github.com/udibo/juniper/commit/48fa3960a193eee9e369ce64ab137902a997fad1))
+
 ## [0.2.2](https://github.com/udibo/juniper/compare/0.2.1...0.2.2) (2026-01-12)
 
 ### Bug Fixes
