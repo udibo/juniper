@@ -11,7 +11,7 @@ import {
   RouterProvider,
 } from "react-router";
 import type { RouteObject } from "react-router";
-import type { RootRouteModule, RouteModule } from "./mod.ts";
+import type { HtmlProps, RootRouteModule, RouteModule } from "./mod.ts";
 
 import {
   App,
@@ -114,6 +114,8 @@ export class Client {
   routeObjects: RouteObject[];
   /** A map of route object ids to route objects used by React Router. */
   routeObjectMap: Map<string, RouteObject>;
+  /** Props to apply to the `<html>` element, from root route's htmlProps export. */
+  htmlProps?: HtmlProps;
 
   constructor(rootRoute: RootClientRoute) {
     this.rootRoute = rootRoute;
@@ -121,6 +123,11 @@ export class Client {
     const rootRouteId = "/";
     this.routeObjects = [{ id: rootRouteId, path: rootRoute.path }];
     this.routeObjectMap = new Map();
+
+    // Extract htmlProps from root route module if available
+    if (rootRoute.main && typeof rootRoute.main !== "function") {
+      this.htmlProps = rootRoute.main.htmlProps;
+    }
 
     const parentPathStack: string[] = ["/"];
     const routeStack: ClientRoute[] = [rootRoute];
@@ -282,11 +289,12 @@ export class Client {
       getContext: () => context,
     });
 
+    const htmlProps = this.htmlProps;
     function HydratedApp() {
       const [routerContext] = useState(() => context);
       return (
         <StrictMode>
-          <App>
+          <App htmlProps={htmlProps}>
             <JuniperContextProvider context={routerContext}>
               <RouterProvider router={router} />
             </JuniperContextProvider>

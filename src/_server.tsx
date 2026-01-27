@@ -268,6 +268,7 @@ async function convertToHttpError(cause: unknown): Promise<HttpError> {
 
 interface RenderOptions {
   allPublicEnvKeys: string[];
+  htmlProps?: React.HTMLAttributes<HTMLHtmlElement>;
 }
 
 interface RenderDocumentOptions {
@@ -293,7 +294,7 @@ async function renderDocument(
     waitForAllReady,
     presetError,
   } = options;
-  const { allPublicEnvKeys } = renderOptions;
+  const { allPublicEnvKeys, htmlProps } = renderOptions;
 
   const router = createStaticRouter(dataRoutes, context);
 
@@ -335,7 +336,7 @@ async function renderDocument(
 
         renderStream = await renderToReadableStream(
           <StrictMode>
-            <App>
+            <App htmlProps={htmlProps}>
               <JuniperContextProvider context={requestContext}>
                 <StaticRouterProvider
                   router={router}
@@ -674,13 +675,18 @@ export function createHandlers<
   E extends AppEnv = AppEnv,
   S extends Schema = Schema,
   BasePath extends string = "/",
->(route: Route<E, S, BasePath>, routes: RouteObject[]): HandlersResult {
+>(
+  route: Route<E, S, BasePath>,
+  routes: RouteObject[],
+  htmlProps?: React.HTMLAttributes<HTMLHtmlElement>,
+): HandlersResult {
   const factory = createFactory<AppEnv>();
   const allPublicEnvKeys = getAllPublicEnvKeys(route);
   const { query, dataRoutes, queryRoute } = createStaticHandler(routes);
 
   const renderOptions: RenderOptions = {
     allPublicEnvKeys,
+    htmlProps,
   };
 
   const handlers = factory.createHandlers(

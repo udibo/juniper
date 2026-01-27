@@ -135,7 +135,11 @@ export function createServer<
   });
 
   const serverRoutes = mergeServerRoutes(route, client.routeObjects);
-  const { handlers, errorHandler } = createHandlers(route, serverRoutes);
+  const { handlers, errorHandler } = createHandlers(
+    route,
+    serverRoutes,
+    client.htmlProps,
+  );
   const app = buildApp(
     route,
     client.rootRoute,
