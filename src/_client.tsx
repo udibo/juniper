@@ -150,9 +150,14 @@ export type ClientGlobals = {
   __juniperHydrationData?: SerializedHydrationData;
 };
 
-export function App({ children }: { children: React.ReactNode }) {
+export interface AppProps {
+  children: React.ReactNode;
+  htmlProps?: React.HTMLAttributes<HTMLHtmlElement>;
+}
+
+export function App({ children, htmlProps }: AppProps) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning {...htmlProps}>
       <head>
       </head>
       <body>

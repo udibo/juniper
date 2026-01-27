@@ -1040,9 +1040,26 @@ export interface RouteModule<
  * });
  * ```
  */
+/**
+ * Props that can be applied to the `<html>` element.
+ * Useful for setting `lang`, `dir`, or other global HTML attributes.
+ */
+export type HtmlProps = React.HTMLAttributes<HTMLHtmlElement>;
+
 export interface RootRouteModule<
   Params extends AnyParams = AnyParams,
   LoaderData = unknown,
   ActionData = unknown,
 > extends RouteModule<Params, LoaderData, ActionData> {
+  /**
+   * Props to apply to the `<html>` element.
+   * Common uses: `lang`, `dir`, `className`.
+   *
+   * @example
+   * ```tsx
+   * // routes/main.tsx
+   * export const htmlProps = { lang: "en", dir: "ltr" };
+   * ```
+   */
+  htmlProps?: HtmlProps;
 }

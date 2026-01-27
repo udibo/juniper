@@ -33,6 +33,7 @@
     "npm:@types/react@^19.2.9": "19.2.9",
     "npm:babel-plugin-react-compiler@1": "1.0.0",
     "npm:cbor2@^2.2.1": "2.2.1",
+    "npm:esbuild@~0.25.12": "0.25.12",
     "npm:esbuild@~0.25.5": "0.25.12",
     "npm:esbuild@~0.27.2": "0.27.2",
     "npm:global-jsdom@27": "27.0.0_jsdom@27.4.0",
@@ -141,6 +142,7 @@
       "integrity": "343e2abf96769655dba79eadf56fce003640607a488e1a07190e7887e0c3f478",
       "dependencies": [
         "jsr:@std/path@^1.1.2",
+        "npm:esbuild@~0.25.12",
         "npm:less",
         "npm:postcss",
         "npm:postcss-modules",

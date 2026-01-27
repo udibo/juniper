@@ -175,6 +175,41 @@ describe("Client", () => {
     );
     assertEquals(client.routeObjectMap.get("/[...]"), routeObject.children[3]);
   });
+
+  it("should extract htmlProps from root route module", () => {
+    const routesWithHtmlProps = {
+      ...routes,
+      main: {
+        default: () => <Outlet />,
+        htmlProps: { lang: "es", dir: "rtl" as const },
+      },
+    };
+    const client = new Client(routesWithHtmlProps);
+
+    assertExists(client.htmlProps);
+    assertEquals(client.htmlProps.lang, "es");
+    assertEquals(client.htmlProps.dir, "rtl");
+  });
+
+  it("should have undefined htmlProps when not provided", () => {
+    const client = new Client(routes);
+    assertEquals(client.htmlProps, undefined);
+  });
+
+  it("should not extract htmlProps from lazy root route", () => {
+    const routesWithLazyMain = {
+      ...routes,
+      main: () =>
+        Promise.resolve({
+          default: () => <Outlet />,
+          htmlProps: { lang: "fr" },
+        }),
+    };
+    const client = new Client(routesWithLazyMain);
+
+    // htmlProps is not extracted from lazy modules since they're not loaded yet
+    assertEquals(client.htmlProps, undefined);
+  });
 });
 
 describe("createRoute", () => {
