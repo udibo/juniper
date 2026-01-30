@@ -11,6 +11,7 @@ import {
   RouterProvider,
 } from "react-router";
 import type { RouteObject } from "react-router";
+import { HttpError } from "@udibo/http-error";
 import type { HtmlProps, RootRouteModule, RouteModule } from "./mod.ts";
 
 import {
@@ -212,6 +213,20 @@ export class Client {
         routeObjectChildren.push(catchallRouteObject);
 
         this.routeFileMap.set(catchallRouteId, route.catchall);
+        this.routeObjectMap.set(catchallRouteId, catchallRouteObject);
+      } else {
+        // Add default catchall that throws 404 for unmatched routes
+        // This ensures errors bubble to the nearest ErrorBoundary
+        const catchallRouteId = generateRouteId(currentPath, "", "catchall");
+        const catchallRouteObject: RouteObject = {
+          id: catchallRouteId,
+          path: "*",
+          loader: () => {
+            throw new HttpError(404, "Not found");
+          },
+          Component: () => <div />,
+        };
+        routeObjectChildren.push(catchallRouteObject);
         this.routeObjectMap.set(catchallRouteId, catchallRouteObject);
       }
 

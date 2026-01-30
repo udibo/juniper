@@ -456,6 +456,154 @@ describe("createServer", () => {
     const html = await res.text();
     assertStringIncludes(html, "<!DOCTYPE html>");
   });
+
+  it("should use nested error boundary for 404s within nested routes", async () => {
+    const client = new Client({
+      path: "/",
+      main: {
+        default: () => <Outlet />,
+        ErrorBoundary: () => <div>Root Error Boundary</div>,
+      },
+      children: [
+        {
+          path: "admin",
+          main: {
+            default: () => <Outlet />,
+            ErrorBoundary: () => <div>Admin Error Boundary</div>,
+          },
+          children: [
+            {
+              path: "users",
+              main: () => Promise.resolve({ default: () => <div>Users</div> }),
+            },
+          ],
+        },
+      ],
+    });
+
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      children: [
+        {
+          path: "admin",
+          children: [
+            {
+              path: "users",
+            },
+          ],
+        },
+      ],
+    });
+
+    // Request to a non-existent path under /admin should use admin's error boundary
+    const res = await server.request("http://localhost/admin/non-existent");
+    assertEquals(res.status, 404);
+    const html = await res.text();
+    assertStringIncludes(html, "<!DOCTYPE html>");
+    assertStringIncludes(html, "<div>Admin Error Boundary</div>");
+    // Should NOT use root error boundary
+    assertEquals(html.includes("Root Error Boundary"), false);
+  });
+
+  it("should use root error boundary for 404s at root level", async () => {
+    const client = new Client({
+      path: "/",
+      main: {
+        default: () => <Outlet />,
+        ErrorBoundary: () => <div>Root Error Boundary</div>,
+      },
+      children: [
+        {
+          path: "admin",
+          main: {
+            default: () => <Outlet />,
+            ErrorBoundary: () => <div>Admin Error Boundary</div>,
+          },
+        },
+      ],
+    });
+
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      children: [
+        {
+          path: "admin",
+        },
+      ],
+    });
+
+    // Request to a non-existent path at root level should use root's error boundary
+    const res = await server.request("http://localhost/non-existent");
+    assertEquals(res.status, 404);
+    const html = await res.text();
+    assertStringIncludes(html, "<!DOCTYPE html>");
+    assertStringIncludes(html, "<div>Root Error Boundary</div>");
+    // Should NOT use admin error boundary
+    assertEquals(html.includes("Admin Error Boundary"), false);
+  });
+
+  it("should find nearest ancestor error boundary when route has no error boundary", async () => {
+    const client = new Client({
+      path: "/",
+      main: {
+        default: () => <Outlet />,
+        ErrorBoundary: () => <div>Root Error Boundary</div>,
+      },
+      children: [
+        {
+          path: "admin",
+          main: {
+            default: () => <Outlet />,
+            ErrorBoundary: () => <div>Admin Error Boundary</div>,
+          },
+          children: [
+            {
+              path: "settings",
+              // No error boundary on settings
+              main: {
+                default: () => <Outlet />,
+              },
+              children: [
+                {
+                  path: "profile",
+                  main: () =>
+                    Promise.resolve({ default: () => <div>Profile</div> }),
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      children: [
+        {
+          path: "admin",
+          children: [
+            {
+              path: "settings",
+              children: [
+                {
+                  path: "profile",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    // Request to non-existent path under /admin/settings should bubble up to admin's error boundary
+    const res = await server.request(
+      "http://localhost/admin/settings/non-existent",
+    );
+    assertEquals(res.status, 404);
+    const html = await res.text();
+    assertStringIncludes(html, "<!DOCTYPE html>");
+    assertStringIncludes(html, "<div>Admin Error Boundary</div>");
+  });
 });
 
 describe("mergeServerRoutes", () => {
