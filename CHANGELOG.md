@@ -1,3 +1,11 @@
+## [0.3.1](https://github.com/udibo/juniper/compare/0.3.0...0.3.1) (2026-01-30)
+
+### Bug Fixes
+
+- Fix not found error handling and rendering errors server side
+  ([#72](https://github.com/udibo/juniper/issues/72))
+  ([50ea639](https://github.com/udibo/juniper/commit/50ea63999c246a45bc36594f782a5486e898d15a))
+
 # [0.3.0](https://github.com/udibo/juniper/compare/0.2.2...0.3.0) (2026-01-27)
 
 ### Features
