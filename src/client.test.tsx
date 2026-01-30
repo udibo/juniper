@@ -93,7 +93,9 @@ describe("Client", () => {
 
     assertEquals(client.rootRoute.path, "/");
     assertEquals(client.routeFileMap.size, 8);
-    assertEquals(client.routeObjectMap.size, 8);
+    // 12 = 8 explicit routes + 4 implicit catchalls for routes without their own catchall
+    // Implicit catchalls: /about/[...], /blog/[...], /blog/create/[...], /blog/[id]/[...]
+    assertEquals(client.routeObjectMap.size, 12);
     assertEquals(client.routeObjects.length, 1);
 
     const routeObject = client.routeObjects[0];

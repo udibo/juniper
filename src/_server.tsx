@@ -451,11 +451,10 @@ async function renderDocument(
 
 async function createErrorContext(
   error: Error,
-  dataRoutes: DataRouteObject[],
+  query: ReturnType<typeof createStaticHandler>["query"],
   request: Request,
   requestContext: RouterContextProvider,
 ): Promise<StaticHandlerContext | Response> {
-  const { query } = createStaticHandler(dataRoutes as unknown as RouteObject[]);
   const contextOrResponse = await query(request, { requestContext });
 
   if (contextOrResponse instanceof Response) {
@@ -465,19 +464,13 @@ async function createErrorContext(
   const context = contextOrResponse;
   if (!context.errors) context.errors = {};
 
-  let errorRouteId = "/";
-  for (let i = context.matches.length - 1; i >= 0; i--) {
-    const match = context.matches[i];
-    const route = match.route;
-    if (route.hasErrorBoundary) {
-      errorRouteId = route.id ?? "/";
-      break;
-    }
-  }
-  context.errors[errorRouteId] = error;
+  const routeContext = getRouteContext();
+  if (routeContext?.routeId) {
+    context.errors[routeContext.routeId] ??= error;
 
-  if (context.loaderData) {
-    delete context.loaderData[errorRouteId];
+    if (context.loaderData) {
+      delete context.loaderData[routeContext.routeId];
+    }
   }
 
   return context;
@@ -813,7 +806,7 @@ export function createHandlers<
       const requestContext = c.get("context");
       const contextOrResponse = await createErrorContext(
         error,
-        dataRoutes,
+        query,
         c.req.raw,
         requestContext,
       );
@@ -828,7 +821,7 @@ export function createHandlers<
         dataRoutes,
         renderOptions,
         request: c.req.raw,
-        waitForAllReady: true,
+        waitForAllReady: isbot(c.req.header("user-agent")),
         presetError: error,
       });
     } catch (renderError) {
@@ -892,7 +885,15 @@ export function buildApp<
       );
     }
 
-    routeApp.use(async (_c, next) => {
+    routeApp.use(async (c, next) => {
+      // Index routes should only set context for exact path matches
+      if (currentRouteId.endsWith("/index")) {
+        const parentPath = currentRouteId.slice(0, -6) || "/";
+        const path = new URL(c.req.url).pathname;
+        if (path !== parentPath) {
+          return await next();
+        }
+      }
       await routeContextStorage.run(
         { routeId: currentRouteId, isClientRoute: true },
         async () => {
