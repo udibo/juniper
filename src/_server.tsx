@@ -733,6 +733,16 @@ export function createHandlers<
             dataOrResponse.status >= 300 && dataOrResponse.status < 400 &&
             location
           ) {
+            for (const [key, value] of dataOrResponse.headers.entries()) {
+              const lowerKey = key.toLowerCase();
+              if (
+                lowerKey !== "location" &&
+                lowerKey !== "content-type" &&
+                lowerKey !== "content-length"
+              ) {
+                c.header(key, value);
+              }
+            }
             c.header("X-Juniper", "redirect");
             return c.json({ location });
           }
