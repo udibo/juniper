@@ -666,6 +666,54 @@ describe("mergeServerRoutes", () => {
   });
 });
 
+describe("redirect header preservation", () => {
+  it("should preserve all headers from redirect response in data requests", async () => {
+    const client = new Client({
+      path: "/",
+      main: { default: () => <div>Home</div> },
+    });
+
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        loader: () =>
+          Promise.resolve(
+            new Response(null, {
+              status: 302,
+              headers: new Headers([
+                ["Location", "/dashboard"],
+                ["Set-Cookie", "session=abc123; Path=/; HttpOnly"],
+                ["X-Custom-Header", "custom-value"],
+                ["Cache-Control", "no-store"],
+              ]),
+            }),
+          ),
+      },
+    });
+
+    const res = await server.request("http://localhost/", {
+      headers: { "X-Juniper-Route-Id": "/" },
+    });
+
+    assertEquals(res.status, 200);
+    assertEquals(res.headers.get("X-Juniper"), "redirect");
+
+    // All headers should be preserved except Location, Content-Type, Content-Length
+    assertEquals(
+      res.headers.get("Set-Cookie"),
+      "session=abc123; Path=/; HttpOnly",
+    );
+    assertEquals(res.headers.get("X-Custom-Header"), "custom-value");
+    assertEquals(res.headers.get("Cache-Control"), "no-store");
+
+    // Location should be in the JSON body, not as a header
+    assertEquals(res.headers.get("Location"), null);
+
+    const data = await res.json();
+    assertEquals(data, { location: "/dashboard" });
+  });
+});
+
 describe("build artifact cache control", () => {
   it("should set no-cache headers with etag for /build/main.js", async () => {
     // Create a minimal public/build directory structure for serving
