@@ -1,3 +1,11 @@
+## [0.3.2](https://github.com/udibo/juniper/compare/0.3.1...0.3.2) (2026-01-31)
+
+### Bug Fixes
+
+- Preserve headers for redirects and add instance to not found errors
+  ([#73](https://github.com/udibo/juniper/issues/73))
+  ([76aabaf](https://github.com/udibo/juniper/commit/76aabafb0bea3308c83dc227ebe1fa3c3e3dead2))
+
 ## [0.3.1](https://github.com/udibo/juniper/compare/0.3.0...0.3.1) (2026-01-30)
 
 ### Bug Fixes
