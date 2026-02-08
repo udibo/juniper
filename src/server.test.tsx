@@ -542,6 +542,61 @@ describe("createServer", () => {
     assertEquals(html.includes("Admin Error Boundary"), false);
   });
 
+  it("should return parent loader data for data requests to non-existent child URLs", async () => {
+    const client = new Client({
+      path: "/",
+      main: {
+        default: () => <Outlet />,
+        ErrorBoundary: () => <div>Root Error Boundary</div>,
+      },
+      children: [
+        {
+          path: "admin",
+          main: {
+            default: () => <Outlet />,
+            ErrorBoundary: () => <div>Admin Error Boundary</div>,
+          },
+          children: [
+            {
+              path: "users",
+              main: () => Promise.resolve({ default: () => <div>Users</div> }),
+            },
+          ],
+        },
+      ],
+    });
+
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        loader: () => Promise.resolve({ currentUser: "test-user" }),
+      },
+      children: [
+        {
+          path: "admin",
+          children: [
+            {
+              path: "users",
+            },
+          ],
+        },
+      ],
+    });
+
+    // Data request for root loader at a non-existent URL under /admin.
+    // This simulates client-side navigation to a 404 page where React Router
+    // needs to re-fetch the root route's loader data.
+    const res = await server.request("http://localhost/admin/non-existent", {
+      headers: { "X-Juniper-Route-Id": "/" },
+    });
+    assertEquals(res.status, 200);
+    const ct = res.headers.get("content-type");
+    assertEquals(ct, "application/cbor");
+    const buffer = await res.arrayBuffer();
+    const data = cborDecode<{ currentUser: string }>(new Uint8Array(buffer));
+    assertEquals(data, { currentUser: "test-user" });
+  });
+
   it("should find nearest ancestor error boundary when route has no error boundary", async () => {
     const client = new Client({
       path: "/",
