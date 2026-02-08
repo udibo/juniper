@@ -32,7 +32,7 @@
   "imports": {
     "@/": "./",
     "@tanstack/react-query": "npm:@tanstack/react-query@^5.90.20",
-    "@udibo/juniper": "jsr:@udibo/juniper@^0.3.2",
+    "@udibo/juniper": "jsr:@udibo/juniper@^0.3.3",
     "@std/async": "jsr:@std/async@^1.1.1",
     "@std/testing": "jsr:@std/testing@^1.0.17",
     "@std/assert": "jsr:@std/assert@^1.0.18",

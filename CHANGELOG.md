@@ -1,3 +1,11 @@
+## [0.3.3](https://github.com/udibo/juniper/compare/0.3.2...0.3.3) (2026-02-08)
+
+### Bug Fixes
+
+- Add data request handler for non-existent routes
+  ([#74](https://github.com/udibo/juniper/issues/74))
+  ([8427e78](https://github.com/udibo/juniper/commit/8427e78409d4526f1cf4cbf6df2d3ec0b2e6ee03))
+
 ## [0.3.2](https://github.com/udibo/juniper/compare/0.3.1...0.3.2) (2026-01-31)
 
 ### Bug Fixes
