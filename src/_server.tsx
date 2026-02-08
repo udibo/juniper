@@ -5,7 +5,7 @@ import { parseArgs } from "@std/cli/parse-args";
 import { HttpError } from "./mod.ts";
 import { SpanStatusCode } from "@opentelemetry/api";
 import { Hono } from "hono";
-import type { Context, Env, Schema } from "hono";
+import type { Context, Env, MiddlewareHandler, Schema } from "hono";
 import { createFactory } from "hono/factory";
 import { serveStatic } from "hono/deno";
 import { stream } from "hono/streaming";
@@ -1045,6 +1045,20 @@ export function buildApp<
     }
     app.route("/:*{.+}", catchallApp);
     app.route("*", catchallApp);
+  }
+
+  // Catch data requests that didn't match any route handler at this level.
+  // This happens when the client navigates to a non-existent URL and React Router
+  // needs to re-fetch parent route data (e.g., GET /identity/applications with
+  // X-Juniper-Route-Id: "/" to refresh the root loader).
+  if (isClientRoute && errorHandler) {
+    const handleDataRequest = reactHandlers[reactHandlers.length - 1];
+    app.use("*", (c, next) => {
+      if (c.req.header("X-Juniper-Route-Id")) {
+        return (handleDataRequest as unknown as MiddlewareHandler)(c, next);
+      }
+      return next();
+    });
   }
 
   app.use("*", notFound);
