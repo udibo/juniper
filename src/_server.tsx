@@ -414,17 +414,33 @@ async function renderDocument(
   c.status(statusCode);
 
   for (const [key, value] of actionHeaders?.entries() ?? []) {
-    c.header(key, value);
+    if (key.toLowerCase() !== "set-cookie") {
+      c.header(key, value);
+    }
+  }
+  for (const cookie of actionHeaders?.getSetCookie() ?? []) {
+    c.header("Set-Cookie", cookie, { append: true });
   }
   for (const [key, value] of loaderHeaders?.entries() ?? []) {
-    c.header(key, value);
+    if (key.toLowerCase() !== "set-cookie") {
+      c.header(key, value);
+    }
+  }
+  for (const cookie of loaderHeaders?.getSetCookie() ?? []) {
+    c.header("Set-Cookie", cookie, { append: true });
   }
 
   if (presetError?.headers) {
     for (const [key, value] of presetError.headers.entries()) {
-      if (key.toLowerCase() !== "content-type") {
+      if (
+        key.toLowerCase() !== "content-type" &&
+        key.toLowerCase() !== "set-cookie"
+      ) {
         c.header(key, value);
       }
+    }
+    for (const cookie of presetError.headers.getSetCookie()) {
+      c.header("Set-Cookie", cookie, { append: true });
     }
   }
 
@@ -738,10 +754,17 @@ export function createHandlers<
               if (
                 lowerKey !== "location" &&
                 lowerKey !== "content-type" &&
-                lowerKey !== "content-length"
+                lowerKey !== "content-length" &&
+                lowerKey !== "set-cookie"
               ) {
                 c.header(key, value);
               }
+            }
+            // Handle Set-Cookie headers separately to avoid corruption
+            // from Headers.entries() which merges multiple Set-Cookie
+            // values with commas
+            for (const cookie of dataOrResponse.headers.getSetCookie()) {
+              c.header("Set-Cookie", cookie, { append: true });
             }
             c.header("X-Juniper", "redirect");
             return c.json({ location });
@@ -791,9 +814,15 @@ export function createHandlers<
       });
       if (error.headers) {
         for (const [key, value] of error.headers.entries()) {
-          if (key.toLowerCase() !== "content-type") {
+          if (
+            key.toLowerCase() !== "content-type" &&
+            key.toLowerCase() !== "set-cookie"
+          ) {
             headers.set(key, value);
           }
+        }
+        for (const cookie of error.headers.getSetCookie()) {
+          headers.append("Set-Cookie", cookie);
         }
       }
       return new Response(cborData as unknown as BodyInit, {

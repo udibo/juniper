@@ -15,6 +15,8 @@ import {
 import type { HydrationState, RouteObject } from "react-router";
 import { stub } from "@std/testing/mock";
 import type { Stub } from "@std/testing/mock";
+import type { FakeTime } from "@std/testing/time";
+import type { waitFor as WaitForType } from "@testing-library/react";
 
 import type { AnyParams, RouteModule } from "../mod.ts";
 
@@ -301,20 +303,29 @@ export function createRoutesStub(
   return function RoutesStub(
     { initialEntries, hydrationData }: RoutesStubProps,
   ) {
-    const context = React.useMemo(() => {
+    const contextRef = React.useRef<RouterContextProvider>(null!);
+    const routerRef = React.useRef<ReturnType<typeof createMemoryRouter>>(
+      null!,
+    );
+    if (routerRef.current == null) {
       const ctx = new RouterContextProvider();
       options?.getContext?.(ctx);
-      return ctx;
-    }, []);
-    const router = createMemoryRouter(routeObjects, {
-      initialEntries: initialEntries ?? [firstPath],
-      hydrationData,
-      getContext: () => context,
-    });
+      contextRef.current = ctx;
+      routerRef.current = createMemoryRouter(routeObjects, {
+        initialEntries: initialEntries ?? [firstPath],
+        hydrationData,
+        getContext: () => ctx,
+      });
+    }
 
     return React.createElement(
       JuniperContextProvider,
-      { context, children: React.createElement(RouterProvider, { router }) },
+      {
+        context: contextRef.current!,
+        children: React.createElement(RouterProvider, {
+          router: routerRef.current,
+        }),
+      },
     );
   };
 }
@@ -580,4 +591,64 @@ export function stubFormData(): FormDataStub {
     restore,
     [Symbol.dispose]: restore,
   };
+}
+
+/**
+ * A drop-in replacement for `waitFor` from `@testing-library/react` that works
+ * correctly when `FakeTime` from `@std/testing/time` is active.
+ *
+ * `@testing-library/react` uses `setTimeout(resolve, 0)` internally to drain
+ * microtasks after `waitFor` resolves. When `FakeTime` is active, that timer is
+ * captured by the fake timer queue and never fires, causing `await waitFor()`
+ * to hang and leaving an unresolved promise that triggers Deno's
+ * "Promise resolution is still pending" error at process exit.
+ *
+ * This wrapper uses `FakeTime.restoreFor` to create a real interval that
+ * periodically flushes the fake timer queue, allowing the internal
+ * `setTimeout(resolve, 0)` to fire.
+ *
+ * @example Using with FakeTime and createRoutesStub
+ * ```tsx
+ * import "@udibo/juniper/utils/global-jsdom";
+ * import { cleanup, render, screen } from "@testing-library/react";
+ * import { afterEach, describe, it } from "@std/testing/bdd";
+ * import { FakeTime } from "@std/testing/time";
+ * import { createRoutesStub, waitForFakeTime } from "@udibo/juniper/utils/testing";
+ *
+ * import * as myRoute from "./my-route.tsx";
+ *
+ * describe("My route", () => {
+ *   afterEach(cleanup);
+ *
+ *   it("should render with fake time", async () => {
+ *     using time = new FakeTime("2025-01-15T12:00:00.000Z");
+ *     const Stub = createRoutesStub([myRoute]);
+ *     render(<Stub />);
+ *
+ *     await waitForFakeTime(time, () => {
+ *       screen.getByText("2025-01-15T12:00:00.000Z");
+ *     });
+ *   });
+ * });
+ * ```
+ *
+ * @param time The active FakeTime instance.
+ * @param callback The callback to pass to `waitFor`.
+ * @param options Optional `waitFor` options.
+ * @returns The result of the `waitFor` callback.
+ */
+export async function waitForFakeTime<T>(
+  time: FakeTime,
+  callback: () => T,
+  options?: Parameters<typeof WaitForType>[1],
+): Promise<T> {
+  const { FakeTime: FT } = await import("@std/testing/time");
+  const { waitFor } = await import("@testing-library/react");
+  const promise = waitFor(callback, options);
+  const id = await FT.restoreFor(() => setInterval(() => time.tick(0), 10));
+  try {
+    return await promise;
+  } finally {
+    await FT.restoreFor(() => clearInterval(id));
+  }
 }

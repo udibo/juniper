@@ -284,10 +284,13 @@ Test loaders with `createRoutesStub`:
 ```tsx
 import "@udibo/juniper/utils/global-jsdom";
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
-import { createRoutesStub } from "@udibo/juniper/utils/testing";
+import {
+  createRoutesStub,
+  waitForFakeTime,
+} from "@udibo/juniper/utils/testing";
 
 import * as loaderRoute from "./loader.tsx";
 
@@ -310,7 +313,7 @@ describe("LoaderDemo route", () => {
     const Stub = createRoutesStub([loaderRoute]);
     render(<Stub />);
 
-    await waitFor(() => {
+    await waitForFakeTime(time, () => {
       screen.getByText("Loading data...");
     });
   });
@@ -321,7 +324,7 @@ describe("LoaderDemo route", () => {
 
     await time.tickAsync(600);
 
-    await waitFor(() => {
+    await waitForFakeTime(time, () => {
       screen.getByText("Data loaded successfully!");
     });
   });
@@ -481,6 +484,66 @@ describe("Time-dependent tests", () => {
   });
 });
 ```
+
+> **Important:** `FakeTime` is incompatible with `waitFor` from
+> `@testing-library/react` — see [waitForFakeTime](#waitforfaketime) below for
+> the solution.
+
+### waitForFakeTime
+
+`waitFor` from `@testing-library/react` hangs when `FakeTime` is active. This
+happens because `@testing-library/react` internally uses
+`setTimeout(resolve, 0)` to drain microtasks after `waitFor` resolves. With
+`FakeTime`, that timer is captured by the fake queue and never fires.
+
+Use `waitForFakeTime` from `@udibo/juniper/utils/testing` as a drop-in
+replacement whenever `FakeTime` is active. It uses `FakeTime.restoreFor` to
+periodically flush the fake timer queue with a real interval:
+
+```tsx
+import "@udibo/juniper/utils/global-jsdom";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, it } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
+import {
+  createRoutesStub,
+  waitForFakeTime,
+} from "@udibo/juniper/utils/testing";
+
+import * as indexRoute from "./index.tsx";
+
+describe("Home route", () => {
+  afterEach(cleanup);
+
+  it("should render with fake time", async () => {
+    using time = new FakeTime("2025-01-15T12:00:00.000Z");
+    const Stub = createRoutesStub([indexRoute]);
+    render(<Stub />);
+
+    // Use waitForFakeTime when FakeTime is active
+    await waitForFakeTime(time, () => {
+      screen.getByRole("heading", { name: "Hello, World!" });
+    });
+    screen.getByText("Current time: 2025-01-15T12:00:00.000Z");
+  });
+
+  it("should render with stubbed data", async () => {
+    // No FakeTime — use regular waitFor
+    const Stub = createRoutesStub([{
+      ...indexRoute,
+      loader: () => ({ message: "Custom!", now: new Date() }),
+    }]);
+    render(<Stub />);
+
+    await waitFor(() => {
+      screen.getByRole("heading", { name: "Custom!" });
+    });
+  });
+});
+```
+
+**Rule of thumb:** If `FakeTime` is active in the test, use `waitForFakeTime`.
+Otherwise, use the regular `waitFor` from `@testing-library/react`.
 
 ### Testing with Deno KV
 

@@ -333,6 +333,7 @@ describe("createRoute", () => {
       unstable_data: undefined,
       unstable_allowRouteDeterminism: undefined,
       unstable_pattern: "/blog",
+      unstable_url: new URL("http://localhost/blog"),
     } as ActionFunctionArgs;
     const result = await routeObject.action(actionArgs);
     assertEquals(result, payload);

@@ -767,6 +767,50 @@ describe("redirect header preservation", () => {
     const data = await res.json();
     assertEquals(data, { location: "/dashboard" });
   });
+
+  it("should preserve multiple Set-Cookie headers from redirect response", async () => {
+    const client = new Client({
+      path: "/",
+      main: { default: () => <div>Home</div> },
+    });
+
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        loader: () => {
+          const headers = new Headers();
+          headers.append("Location", "/dashboard");
+          headers.append(
+            "Set-Cookie",
+            "access_token=abc; Path=/; HttpOnly",
+          );
+          headers.append(
+            "Set-Cookie",
+            "refresh_token=xyz; Path=/auth/refresh; HttpOnly",
+          );
+          return Promise.resolve(
+            new Response(null, { status: 302, headers }),
+          );
+        },
+      },
+    });
+
+    const res = await server.request("http://localhost/", {
+      headers: { "X-Juniper-Route-Id": "/" },
+    });
+
+    assertEquals(res.status, 200);
+    assertEquals(res.headers.get("X-Juniper"), "redirect");
+
+    // Multiple Set-Cookie headers should be preserved individually
+    const cookies = res.headers.getSetCookie();
+    assertEquals(cookies.length, 2);
+    assertEquals(cookies[0], "access_token=abc; Path=/; HttpOnly");
+    assertEquals(
+      cookies[1],
+      "refresh_token=xyz; Path=/auth/refresh; HttpOnly",
+    );
+  });
 });
 
 describe("build artifact cache control", () => {
