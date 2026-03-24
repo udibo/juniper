@@ -1,11 +1,14 @@
 import "@udibo/juniper/utils/global-jsdom";
 
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 
-import { createRoutesStub } from "@udibo/juniper/utils/testing";
+import {
+  createRoutesStub,
+  waitForFakeTime,
+} from "@udibo/juniper/utils/testing";
 
 import * as loaderRoute from "./loader.tsx";
 
@@ -28,7 +31,7 @@ describe("LoaderDemo route", () => {
     const Stub = createRoutesStub([loaderRoute]);
     render(<Stub />);
 
-    await waitFor(() => {
+    await waitForFakeTime(time, () => {
       screen.getByText("Loading data...");
     });
   });
@@ -37,13 +40,13 @@ describe("LoaderDemo route", () => {
     const Stub = createRoutesStub([loaderRoute]);
     render(<Stub />);
 
-    await waitFor(() => {
+    await waitForFakeTime(time, () => {
       screen.getByText("Loading data...");
     });
 
     await time.tickAsync(600);
 
-    await waitFor(() => {
+    await waitForFakeTime(time, () => {
       screen.getByText("Data loaded successfully!");
     });
 
@@ -57,7 +60,7 @@ describe("LoaderDemo route", () => {
 
     await time.tickAsync(600);
 
-    await waitFor(() => {
+    await waitForFakeTime(time, () => {
       screen.getByRole("heading", { name: "Loader" });
     });
   });
@@ -75,7 +78,7 @@ describe("LoaderDemo route", () => {
     }]);
     render(<Stub />);
 
-    await waitFor(() => {
+    await waitForFakeTime(time, () => {
       screen.getByText("Stubbed data!");
     });
 
