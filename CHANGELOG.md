@@ -1,3 +1,11 @@
+# [0.4.0](https://github.com/udibo/juniper/compare/0.3.3...0.4.0) (2026-03-24)
+
+### Features
+
+- handle Set-Cookie headers, add waitForFakeTime, and update deps
+  ([#75](https://github.com/udibo/juniper/issues/75))
+  ([0a65257](https://github.com/udibo/juniper/commit/0a65257f898c230ce73e9d030679d2815453e5cc))
+
 ## [0.3.3](https://github.com/udibo/juniper/compare/0.3.2...0.3.3) (2026-02-08)
 
 ### Bug Fixes
