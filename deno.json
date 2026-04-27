@@ -152,7 +152,7 @@
     }
   },
   "imports": {
-    "react": "npm:react@^19.2.4",
+    "react": "npm:react@^19.2.5",
     "@types/react": "npm:@types/react@^19.2.14"
   },
   "compilerOptions": {
