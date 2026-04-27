@@ -1,3 +1,11 @@
+## [0.4.1](https://github.com/udibo/juniper/compare/0.4.0...0.4.1) (2026-04-27)
+
+### Bug Fixes
+
+- drop redundant release:false rules that overrode patch matches
+  ([#78](https://github.com/udibo/juniper/issues/78))
+  ([ea5e16e](https://github.com/udibo/juniper/commit/ea5e16eded3d3b9ef28655ec5bf6c1726ed77c03))
+
 # [0.4.0](https://github.com/udibo/juniper/compare/0.3.3...0.4.0) (2026-03-24)
 
 ### Features
