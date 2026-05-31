@@ -152,8 +152,8 @@
     }
   },
   "imports": {
-    "react": "npm:react@^19.2.5",
-    "@types/react": "npm:@types/react@^19.2.14"
+    "react": "npm:react@^19.2.6",
+    "@types/react": "npm:@types/react@^19.2.15"
   },
   "compilerOptions": {
     "lib": [

@@ -694,11 +694,13 @@ describe("mergeServerRoutes", () => {
     ];
 
     const [rootRoute] = mergeServerRoutes(serverRoute, clientRoutes);
-    const createArgs = (url: string) => ({
+    const createArgs = (url: string): LoaderFunctionArgs => ({
       context: {} as never,
       params: {},
       request: new Request(url),
-    } as unknown as LoaderFunctionArgs);
+      url: new URL(url),
+      pattern: new URL(url).pathname,
+    });
 
     const indexRoute = rootRoute.children?.find((route) =>
       route.index === true
