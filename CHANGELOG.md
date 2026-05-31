@@ -1,3 +1,11 @@
+## [0.4.2](https://github.com/udibo/juniper/compare/0.4.1...0.4.2) (2026-05-31)
+
+### Bug Fixes
+
+- honor redirectDocument() in data-mode redirects
+  ([#80](https://github.com/udibo/juniper/issues/80))
+  ([1bd0089](https://github.com/udibo/juniper/commit/1bd0089a84b81a6c40b3f5be2d8f1cbb0674d8b0))
+
 ## [0.4.1](https://github.com/udibo/juniper/compare/0.4.0...0.4.1) (2026-04-27)
 
 ### Bug Fixes
