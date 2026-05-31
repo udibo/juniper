@@ -1,6 +1,11 @@
 import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
-import { Outlet, useLoaderData, useParams } from "react-router";
+import {
+  Outlet,
+  redirectDocument,
+  useLoaderData,
+  useParams,
+} from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
 
 import type { RouteLoaderArgs } from "./mod.ts";
@@ -766,6 +771,35 @@ describe("redirect header preservation", () => {
 
     const data = await res.json();
     assertEquals(data, { location: "/dashboard" });
+  });
+
+  it("flags a redirectDocument() redirect so the client navigates the full page", async () => {
+    const client = new Client({
+      path: "/",
+      main: { default: () => <div>Home</div> },
+    });
+
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        // A full-page redirect to a server-only route the client router
+        // cannot render (the OAuth2 authorize/callback case).
+        loader: () => Promise.resolve(redirectDocument("/auth/login")),
+      },
+    });
+
+    const res = await server.request("http://localhost/", {
+      headers: { "X-Juniper-Route-Id": "/" },
+    });
+
+    assertEquals(res.status, 200);
+    assertEquals(res.headers.get("X-Juniper"), "redirect");
+    // The internal reload-document header is not leaked as a response header;
+    // the intent travels in the JSON body so the client can act on it.
+    assertEquals(res.headers.get("X-Remix-Reload-Document"), null);
+
+    const data = await res.json();
+    assertEquals(data, { location: "/auth/login", reloadDocument: true });
   });
 
   it("should preserve multiple Set-Cookie headers from redirect response", async () => {
