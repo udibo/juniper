@@ -261,9 +261,14 @@ title, so it must follow this format:
 | `refactor` | Code changes that neither fix bugs nor add features | None         |
 | `perf`     | Performance improvements                            | Patch        |
 | `test`     | Adding or updating tests                            | None         |
-| `build`    | Build system or external dependency changes         | None         |
+| `build`    | Build system or external dependency changes         | None¹        |
 | `ci`       | CI configuration changes                            | None         |
-| `chore`    | Other changes that don't modify src or test files   | None         |
+| `chore`    | Other changes that don't modify src or test files   | None¹        |
+
+¹ **Dependency updates must use the `deps` scope to publish.** `build(deps):`
+and `chore(deps):` trigger a **Patch** release; without the scope (e.g. plain
+`chore: update deps`) no release is cut. Always title dependency-bump PRs
+`chore(deps): …` or `build(deps): …`.
 
 **Scope** (optional): The area of the codebase affected (e.g., `router`,
 `build`, `server`).
@@ -366,6 +371,9 @@ Releases are fully automated using
 - `fix:` → Patch release (0.1.x)
 - `feat:` → Minor release (0.x.0)
 - `feat!:` or `BREAKING CHANGE:` → Minor release during v0.x, Major after v1.0
+- `chore(deps):` or `build(deps):` → Patch release (dependency bumps **must**
+  carry the `deps` scope, otherwise no release is published)
+- `perf:` or `revert:` → Patch release
 
 ## Getting Help
 
