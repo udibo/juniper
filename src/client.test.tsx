@@ -322,19 +322,13 @@ describe("createRoute", () => {
 
     const routeObject = createRoute(routeFile, { action: true }, "route-1");
     assertExists(routeObject.action);
-    const actionArgs = {
+    const actionArgs: ActionFunctionArgs = {
       context: {} as never,
       params: {},
       request,
-      preventScrollReset: undefined,
-      submission: undefined,
-      unstable_viewTransition: undefined,
-      unstable_fetcherSubmission: undefined,
-      unstable_data: undefined,
-      unstable_allowRouteDeterminism: undefined,
-      unstable_pattern: "/blog",
-      unstable_url: new URL("http://localhost/blog"),
-    } as ActionFunctionArgs;
+      url: new URL(request.url),
+      pattern: "/blog",
+    };
     const result = await routeObject.action(actionArgs);
     assertEquals(result, payload);
     assertSpyCalls(fetchStub, 1);
