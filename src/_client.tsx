@@ -270,9 +270,21 @@ async function fetchServerData(
 
   const responseType = response.headers.get("X-Juniper");
   if (responseType === "redirect") {
-    const location = (await response.json()).location;
+    const redirectData = await response.json();
+    const location = redirectData.location;
     const currentUrl = new URL(globalThis.location.href);
     const redirectUrl = new URL(location, currentUrl);
+
+    // `redirectDocument()` requests a full-page navigation (e.g. to a
+    // server-only route the client router can't render). Hand it to the
+    // browser instead of attempting a client-side route transition, which
+    // would 404 on the unmatched route or mis-handle its response.
+    if (redirectData.reloadDocument) {
+      delay(0).then(() => {
+        globalThis.location.assign(redirectUrl.href);
+      });
+      return undefined;
+    }
 
     // If redirecting to the same location, do a browser reload instead
     if (redirectUrl.href === currentUrl.href) {

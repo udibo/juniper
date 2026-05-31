@@ -749,13 +749,21 @@ export function createHandlers<
             dataOrResponse.status >= 300 && dataOrResponse.status < 400 &&
             location
           ) {
+            // `redirectDocument()` marks a redirect that must be followed as a
+            // full-page navigation (e.g. to a server-only route the client
+            // router can't render), not a client-side route transition. React
+            // Router signals it with this header; relay it to the client so it
+            // can hand the navigation to the browser.
+            const reloadDocument =
+              dataOrResponse.headers.get("X-Remix-Reload-Document") === "true";
             for (const [key, value] of dataOrResponse.headers.entries()) {
               const lowerKey = key.toLowerCase();
               if (
                 lowerKey !== "location" &&
                 lowerKey !== "content-type" &&
                 lowerKey !== "content-length" &&
-                lowerKey !== "set-cookie"
+                lowerKey !== "set-cookie" &&
+                lowerKey !== "x-remix-reload-document"
               ) {
                 c.header(key, value);
               }
@@ -767,7 +775,9 @@ export function createHandlers<
               c.header("Set-Cookie", cookie, { append: true });
             }
             c.header("X-Juniper", "redirect");
-            return c.json({ location });
+            return c.json(
+              reloadDocument ? { location, reloadDocument } : { location },
+            );
           }
           return dataOrResponse;
         }
