@@ -12,6 +12,7 @@ fi
 FILES=(
   "example/deno.json"
   "templates/minimal/deno.json"
+  "templates/postgres/deno.json"
   "templates/tailwindcss/deno.json"
   "templates/tanstack/deno.json"
   "tutorials/blog/deno.json"
