@@ -65,6 +65,10 @@
     "jsxImportSource": "react",
     "jsxImportSourceTypes": "@types/react"
   },
+  "test": {
+    "sanitizeOps": true,
+    "sanitizeResources": true
+  },
   "permissions": {
     "serve": {
       "net": true,
