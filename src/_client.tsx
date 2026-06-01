@@ -226,6 +226,20 @@ function clearReloadState(key: string): void {
 const LAZY_LOAD_RELOAD_KEY = "__juniper_lazy_load_reload";
 const SAME_LOCATION_RELOAD_KEY = "__juniper_same_location_reload";
 
+/**
+ * A promise that never settles. Returned from a server-data fetch once a
+ * full-page navigation or reload has been kicked off (`location.assign` /
+ * `location.reload`), so React Router keeps the navigation in its *pending*
+ * state — the current page stays rendered — until the browser replaces the
+ * document. Resolving instead (even with `undefined`) lets the router commit
+ * the navigation and render the destination route for a frame first, which
+ * shows as a visible flash of the wrong page (e.g. an auth-gated page rendering
+ * unauthenticated for a moment before the redirect).
+ */
+function holdForDocumentNavigation(): Promise<never> {
+  return new Promise<never>(() => {});
+}
+
 async function fetchServerData(
   request: Request,
   method: "GET" | "POST",
@@ -283,7 +297,9 @@ async function fetchServerData(
       delay(0).then(() => {
         globalThis.location.assign(redirectUrl.href);
       });
-      return undefined;
+      // Hold the router pending so the destination route never renders before
+      // the browser navigation lands — otherwise the page flashes.
+      return holdForDocumentNavigation();
     }
 
     // If redirecting to the same location, do a browser reload instead
@@ -293,9 +309,11 @@ async function fetchServerData(
         delay(0).then(() => {
           globalThis.location.reload();
         });
+        // Hold pending while the reload runs (same rationale as above).
+        return holdForDocumentNavigation();
       }
-      // Return undefined to prevent further processing while reload happens
-      // or if we've exceeded reload retries
+      // Reload retries exhausted — resolve so the router can render rather than
+      // hang forever.
       return undefined;
     }
 

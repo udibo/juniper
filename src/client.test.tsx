@@ -8,9 +8,10 @@ import {
 } from "@std/assert";
 import { beforeAll, beforeEach, describe, it } from "@std/testing/bdd";
 import { assertSpyCalls, stub } from "@std/testing/mock";
+import { delay } from "@std/async/delay";
 import { HttpError } from "./mod.ts";
 import { Outlet } from "react-router";
-import type { ActionFunctionArgs } from "react-router";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 
 import { Client } from "./client.tsx";
 import {
@@ -336,6 +337,68 @@ describe("createRoute", () => {
       ?.body;
     assert(fetchBody instanceof FormData);
     assertEquals(fetchBody.get("title"), "Hello");
+  });
+
+  it("holds the navigation pending (no flash) on a reloadDocument redirect", async () => {
+    // A `reloadDocument` redirect (e.g. an auth guard bouncing to a server-only
+    // /auth/login) must trigger a full-page navigation WITHOUT the loader
+    // resolving — otherwise the router commits the navigation and renders the
+    // destination route for a frame before the browser leaves (the flash).
+    // fetchServerData reads globalThis.location.href and calls .assign(); Deno
+    // test has no DOM location, so provide a fake one.
+    const assigned: string[] = [];
+    const originalLocation = globalThis.location;
+    Object.defineProperty(globalThis, "location", {
+      configurable: true,
+      value: {
+        href: "http://localhost/",
+        assign: (url: string) => void assigned.push(url),
+      },
+    });
+
+    try {
+      using _fetchStub = stub(
+        globalThis,
+        "fetch",
+        () =>
+          Promise.resolve(
+            new Response(
+              JSON.stringify({
+                location: "/auth/login",
+                reloadDocument: true,
+              }),
+              { headers: { "X-Juniper": "redirect" } },
+            ),
+          ),
+      );
+
+      const routeObject = createRoute(routeFile, { loader: true }, "route-1");
+      assertExists(routeObject.loader);
+      const result = routeObject.loader({
+        context: {} as never,
+        params: {},
+        request: new Request("http://localhost/identity"),
+        url: new URL("http://localhost/identity"),
+        pattern: "/identity",
+      } as LoaderFunctionArgs);
+
+      // The loader must NOT settle — it holds the router pending while the
+      // browser navigates. Race it against a tick; the timeout must win.
+      const pending = Symbol("pending");
+      const outcome = await Promise.race([
+        Promise.resolve(result).then(() => "settled"),
+        delay(20).then(() => pending),
+      ]);
+      assert(outcome === pending, "loader should not resolve");
+
+      // And it kicked off a full-page navigation to the resolved URL.
+      assertEquals(assigned, ["http://localhost/auth/login"]);
+    } finally {
+      Object.defineProperty(globalThis, "location", {
+        configurable: true,
+        value: originalLocation,
+      });
+    }
   });
 });
 
