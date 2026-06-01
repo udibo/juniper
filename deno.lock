@@ -30,11 +30,12 @@
     "npm:@modelcontextprotocol/sdk@^1.29.0": "1.29.0_zod@4.4.3",
     "npm:@opentelemetry/api@^1.9.1": "1.9.1",
     "npm:@tailwindcss/postcss@^4.3.0": "4.3.0",
-    "npm:@tanstack/react-query@^5.100.14": "5.100.14_react@19.2.6",
-    "npm:@testing-library/react@^16.3.2": "16.3.2_@testing-library+dom@10.4.1_@types+react@19.2.15_react@19.2.6_react-dom@19.2.6__react@19.2.6",
+    "npm:@tanstack/react-query@^5.100.14": "5.100.14_react@19.2.7",
+    "npm:@testing-library/react@^16.3.2": "16.3.2_@types+react@19.2.16_react@19.2.7_react-dom@19.2.7__react@19.2.7",
     "npm:@testing-library/user-event@^14.6.1": "14.6.1_@testing-library+dom@10.4.1",
     "npm:@types/pg@^8.20.0": "8.20.0",
-    "npm:@types/react@^19.2.15": "19.2.15",
+    "npm:@types/react@^19.2.15": "19.2.16",
+    "npm:@types/react@^19.2.16": "19.2.16",
     "npm:babel-plugin-react-compiler@1": "1.0.0",
     "npm:cbor2@^2.3.0": "2.3.0",
     "npm:drizzle-kit@*": "0.31.10",
@@ -52,10 +53,12 @@
     "npm:postcss-modules@^6.0.1": "6.0.1_postcss@8.5.15",
     "npm:postcss@^8.5.6": "8.5.15",
     "npm:quick-lru@^7.3.0": "7.3.0",
-    "npm:react-dom@^19.2.6": "19.2.6_react@19.2.6",
-    "npm:react-error-boundary@^6.1.2": "6.1.2_react@19.2.6",
-    "npm:react-router@^7.16.0": "7.16.0_react@19.2.6_react-dom@19.2.6__react@19.2.6",
-    "npm:react@^19.2.6": "19.2.6",
+    "npm:react-dom@^19.2.6": "19.2.7_react@19.2.7",
+    "npm:react-dom@^19.2.7": "19.2.7_react@19.2.7",
+    "npm:react-error-boundary@^6.1.2": "6.1.2_react@19.2.7",
+    "npm:react-router@^7.16.0": "7.16.0_react@19.2.7_react-dom@19.2.7__react@19.2.7",
+    "npm:react@^19.2.6": "19.2.7",
+    "npm:react@^19.2.7": "19.2.7",
     "npm:sass@^1.93.3": "1.100.0",
     "npm:stylus@0.64": "0.64.0",
     "npm:tailwindcss@^4.3.0": "4.3.0",
@@ -187,7 +190,7 @@
         "npm:@babel/core",
         "npm:@opentelemetry/api",
         "npm:@testing-library/react",
-        "npm:@types/react",
+        "npm:@types/react@^19.2.15",
         "npm:babel-plugin-react-compiler",
         "npm:cbor2",
         "npm:esbuild@0.28",
@@ -195,9 +198,9 @@
         "npm:hono",
         "npm:isbot",
         "npm:quick-lru",
-        "npm:react",
-        "npm:react-dom",
-        "npm:react-router"
+        "npm:react-dom@^19.2.6",
+        "npm:react-router",
+        "npm:react@^19.2.6"
       ]
     }
   },
@@ -1059,7 +1062,7 @@
     "@tanstack/query-core@5.100.14": {
       "integrity": "sha512-5X41dGpxgeaHISCRW2oYwcSycZeULZzAunaudXT9ov1KOTj9xwt0CH6hbwqP1/z74ZWF7rYFnDpyYH07XFcZew=="
     },
-    "@tanstack/react-query@5.100.14_react@19.2.6": {
+    "@tanstack/react-query@5.100.14_react@19.2.7": {
       "integrity": "sha512-oOr6aRdSFEwWhzxEkD/9ZcItM3+LjBSkeVmadWKwUssAHTsqd/7bOjWrX4AbvEkoEhgAxzN0Xk6H/aYzXiYBAw==",
       "dependencies": [
         "@tanstack/query-core",
@@ -1079,7 +1082,7 @@
         "pretty-format"
       ]
     },
-    "@testing-library/react@16.3.2_@testing-library+dom@10.4.1_@types+react@19.2.15_react@19.2.6_react-dom@19.2.6__react@19.2.6": {
+    "@testing-library/react@16.3.2_@types+react@19.2.16_react@19.2.7_react-dom@19.2.7__react@19.2.7": {
       "integrity": "sha512-XU5/SytQM+ykqMnAnvB2umaJNIOsLF3PVv//1Ew4CTcpz0/BRyy/af40qqrt7SjKpDdT1saBMc42CUok5gaw+g==",
       "dependencies": [
         "@babel/runtime",
@@ -1115,8 +1118,8 @@
         "pg-types"
       ]
     },
-    "@types/react@19.2.15": {
-      "integrity": "sha512-eRwcGNHve+E8qtEQSSRl6urh+rFop4v8gm6O8rGv25CodbvFdLjA1vVQ1KkiFE0w0UPOnb8tDiFKL5lp0rtY5Q==",
+    "@types/react@19.2.16": {
+      "integrity": "sha512-esJiCAnl0kfpNdE69f3So4WJUXy95dLZydX0KwK46riIHDzHM7O9Vtf9xCHW0PXIqvgqNrswl522kA/5yx+F4w==",
       "dependencies": [
         "csstype"
       ]
@@ -2253,14 +2256,14 @@
         "unpipe"
       ]
     },
-    "react-dom@19.2.6_react@19.2.6": {
-      "integrity": "sha512-0prMI+hvBbPjsWnxDLxlCGyM8PN6UuWjEUCYmZhO67xIV9Xasa/r/vDnq+Xyq4Lo27g8QSbO5YzARu0D1Sps3g==",
+    "react-dom@19.2.7_react@19.2.7": {
+      "integrity": "sha512-t0BRVXvbiE/o20Hfw669rLbMCDWtYZLvmJigy2f0MxsXF+71pxhR3xOkspmsO8h3ZlNzyibAmtCa3l4lYKk6gQ==",
       "dependencies": [
         "react",
         "scheduler"
       ]
     },
-    "react-error-boundary@6.1.2_react@19.2.6": {
+    "react-error-boundary@6.1.2_react@19.2.7": {
       "integrity": "sha512-3DpCr5HVdZ0caUjYE/kIHBEJN0mNP3ZCgf16c48uJ5TbWjorKVp+YG8W3XqlJ7vJAVNw6wNIImyPXmFydwmyng==",
       "dependencies": [
         "react"
@@ -2269,7 +2272,7 @@
     "react-is@17.0.2": {
       "integrity": "sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w=="
     },
-    "react-router@7.16.0_react@19.2.6_react-dom@19.2.6__react@19.2.6": {
+    "react-router@7.16.0_react@19.2.7_react-dom@19.2.7__react@19.2.7": {
       "integrity": "sha512-wArC8lVyJb3+jM9OpDyW6hLCizACWkvQR/sSGqSs+o5uEXEtGlqdZ4v8hENR3Jad6i+LRkK93q/+bQAcvl6V1A==",
       "dependencies": [
         "cookie@1.1.1",
@@ -2281,8 +2284,8 @@
         "react-dom"
       ]
     },
-    "react@19.2.6": {
-      "integrity": "sha512-sfWGGfavi0xr8Pg0sVsyHMAOziVYKgPLNrS7ig+ivMNb3wbCBw3KxtflsGBAwD3gYQlE/AEZsTLgToRrSCjb0Q=="
+    "react@19.2.7": {
+      "integrity": "sha512-HNe9WslTbXmFK8o8cmwgAeJFSBvt1bPdHCVKtaaV+WlAN36mpT4hcRpwbf3fY56ar2oIXzsBpOAiIRHAdY0OlQ=="
     },
     "readdirp@5.0.0": {
       "integrity": "sha512-9u/XQ1pvrQtYyMpZe7DXKv2p5CNvyVwzUB6uhLAnQwHMSgKMBR62lc7AHljaeteeHXn11XTAaLLUVZYVZyuRBQ=="
@@ -2627,8 +2630,9 @@
   },
   "workspace": {
     "dependencies": [
-      "npm:@types/react@^19.2.15",
-      "npm:react@^19.2.6"
+      "npm:@types/react@^19.2.16",
+      "npm:react-dom@^19.2.7",
+      "npm:react@^19.2.7"
     ],
     "members": {
       "example": {
@@ -2642,16 +2646,17 @@
           "jsr:@std/testing@^1.0.19",
           "jsr:@std/uuid@^1.1.1",
           "jsr:@udibo/esbuild-plugin-postcss@0.3",
-          "jsr:@udibo/juniper@0.6",
+          "jsr:@udibo/juniper@0.7",
           "npm:@opentelemetry/api@^1.9.1",
           "npm:@tailwindcss/postcss@^4.3.0",
           "npm:@testing-library/react@^16.3.2",
           "npm:@testing-library/user-event@^14.6.1",
-          "npm:@types/react@^19.2.15",
+          "npm:@types/react@^19.2.16",
           "npm:hono@^4.12.23",
           "npm:playwright@^1.60.0",
+          "npm:react-dom@^19.2.7",
           "npm:react-router@^7.16.0",
-          "npm:react@^19.2.6",
+          "npm:react@^19.2.7",
           "npm:tailwindcss@^4.3.0",
           "npm:zod@^4.4.3"
         ]
@@ -2672,7 +2677,7 @@
           "npm:@modelcontextprotocol/sdk@^1.29.0",
           "npm:@opentelemetry/api@^1.9.1",
           "npm:@testing-library/react@^16.3.2",
-          "npm:@types/react@^19.2.15",
+          "npm:@types/react@^19.2.16",
           "npm:babel-plugin-react-compiler@1",
           "npm:cbor2@^2.3.0",
           "npm:esbuild@0.28",
@@ -2680,10 +2685,10 @@
           "npm:hono@^4.12.23",
           "npm:isbot@^5.1.40",
           "npm:quick-lru@^7.3.0",
-          "npm:react-dom@^19.2.6",
+          "npm:react-dom@^19.2.7",
           "npm:react-error-boundary@^6.1.2",
           "npm:react-router@^7.16.0",
-          "npm:react@^19.2.6"
+          "npm:react@^19.2.7"
         ]
       },
       "templates/minimal": {
@@ -2692,13 +2697,14 @@
           "jsr:@std/path@^1.1.5",
           "jsr:@std/streams@^1.1.1",
           "jsr:@std/testing@^1.0.19",
-          "jsr:@udibo/juniper@0.6",
+          "jsr:@udibo/juniper@0.7",
           "npm:@opentelemetry/api@^1.9.1",
           "npm:@testing-library/react@^16.3.2",
-          "npm:@types/react@^19.2.15",
+          "npm:@types/react@^19.2.16",
           "npm:hono@^4.12.23",
+          "npm:react-dom@^19.2.7",
           "npm:react-router@^7.16.0",
-          "npm:react@^19.2.6"
+          "npm:react@^19.2.7"
         ]
       },
       "templates/postgres": {
@@ -2711,13 +2717,14 @@
           "npm:@opentelemetry/api@^1.9.1",
           "npm:@testing-library/react@^16.3.2",
           "npm:@types/pg@^8.20.0",
-          "npm:@types/react@^19.2.15",
+          "npm:@types/react@^19.2.16",
           "npm:drizzle-kit@~0.31.10",
           "npm:drizzle-orm@~0.45.2",
           "npm:hono@^4.12.23",
           "npm:pg@^8.20.0",
+          "npm:react-dom@^19.2.7",
           "npm:react-router@^7.16.0",
-          "npm:react@^19.2.6",
+          "npm:react@^19.2.7",
           "npm:zod@^4.3.6"
         ]
       },
@@ -2728,14 +2735,15 @@
           "jsr:@std/streams@^1.1.1",
           "jsr:@std/testing@^1.0.19",
           "jsr:@udibo/esbuild-plugin-postcss@0.3.0",
-          "jsr:@udibo/juniper@0.6",
+          "jsr:@udibo/juniper@0.7",
           "npm:@opentelemetry/api@^1.9.1",
           "npm:@tailwindcss/postcss@^4.3.0",
           "npm:@testing-library/react@^16.3.2",
-          "npm:@types/react@^19.2.15",
+          "npm:@types/react@^19.2.16",
           "npm:hono@^4.12.23",
+          "npm:react-dom@^19.2.7",
           "npm:react-router@^7.16.0",
-          "npm:react@^19.2.6",
+          "npm:react@^19.2.7",
           "npm:tailwindcss@^4.3.0"
         ]
       },
@@ -2746,15 +2754,16 @@
           "jsr:@std/path@^1.1.5",
           "jsr:@std/streams@^1.1.1",
           "jsr:@std/testing@^1.0.19",
-          "jsr:@udibo/juniper@0.6",
+          "jsr:@udibo/juniper@0.7",
           "npm:@opentelemetry/api@^1.9.1",
           "npm:@tanstack/react-query@^5.100.14",
           "npm:@testing-library/react@^16.3.2",
           "npm:@testing-library/user-event@^14.6.1",
-          "npm:@types/react@^19.2.15",
+          "npm:@types/react@^19.2.16",
           "npm:hono@^4.12.23",
+          "npm:react-dom@^19.2.7",
           "npm:react-router@^7.16.0",
-          "npm:react@^19.2.6"
+          "npm:react@^19.2.7"
         ]
       },
       "tutorials/blog": {
@@ -2763,13 +2772,14 @@
           "jsr:@std/path@^1.1.5",
           "jsr:@std/streams@^1.1.1",
           "jsr:@std/testing@^1.0.19",
-          "jsr:@udibo/juniper@0.6",
+          "jsr:@udibo/juniper@0.7",
           "npm:@opentelemetry/api@^1.9.1",
           "npm:@testing-library/react@^16.3.2",
-          "npm:@types/react@^19.2.15",
+          "npm:@types/react@^19.2.16",
           "npm:hono@^4.12.23",
+          "npm:react-dom@^19.2.7",
           "npm:react-router@^7.16.0",
-          "npm:react@^19.2.6"
+          "npm:react@^19.2.7"
         ]
       }
     }
