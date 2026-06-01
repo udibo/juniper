@@ -1,3 +1,11 @@
+# [0.6.0](https://github.com/udibo/juniper/compare/0.5.0...0.6.0) (2026-06-01)
+
+### Features
+
+- **templates:** add a PostgreSQL template
+  ([#86](https://github.com/udibo/juniper/issues/86))
+  ([b3ccd7b](https://github.com/udibo/juniper/commit/b3ccd7bf5dc0842495037deca5094e4ece040e5f))
+
 # [0.5.0](https://github.com/udibo/juniper/compare/0.4.3...0.5.0) (2026-06-01)
 
 ### Features
