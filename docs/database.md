@@ -215,6 +215,35 @@ services:
     restart: unless-stopped
 ```
 
+> **Exclude the volume from file watching.** PostgreSQL writes its data into the
+> bind-mounted `./docker/volumes/postgres` directory as `root`, which the dev
+> server's file watcher cannot read. Watching it would crash `deno task dev`
+> with a `PermissionDenied` error. Add a `build.ts` that ignores `./docker` so
+> the watcher skips it:
+>
+> ```typescript
+> // build.ts
+> import * as path from "@std/path";
+> import { Builder } from "@udibo/juniper/build";
+>
+> const projectRoot = path.dirname(path.fromFileUrl(import.meta.url));
+> export const builder = new Builder({
+>   projectRoot,
+>   configPath: "./deno.json",
+>   ignorePaths: ["./docker"],
+> });
+>
+> if (import.meta.main) {
+>   await builder.build();
+>   await builder.dispose();
+> }
+> ```
+>
+> Then point your `build`/`build:prod` tasks at `./build.ts` instead of
+> `@udibo/juniper/build`. See
+> [Watch Paths Configuration](configuration.md#watch-paths-configuration) for
+> details.
+
 The mounted `docker/postgres/init-db.sql` creates the dev and test databases the
 first time the container starts:
 

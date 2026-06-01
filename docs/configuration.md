@@ -146,6 +146,10 @@ if (import.meta.main) {
 - `./logs` - Log files
 - `./tmp` - Temporary files
 
+**Note:** New files and nested subdirectories within watched directories are
+picked up automatically. If you add a brand-new _top-level_ directory while the
+dev server is running, restart it so the new directory is watched.
+
 #### Using `watchPaths`
 
 Alternatively, you can use `watchPaths` to explicitly list the directories to

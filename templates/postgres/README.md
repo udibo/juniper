@@ -101,6 +101,7 @@ deno task check
 
 ```
 ├── deno.json              # Deno configuration, tasks, and dependencies
+├── build.ts               # Build config; ignores ./docker for the dev watcher
 ├── docker-compose.yml     # Local PostgreSQL service
 ├── drizzle.config.ts      # Drizzle Kit configuration (migrations)
 ├── .env / .env.test       # Environment variables (incl. DATABASE_URL)

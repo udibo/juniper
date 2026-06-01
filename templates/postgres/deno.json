@@ -10,11 +10,11 @@
     },
     "build": {
       "description": "Builds the application for development.",
-      "command": "export OTEL_SERVICE_NAME=build && deno run -P=build --env-file @udibo/juniper/build"
+      "command": "export OTEL_SERVICE_NAME=build && deno run -P=build --env-file ./build.ts"
     },
     "build:prod": {
       "description": "Builds the application for production.",
-      "command": "export OTEL_SERVICE_NAME=build && deno run -P=build --env-file --env-file=.env.production @udibo/juniper/build"
+      "command": "export OTEL_SERVICE_NAME=build && deno run -P=build --env-file --env-file=.env.production ./build.ts"
     },
     "dev": {
       "description": "Runs the development server.",
