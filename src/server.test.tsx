@@ -847,6 +847,88 @@ describe("redirect header preservation", () => {
       "refresh_token=xyz; Path=/auth/refresh; HttpOnly",
     );
   });
+
+  it("envelopes a Hono middleware redirect on a data request (soft, SPA)", async () => {
+    const client = new Client({
+      path: "/",
+      main: { default: () => <div>Home</div> },
+    });
+
+    const { Hono } = await import("hono");
+    const guard = new Hono();
+    guard.use(async (c) => c.redirect("/sign-in?return_to=/"));
+
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      // A route-group guard that short-circuits BEFORE the React handlers — the
+      // case handleDataRequest never sees. The outer interceptor must still
+      // repackage it into the envelope.
+      main: { default: guard },
+    });
+
+    const res = await server.request("http://localhost/", {
+      headers: { "X-Juniper-Route-Id": "/" },
+    });
+
+    assertEquals(res.status, 200);
+    assertEquals(res.headers.get("X-Juniper"), "redirect");
+    assertEquals(res.headers.get("Location"), null);
+    assertEquals(await res.json(), { location: "/sign-in?return_to=/" });
+  });
+
+  it("flags a Hono middleware redirectDocument() for a full-page navigation", async () => {
+    const client = new Client({
+      path: "/",
+      main: { default: () => <div>Home</div> },
+    });
+
+    const { Hono } = await import("hono");
+    const guard = new Hono();
+    // A middleware can return react-router's redirectDocument() Response; the
+    // framework relays the full-page intent the same as a loader/action would.
+    guard.use(async () => redirectDocument("/auth/login"));
+
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: { default: guard },
+    });
+
+    const res = await server.request("http://localhost/", {
+      headers: { "X-Juniper-Route-Id": "/" },
+    });
+
+    assertEquals(res.status, 200);
+    assertEquals(res.headers.get("X-Juniper"), "redirect");
+    assertEquals(res.headers.get("X-Remix-Reload-Document"), null);
+    assertEquals(await res.json(), {
+      location: "/auth/login",
+      reloadDocument: true,
+    });
+  });
+
+  it("leaves a middleware redirect as a raw 302 on a document request", async () => {
+    const client = new Client({
+      path: "/",
+      main: { default: () => <div>Home</div> },
+    });
+
+    const { Hono } = await import("hono");
+    const guard = new Hono();
+    guard.use(async (c) => c.redirect("/sign-in"));
+
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: { default: guard },
+    });
+
+    // No X-Juniper-Route-Id: a full page load. The browser follows the 302.
+    const res = await server.request("http://localhost/");
+
+    assertEquals(res.status, 302);
+    assertEquals(res.headers.get("Location"), "/sign-in");
+    assertEquals(res.headers.get("X-Juniper"), null);
+    await res.body?.cancel();
+  });
 });
 
 describe("build artifact cache control", () => {

@@ -1,6 +1,10 @@
 import type { ReactElement } from "react";
 import type { RouterContext } from "react-router";
-import { RouterContextProvider } from "react-router";
+import {
+  redirect,
+  redirectDocument,
+  RouterContextProvider,
+} from "react-router";
 import { HttpError } from "@udibo/http-error";
 
 import {
@@ -10,6 +14,16 @@ import {
 } from "./_serialization.ts";
 
 export { HttpError, RouterContextProvider };
+
+/**
+ * React Router's redirect helpers, re-exported so routes can choose the
+ * redirect kind from one import: {@linkcode redirect} for a client-side (SPA)
+ * transition, {@linkcode redirectDocument} for a full-page navigation (the
+ * right choice when the target is a server-only route the client router can't
+ * render). Both work whether thrown from a loader/action or returned from a
+ * Hono handler/middleware.
+ */
+export { redirect, redirectDocument };
 
 /**
  * A serializer for custom types that need to be transferred between server and client.

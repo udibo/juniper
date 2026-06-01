@@ -671,6 +671,63 @@ interface HandlersResult {
   errorHandler: ErrorHandler;
 }
 
+/** Response headers that must not be relayed onto the redirect envelope. */
+const REDIRECT_ENVELOPE_OMIT = new Set([
+  "location",
+  "content-type",
+  "content-length",
+  "set-cookie",
+  "x-remix-reload-document",
+]);
+
+/** True when `response` is a redirect: a 3xx status carrying a `Location`. */
+export function isRedirectResponse(response: Response): boolean {
+  return response.status >= 300 && response.status < 400 &&
+    response.headers.has("Location");
+}
+
+/**
+ * Repackage a redirect `Response` into the data-mode envelope the client
+ * runtime understands: a 200 with `X-Juniper: redirect` and a JSON `{ location }`
+ * body, which the client turns back into a navigation.
+ *
+ * A `redirectDocument()` redirect carries `X-Remix-Reload-Document` (set by
+ * React Router); it surfaces here as `reloadDocument: true` so the client does a
+ * full-page navigation instead of a client-side route transition — the
+ * difference between the two redirect kinds. The reload marker and `Location`
+ * never leak as response headers (the intent travels in the body); all other
+ * headers pass through, with `Set-Cookie` copied via `getSetCookie()` to avoid
+ * the comma-merge corruption of `Headers.entries()`.
+ *
+ * Used for redirects from both React Router loaders/actions and Hono
+ * handlers/middleware, so the two paths produce one identical envelope.
+ */
+export function toRedirectEnvelope(response: Response): Response {
+  const location = response.headers.get("Location") ?? "";
+  const reloadDocument =
+    response.headers.get("X-Remix-Reload-Document") === "true";
+
+  const headers = new Headers();
+  for (const [key, value] of response.headers.entries()) {
+    if (!REDIRECT_ENVELOPE_OMIT.has(key.toLowerCase())) {
+      headers.set(key, value);
+    }
+  }
+  for (const cookie of response.headers.getSetCookie()) {
+    headers.append("Set-Cookie", cookie);
+  }
+  headers.set("Content-Type", "application/json; charset=UTF-8");
+  headers.set("Vary", "Accept");
+  headers.set("X-Juniper", "redirect");
+
+  return new Response(
+    JSON.stringify(
+      reloadDocument ? { location, reloadDocument } : { location },
+    ),
+    { status: 200, headers },
+  );
+}
+
 /**
  * Creates handlers for React Router.
  *
@@ -744,40 +801,10 @@ export function createHandlers<
 
         c.header("Vary", "Accept");
         if (dataOrResponse instanceof Response) {
-          const location = dataOrResponse.headers.get("Location");
-          if (
-            dataOrResponse.status >= 300 && dataOrResponse.status < 400 &&
-            location
-          ) {
-            // `redirectDocument()` marks a redirect that must be followed as a
-            // full-page navigation (e.g. to a server-only route the client
-            // router can't render), not a client-side route transition. React
-            // Router signals it with this header; relay it to the client so it
-            // can hand the navigation to the browser.
-            const reloadDocument =
-              dataOrResponse.headers.get("X-Remix-Reload-Document") === "true";
-            for (const [key, value] of dataOrResponse.headers.entries()) {
-              const lowerKey = key.toLowerCase();
-              if (
-                lowerKey !== "location" &&
-                lowerKey !== "content-type" &&
-                lowerKey !== "content-length" &&
-                lowerKey !== "set-cookie" &&
-                lowerKey !== "x-remix-reload-document"
-              ) {
-                c.header(key, value);
-              }
-            }
-            // Handle Set-Cookie headers separately to avoid corruption
-            // from Headers.entries() which merges multiple Set-Cookie
-            // values with commas
-            for (const cookie of dataOrResponse.headers.getSetCookie()) {
-              c.header("Set-Cookie", cookie, { append: true });
-            }
-            c.header("X-Juniper", "redirect");
-            return c.json(
-              reloadDocument ? { location, reloadDocument } : { location },
-            );
+          // A loader/action redirect: relay it as the redirect envelope so the
+          // client navigates (SPA or full-page, per `redirectDocument()`).
+          if (isRedirectResponse(dataOrResponse)) {
+            return toRedirectEnvelope(dataOrResponse);
           }
           return dataOrResponse;
         }

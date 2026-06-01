@@ -9,16 +9,21 @@
 import * as path from "@std/path";
 import { HttpError } from "./mod.ts";
 import { Hono } from "hono";
-import type { Schema, TypedResponse } from "hono";
+import type { Schema } from "hono";
 import { etag } from "hono/etag";
 import { trimTrailingSlash } from "hono/trailing-slash";
-import type { RedirectStatusCode } from "hono/utils/http-status";
 import { RouterContextProvider } from "react-router";
 
 import type { Client } from "./client.tsx";
 import { getInstance } from "./utils/otel.ts";
 
-import { buildApp, createHandlers, mergeServerRoutes } from "./_server.tsx";
+import {
+  buildApp,
+  createHandlers,
+  isRedirectResponse,
+  mergeServerRoutes,
+  toRedirectEnvelope,
+} from "./_server.tsx";
 import type { AppEnv, Route } from "./_server.tsx";
 
 export type { AppEnv };
@@ -81,21 +86,24 @@ export function createServer<
 
   appWrapper.use(async (c, next) => {
     c.set("context", new RouterContextProvider());
-    const originalRedirect = c.redirect;
-    c.redirect = function redirect<T extends RedirectStatusCode = 302>(
-      location: string | URL,
-      status?: T,
-    ): Response & TypedResponse<undefined, T, "redirect"> {
-      if (c.req.header("X-Juniper-Route-Id")) {
-        c.header("Vary", "Accept");
-        c.header("X-Juniper", "redirect");
-        return c.json({ location }) as unknown as
-          & Response
-          & TypedResponse<undefined, T, "redirect">;
-      }
-      return (originalRedirect<T>).call(c, location, status);
-    };
     await next();
+    // Client-side (data-mode) navigations fetch loader/action data with an
+    // `X-Juniper-Route-Id` header and expect a redirect envelope, not a raw 3xx
+    // that `fetch` would silently follow. Repackage ANY redirect that surfaces
+    // on such a request — including one from a Hono handler/middleware that
+    // short-circuited before the React Router handlers (e.g. an auth guard's
+    // `c.redirect()`, or a `return redirectDocument()`) — into that envelope,
+    // honoring `redirectDocument()` (full-page) vs `redirect()` (SPA) uniformly.
+    // Document requests carry no such header and keep their browser-followed
+    // 302s. Loader/action redirects are already enveloped (status 200) by
+    // `handleDataRequest`, so `isRedirectResponse` skips them here.
+    if (c.req.header("X-Juniper-Route-Id") && isRedirectResponse(c.res)) {
+      c.res = toRedirectEnvelope(c.res);
+      // Assigning `c.res` merges the prior response's headers in; drop the ones
+      // that must not appear on the 200 envelope (they live in the body).
+      c.res.headers.delete("Location");
+      c.res.headers.delete("X-Remix-Reload-Document");
+    }
   });
 
   appWrapper.use(trimTrailingSlash());
