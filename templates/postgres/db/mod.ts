@@ -3,6 +3,11 @@ import { drizzle } from "drizzle-orm/node-postgres";
 
 import * as schema from "./schema.ts";
 
+const databaseUrl = getEnv("DATABASE_URL");
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required");
+}
+
 /**
  * The Drizzle database client, backed by a `node-postgres` connection pool
  * built from the `DATABASE_URL` environment variable. The pool opens no
@@ -10,7 +15,7 @@ import * as schema from "./schema.ts";
  * cheap.
  */
 export const db = drizzle({
-  connection: getEnv("DATABASE_URL")!,
+  connection: databaseUrl,
   casing: "snake_case",
   schema,
 });
