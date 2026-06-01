@@ -71,7 +71,7 @@ export class DevServer {
       await this.startApp();
     });
 
-    this.watcher = deno.watchFs(this.builder.watchPaths);
+    this.watcher = deno.watchFs(await this.builder.resolveWatchPaths());
     console.log(
       `👀 Watching for changes...`,
     );

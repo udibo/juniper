@@ -792,4 +792,4 @@ const [theme, setTheme] = useState(
 
 - [Middleware](middleware.md) - Server and client middleware
 - [Routing](routing.md) - File-based routing and data loading
-- [Database](database.md) - Deno KV and other databases
+- [Database](database.md) - Deno KV and PostgreSQL

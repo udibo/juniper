@@ -616,4 +616,4 @@ it("should match API response snapshot", async () => {
 
 - [CI/CD](ci-cd.md) - GitHub Actions workflows
 - [Configuration](configuration.md) - Project and build configuration
-- [Database](database.md) - Deno KV and other databases
+- [Database](database.md) - Deno KV and PostgreSQL

@@ -202,6 +202,62 @@ describe("Builder", () => {
     });
   });
 
+  describe("resolveWatchPaths", () => {
+    it("should watch the whole project root when no paths are ignored", async () => {
+      await using builder = new Builder({
+        projectRoot: exampleDir,
+        configPath: "../deno.json",
+        write: false,
+      });
+      assertEquals(await builder.resolveWatchPaths(), [exampleDir]);
+    });
+
+    it("should drop an ignored top-level directory from the watch set", async () => {
+      await using builder = new Builder({
+        projectRoot: exampleDir,
+        configPath: "../deno.json",
+        ignorePaths: ["./public"],
+        write: false,
+      });
+      const watchPaths = await builder.resolveWatchPaths();
+      // The root is expanded into its children so the ignored subtree is skipped.
+      assertEquals(watchPaths.includes(exampleDir), false);
+      assertEquals(
+        watchPaths.includes(path.resolve(exampleDir, "public")),
+        false,
+      );
+      // Sibling directories are still watched as whole subtrees.
+      assertEquals(
+        watchPaths.includes(path.resolve(exampleDir, "routes")),
+        true,
+      );
+    });
+
+    it("should expand a parent to exclude a nested ignored path", async () => {
+      await using builder = new Builder({
+        projectRoot: exampleDir,
+        configPath: "../deno.json",
+        ignorePaths: ["./public/build"],
+        write: false,
+      });
+      const watchPaths = await builder.resolveWatchPaths();
+      // public is expanded so build is dropped but its siblings remain watched.
+      assertEquals(
+        watchPaths.includes(path.resolve(exampleDir, "public", "build")),
+        false,
+      );
+      assertEquals(
+        watchPaths.includes(path.resolve(exampleDir, "public", "images")),
+        true,
+      );
+      // Directories without an ignored descendant stay collapsed to one root.
+      assertEquals(
+        watchPaths.includes(path.resolve(exampleDir, "routes")),
+        true,
+      );
+    });
+  });
+
   describe("build", () => {
     it("should build successfully", async () => {
       await using builder = new Builder({

@@ -1,0 +1,143 @@
+{
+  "tasks": {
+    "serve": {
+      "description": "Runs the server in development mode.",
+      "command": "deno run -P=serve --env-file ./main.ts"
+    },
+    "serve:prod": {
+      "description": "Runs the server in production mode.",
+      "command": "deno run -P=serve --env-file --env-file=.env.production ./main.ts"
+    },
+    "build": {
+      "description": "Builds the application for development.",
+      "command": "export OTEL_SERVICE_NAME=build && deno run -P=build --env-file ./build.ts"
+    },
+    "build:prod": {
+      "description": "Builds the application for production.",
+      "command": "export OTEL_SERVICE_NAME=build && deno run -P=build --env-file --env-file=.env.production ./build.ts"
+    },
+    "dev": {
+      "description": "Runs the development server.",
+      "command": "export OTEL_SERVICE_NAME=dev && deno run -P=dev --env-file @udibo/juniper/dev --project-root ."
+    },
+    "test": {
+      "description": "Runs the tests.",
+      "command": "deno test -P=test --env-file --env-file=.env.test"
+    },
+    "check": {
+      "description": "Checks the code for errors, formatting, and runs the linter.",
+      "command": "deno check && deno lint && deno fmt --check"
+    },
+    "docker:start": {
+      "description": "Starts the PostgreSQL container.",
+      "command": "docker compose up -d --wait"
+    },
+    "docker:stop": {
+      "description": "Stops the PostgreSQL container.",
+      "command": "docker compose down"
+    },
+    "db:generate": {
+      "description": "Generates SQL migrations from schema changes.",
+      "command": "deno run -A --env-file npm:drizzle-kit generate"
+    },
+    "db:migrate": {
+      "description": "Applies migrations to the dev and test databases.",
+      "dependencies": ["db:migrate:dev", "db:migrate:test"]
+    },
+    "db:migrate:dev": {
+      "description": "Applies migrations to the dev database.",
+      "command": "deno run -A --env-file npm:drizzle-kit migrate"
+    },
+    "db:migrate:test": {
+      "description": "Applies migrations to the test database.",
+      "command": "deno run -A --env-file --env-file=.env.test npm:drizzle-kit migrate"
+    },
+    "db:push": {
+      "description": "Pushes the schema directly to the dev and test databases (no migrations).",
+      "dependencies": ["db:push:dev", "db:push:test"]
+    },
+    "db:push:dev": {
+      "description": "Pushes the schema directly to the dev database.",
+      "command": "deno run -A --env-file npm:drizzle-kit push"
+    },
+    "db:push:test": {
+      "description": "Pushes the schema directly to the test database.",
+      "command": "deno run -A --env-file --env-file=.env.test npm:drizzle-kit push"
+    },
+    "db:studio": {
+      "description": "Opens Drizzle Studio to browse the database.",
+      "command": "deno run -A --env-file npm:drizzle-kit studio"
+    },
+    "db:seed": {
+      "description": "Seeds the dev database with example data.",
+      "command": "deno run -A --env-file db/seed.ts"
+    },
+    "db:reset": {
+      "description": "Drops and recreates the dev and test databases (run db:migrate afterward).",
+      "command": "docker exec juniper-postgres psql -U postgres -c 'DROP DATABASE IF EXISTS app_dev;' -c 'DROP DATABASE IF EXISTS app_test;' -c 'CREATE DATABASE app_dev;' -c 'CREATE DATABASE app_test;'"
+    }
+  },
+  "imports": {
+    "@/": "./",
+    "@udibo/juniper": "jsr:@udibo/juniper@^0.5.0",
+    "@std/testing": "jsr:@std/testing@^1.0.19",
+    "@std/assert": "jsr:@std/assert@^1.0.19",
+    "@std/path": "jsr:@std/path@^1.1.5",
+    "@std/streams": "jsr:@std/streams@^1.1.1",
+    "@opentelemetry/api": "npm:@opentelemetry/api@^1.9.1",
+    "drizzle-kit": "npm:drizzle-kit@^0.31.10",
+    "drizzle-orm": "npm:drizzle-orm@^0.45.2",
+    "pg": "npm:pg@^8.20.0",
+    "@types/pg": "npm:@types/pg@^8.20.0",
+    "zod": "npm:zod@^4.3.6",
+    "react": "npm:react@^19.2.6",
+    "@types/react": "npm:@types/react@^19.2.15",
+    "react-router": "npm:react-router@^7.16.0",
+    "hono": "npm:hono@^4.12.23",
+    "@testing-library/react": "npm:@testing-library/react@^16.3.2"
+  },
+  "test": {
+    "sanitizeOps": true,
+    "sanitizeResources": true
+  },
+  "permissions": {
+    "serve": {
+      "env": true,
+      "read": true,
+      "net": true
+    },
+    "build": {
+      "env": true,
+      "read": true,
+      "write": true,
+      "run": true
+    },
+    "dev": {
+      "env": true,
+      "read": true,
+      "write": true,
+      "net": true,
+      "run": true
+    },
+    "test": {
+      "env": true,
+      "read": true,
+      "net": true,
+      "run": true
+    }
+  },
+  "compilerOptions": {
+    "lib": [
+      "esnext",
+      "dom",
+      "dom.iterable",
+      "dom.asynciterable",
+      "deno.ns",
+      "deno.unstable"
+    ],
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "jsxImportSourceTypes": "@types/react"
+  },
+  "exclude": ["public/build"]
+}

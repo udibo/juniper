@@ -122,7 +122,7 @@ describe("DevServer", () => {
         await devServer.stop();
 
         assertSpyCall(watchFsStub, 0, {
-          args: [builder.watchPaths],
+          args: [await builder.resolveWatchPaths()],
         });
         assertEquals(await startPromise, undefined);
       } finally {

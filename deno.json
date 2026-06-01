@@ -3,6 +3,7 @@
     "./src",
     "./example",
     "./templates/minimal",
+    "./templates/postgres",
     "./templates/tailwindcss",
     "./templates/tanstack",
     "./tutorials/blog"
@@ -133,6 +134,38 @@
     "test:blog": {
       "description": "Runs all of the blog tutorial tests.",
       "command": "deno task --cwd=tutorials/blog test"
+    },
+    "serve:postgres": {
+      "description": "Runs the postgres template server in development mode.",
+      "command": "deno task --cwd=templates/postgres serve"
+    },
+    "serve:prod:postgres": {
+      "description": "Runs the postgres template server in production mode.",
+      "command": "deno task --cwd=templates/postgres serve:prod"
+    },
+    "build:postgres": {
+      "description": "Builds the postgres template application for development.",
+      "command": "deno task --cwd=templates/postgres build"
+    },
+    "build:prod:postgres": {
+      "description": "Builds the postgres template application for production.",
+      "command": "deno task --cwd=templates/postgres build:prod"
+    },
+    "dev:postgres": {
+      "description": "Runs the postgres template development server.",
+      "command": "deno task --cwd=templates/postgres dev"
+    },
+    "test:postgres": {
+      "description": "Runs all of the postgres template tests.",
+      "command": "deno task --cwd=templates/postgres test"
+    },
+    "docker:start:postgres": {
+      "description": "Starts the postgres template PostgreSQL container.",
+      "command": "deno task --cwd=templates/postgres docker:start"
+    },
+    "docker:stop:postgres": {
+      "description": "Stops the postgres template PostgreSQL container.",
+      "command": "deno task --cwd=templates/postgres docker:stop"
     },
     "check": {
       "description": "Checks the code for errors, formatting, and runs the linter.",

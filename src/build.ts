@@ -34,6 +34,11 @@ const fmtCommand = new Deno.Command(Deno.execPath(), {
   stdout: "piped",
 });
 
+/** Normalizes a path to forward slashes for cross-platform comparison. */
+function toPosixPath(value: string): string {
+  return value.replace(/\\/g, "/");
+}
+
 /**
  * Configuration options for building the application.
  */
@@ -180,6 +185,78 @@ export class Builder implements AsyncDisposable {
     this.clientPath = path.resolve(this.projectRoot, "./main.tsx");
     this._isBuilding = false;
     this.write = options.write ?? true;
+  }
+
+  /**
+   * Resolves the absolute set of paths the dev server should hand to
+   * `Deno.watchFs`.
+   *
+   * Starting from {@linkcode watchPaths} (the project root by default), any
+   * directory that contains an {@linkcode ignorePaths} entry is expanded into
+   * its children so the ignored subtree is never watched. This is what allows
+   * `ignorePaths` to exclude directories that would otherwise crash watcher
+   * setup with a permission error — most commonly root-owned Docker volume
+   * mounts such as `./docker/volumes`. Without this expansion `Deno.watchFs`
+   * recursively descends into every subdirectory and throws on the first one
+   * it cannot read.
+   *
+   * @returns The absolute paths to watch, with ignored subtrees pruned.
+   */
+  async resolveWatchPaths(): Promise<string[]> {
+    const roots = Array.isArray(this.watchPaths)
+      ? this.watchPaths
+      : [this.watchPaths];
+    const resolved: string[] = [];
+    for (const root of roots) {
+      await this.collectWatchPaths(
+        path.resolve(this.projectRoot, root),
+        resolved,
+      );
+    }
+    return resolved;
+  }
+
+  /**
+   * Recursively collects the watchable paths under {@linkcode dir}, descending
+   * only into directories that contain an ignored path and dropping ignored
+   * entries entirely.
+   */
+  private async collectWatchPaths(
+    dir: string,
+    into: string[],
+  ): Promise<void> {
+    if (this.isPathIgnored(dir)) return;
+    // If no ignored path lives inside this directory, watch the whole subtree.
+    const prefix = toPosixPath(dir).replace(/\/+$/, "") + "/";
+    const containsIgnored = this.ignorePaths.some((ignore) =>
+      toPosixPath(ignore).startsWith(prefix)
+    );
+    if (!containsIgnored) {
+      into.push(dir);
+      return;
+    }
+    // Otherwise descend one level and recurse, dropping ignored children.
+    try {
+      for await (const entry of Deno.readDir(dir)) {
+        const child = path.join(dir, entry.name);
+        if (entry.isDirectory) {
+          await this.collectWatchPaths(child, into);
+        } else if (!this.isPathIgnored(child)) {
+          into.push(child);
+        }
+      }
+    } catch {
+      // Directory became unreadable; skip it rather than crash the watcher.
+    }
+  }
+
+  /** Whether {@linkcode absolutePath} is itself an ignored path or inside one. */
+  private isPathIgnored(absolutePath: string): boolean {
+    const target = toPosixPath(absolutePath);
+    return this.ignorePaths.some((ignore) => {
+      const normalized = toPosixPath(ignore);
+      return target === normalized || target.startsWith(normalized + "/");
+    });
   }
 
   /**
