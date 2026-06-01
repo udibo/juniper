@@ -856,7 +856,7 @@ describe("redirect header preservation", () => {
 
     const { Hono } = await import("hono");
     const guard = new Hono();
-    guard.use(async (c) => c.redirect("/sign-in?return_to=/"));
+    guard.use((c) => Promise.resolve(c.redirect("/sign-in?return_to=/")));
 
     const server = createServer(import.meta.url, client, {
       path: "/",
@@ -886,7 +886,7 @@ describe("redirect header preservation", () => {
     const guard = new Hono();
     // A middleware can return react-router's redirectDocument() Response; the
     // framework relays the full-page intent the same as a loader/action would.
-    guard.use(async () => redirectDocument("/auth/login"));
+    guard.use(() => Promise.resolve(redirectDocument("/auth/login")));
 
     const server = createServer(import.meta.url, client, {
       path: "/",
@@ -914,7 +914,7 @@ describe("redirect header preservation", () => {
 
     const { Hono } = await import("hono");
     const guard = new Hono();
-    guard.use(async (c) => c.redirect("/sign-in"));
+    guard.use((c) => Promise.resolve(c.redirect("/sign-in")));
 
     const server = createServer(import.meta.url, client, {
       path: "/",
