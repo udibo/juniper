@@ -5,8 +5,8 @@ export default function HomePage() {
     <div>
       <title>Juniper - Modern Web Framework for Deno</title>
 
-      <section className="text-center py-16">
-        <h1 className="text-5xl font-bold mb-6 bg-linear-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+      <section className="text-center py-12 sm:py-16">
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6 bg-linear-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
           Welcome to Juniper
         </h1>
         <p className="text-xl text-slate-300 max-w-2xl mx-auto mb-12 leading-relaxed">
@@ -39,11 +39,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="py-16">
-        <h2 className="text-3xl font-bold text-center mb-12 text-slate-100">
+      <section className="py-12 sm:py-16">
+        <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8 sm:mb-12 text-slate-100">
           Why Juniper?
         </h2>
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid md:grid-cols-3 gap-6 md:gap-8">
           <div className="bg-slate-800/50 p-8 rounded-2xl border border-slate-700/50 hover:border-emerald-500/30 transition-colors">
             <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center mb-4">
               <svg

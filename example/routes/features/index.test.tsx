@@ -16,7 +16,7 @@ describe("FeaturesIndex route", () => {
     render(<Stub />);
 
     screen.getByRole("heading", { name: "Explore Juniper Features" });
-    screen.getByText(/Select a feature from the sidebar/);
+    screen.getByText(/Select a feature from the navigation/);
   });
 
   it("should have a link to start with routing", () => {

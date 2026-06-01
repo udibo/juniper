@@ -58,16 +58,16 @@ export default function EditPost({
               className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-100 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none"
             />
           </div>
-          <div className="flex gap-4">
+          <div className="flex flex-col sm:flex-row gap-3">
             <button
               type="submit"
-              className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold rounded-lg transition-colors disabled:opacity-50"
+              className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold rounded-lg transition-colors disabled:opacity-50 w-full sm:w-auto"
             >
               Save Changes
             </button>
             <Link
               to={`/blog/${post.id}`}
-              className="px-6 py-3 border border-slate-600 text-slate-300 hover:text-slate-100 hover:border-slate-500 rounded-lg transition-colors inline-flex items-center"
+              className="px-6 py-3 border border-slate-600 text-slate-300 hover:text-slate-100 hover:border-slate-500 rounded-lg transition-colors inline-flex items-center justify-center w-full sm:w-auto"
             >
               Cancel
             </Link>

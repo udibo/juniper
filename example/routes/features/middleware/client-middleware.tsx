@@ -183,7 +183,7 @@ export default function ClientMiddlewareExample({
         <h4 className="text-sm font-semibold text-slate-300 mb-2">
           Example Code
         </h4>
-        <pre className="text-sm text-emerald-400 font-mono overflow-x-auto whitespace-pre-wrap">
+        <pre className="text-sm text-emerald-400 font-mono overflow-x-auto whitespace-pre-wrap wrap-break-word">
 {`import { createContext } from "react-router";
 import type { MiddlewareFunction } from "@udibo/juniper";
 

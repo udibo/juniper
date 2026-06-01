@@ -1,6 +1,7 @@
 import "@udibo/juniper/utils/global-jsdom";
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { assertEquals } from "@std/assert";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, it } from "@std/testing/bdd";
 
 import { createRoutesStub } from "@udibo/juniper/utils/testing";
@@ -63,5 +64,31 @@ describe("FeaturesLayout route", () => {
 
     screen.getByRole("link", { name: "Error Boundary" });
     screen.getByRole("link", { name: "SSR Errors" });
+  });
+
+  it("should render a collapsed mobile nav toggle that controls the nav", () => {
+    const Stub = createRoutesStub([featuresMain]);
+    render(<Stub />);
+
+    const toggle = screen.getByRole("button", { name: "Browse features" });
+    assertEquals(toggle.getAttribute("aria-expanded"), "false");
+    assertEquals(toggle.getAttribute("aria-controls"), "feature-nav");
+  });
+
+  it("should toggle the mobile nav open and closed when clicked", () => {
+    const Stub = createRoutesStub([featuresMain]);
+    render(<Stub />);
+
+    const toggle = screen.getByRole("button", { name: "Browse features" });
+    fireEvent.click(toggle);
+
+    const openToggle = screen.getByRole("button", { name: "Hide features" });
+    assertEquals(openToggle.getAttribute("aria-expanded"), "true");
+
+    fireEvent.click(openToggle);
+    const closedToggle = screen.getByRole("button", {
+      name: "Browse features",
+    });
+    assertEquals(closedToggle.getAttribute("aria-expanded"), "false");
   });
 });

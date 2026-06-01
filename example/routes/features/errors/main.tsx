@@ -51,7 +51,7 @@ export function ErrorBoundary(
         <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">
           Example Code
         </h3>
-        <pre className="text-sm text-slate-300 font-mono overflow-x-auto">
+        <pre className="text-sm text-slate-300 font-mono overflow-x-auto whitespace-pre-wrap wrap-break-word">
         {`import { HttpError } from "@udibo/juniper";
 
 export function ErrorBoundary({

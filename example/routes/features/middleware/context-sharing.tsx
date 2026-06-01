@@ -91,7 +91,7 @@ export default function ContextSharingExample({
         <h4 className="text-sm font-semibold text-slate-300 mb-2">
           context-sharing.tsx (context definition)
         </h4>
-        <pre className="text-sm text-emerald-400 font-mono overflow-x-auto">
+        <pre className="text-sm text-emerald-400 font-mono overflow-x-auto whitespace-pre-wrap wrap-break-word">
 {`import { createContext } from "react-router";
 
 export interface RequestInfo {
@@ -109,7 +109,7 @@ export const requestInfoContext =
         <h4 className="text-sm font-semibold text-slate-300 mb-2">
           context-sharing.ts (middleware + loader)
         </h4>
-        <pre className="text-sm text-emerald-400 font-mono overflow-x-auto whitespace-pre-wrap">
+        <pre className="text-sm text-emerald-400 font-mono overflow-x-auto whitespace-pre-wrap wrap-break-word">
 {`import { Hono } from "hono";
 import type { AppEnv } from "@udibo/juniper/server";
 import {

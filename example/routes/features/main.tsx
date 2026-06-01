@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ReactNode } from "react";
 import { Link, Outlet, useLocation } from "react-router";
 
@@ -124,9 +125,50 @@ function getActiveFeaturePath(pathname: string): string | undefined {
     .sort((a, b) => b.length - a.length)[0];
 }
 
+function FeatureNav(
+  { activeFeaturePath, onNavigate }: {
+    activeFeaturePath?: string;
+    onNavigate?: () => void;
+  },
+) {
+  return (
+    <div className="space-y-6">
+      {featureGroups.map((group) => (
+        <div key={group.title}>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">
+            {group.title}
+          </h3>
+          <ul className="space-y-1">
+            {group.features.map((feature) => {
+              const isActive = feature.path === activeFeaturePath;
+              return (
+                <li key={feature.path}>
+                  <Link
+                    to={feature.path}
+                    onClick={onNavigate}
+                    aria-current={isActive ? "page" : undefined}
+                    className={`block px-3 py-2 rounded-lg transition-colors ${
+                      isActive
+                        ? "bg-emerald-500/10 text-emerald-400 border-l-2 border-emerald-400"
+                        : "text-slate-300 hover:text-emerald-400 hover:bg-slate-800/50"
+                    }`}
+                  >
+                    {feature.name}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function FeaturesLayoutShell({ children }: { children: ReactNode }) {
   const location = useLocation();
   const activeFeaturePath = getActiveFeaturePath(location.pathname);
+  const [navOpen, setNavOpen] = useState(false);
 
   return (
     <div>
@@ -142,37 +184,37 @@ function FeaturesLayoutShell({ children }: { children: ReactNode }) {
         </nav>
       </header>
 
-      <div className="grid lg:grid-cols-[280px_1fr] gap-8">
-        <aside className="space-y-6">
-          {featureGroups.map((group) => (
-            <div key={group.title}>
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">
-                {group.title}
-              </h3>
-              <ul className="space-y-1">
-                {group.features.map((feature) => {
-                  const isActive = feature.path === activeFeaturePath;
-                  return (
-                    <li key={feature.path}>
-                      <Link
-                        to={feature.path}
-                        className={`block px-3 py-2 rounded-lg transition-colors ${
-                          isActive
-                            ? "bg-emerald-500/10 text-emerald-400 border-l-2 border-emerald-400"
-                            : "text-slate-300 hover:text-emerald-400 hover:bg-slate-800/50"
-                        }`}
-                      >
-                        {feature.name}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
-        </aside>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_1fr] lg:gap-8">
+        <div>
+          <button
+            type="button"
+            onClick={() => setNavOpen((open) => !open)}
+            aria-expanded={navOpen}
+            aria-controls="feature-nav"
+            className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-700/50 bg-slate-800/50 px-4 py-3 text-sm font-semibold uppercase tracking-wider text-slate-300 transition-colors hover:text-emerald-400 lg:hidden"
+          >
+            {navOpen ? "Hide features" : "Browse features"}
+            <span
+              aria-hidden="true"
+              className={`text-xs transition-transform ${
+                navOpen ? "rotate-180" : ""
+              }`}
+            >
+              ▼
+            </span>
+          </button>
+          <nav
+            id="feature-nav"
+            className={`mt-3 lg:mt-0 lg:block ${navOpen ? "block" : "hidden"}`}
+          >
+            <FeatureNav
+              activeFeaturePath={activeFeaturePath}
+              onNavigate={() => setNavOpen(false)}
+            />
+          </nav>
+        </div>
 
-        <main className="bg-slate-800/30 rounded-2xl p-8 border border-slate-700/50 min-h-[400px]">
+        <main className="min-w-0 bg-slate-800/30 rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-700/50 min-h-[400px]">
           {children}
         </main>
       </div>

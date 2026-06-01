@@ -26,7 +26,7 @@ export default function BlogPost({
 
       <article>
         <header className="mb-8 pb-6 border-b border-slate-700/50">
-          <h1 className="text-4xl font-bold text-slate-100 mb-4 leading-tight">
+          <h1 className="text-2xl sm:text-4xl font-bold text-slate-100 mb-4 leading-tight">
             {post.title}
           </h1>
           <div className="text-slate-500 flex gap-4 items-center flex-wrap">

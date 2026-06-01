@@ -24,7 +24,7 @@ export default function LoggingMiddlewareExample() {
         <h4 className="text-sm font-semibold text-slate-300 mb-2">
           Server Output (on page refresh)
         </h4>
-        <pre className="text-sm text-slate-400 font-mono">
+        <pre className="text-sm text-slate-400 font-mono overflow-x-auto whitespace-pre-wrap wrap-break-word">
 {`<-- GET /features/middleware/logging
 --> GET /features/middleware/logging 200 16ms`}
         </pre>
@@ -34,7 +34,7 @@ export default function LoggingMiddlewareExample() {
         <h4 className="text-sm font-semibold text-slate-300 mb-2">
           logging.ts
         </h4>
-        <pre className="text-sm text-emerald-400 font-mono overflow-x-auto">
+        <pre className="text-sm text-emerald-400 font-mono overflow-x-auto whitespace-pre-wrap wrap-break-word">
 {`import { Hono } from "hono";
 import { logger } from "hono/logger";
 
