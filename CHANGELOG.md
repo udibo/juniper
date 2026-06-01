@@ -1,3 +1,11 @@
+# [0.7.0](https://github.com/udibo/juniper/compare/0.6.0...0.7.0) (2026-06-01)
+
+### Features
+
+- full control over SPA vs full-page redirects
+  ([#87](https://github.com/udibo/juniper/issues/87))
+  ([6ad0331](https://github.com/udibo/juniper/commit/6ad0331d5b0da07864139b9d981c71109b31dacf))
+
 # [0.6.0](https://github.com/udibo/juniper/compare/0.5.0...0.6.0) (2026-06-01)
 
 ### Features

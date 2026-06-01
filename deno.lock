@@ -195,6 +195,7 @@
         "npm:hono",
         "npm:isbot",
         "npm:quick-lru",
+        "npm:react",
         "npm:react-dom",
         "npm:react-router"
       ]
