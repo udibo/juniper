@@ -176,6 +176,10 @@
       "run": true
     }
   },
+  "test": {
+    "sanitizeOps": true,
+    "sanitizeResources": true
+  },
   "allowScripts": {
     "allow": ["npm:esbuild@0.27.2"],
     "deny": [
