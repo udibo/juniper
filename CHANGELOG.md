@@ -1,3 +1,12 @@
+# [0.5.0](https://github.com/udibo/juniper/compare/0.4.3...0.5.0) (2026-06-01)
+
+### Features
+
+- **example:** make the demo mobile friendly
+  ([#85](https://github.com/udibo/juniper/issues/85))
+  ([b38abf8](https://github.com/udibo/juniper/commit/b38abf840a43fbe9eef37c23d95d6db6a4a79237)),
+  closes [#45](https://github.com/udibo/juniper/issues/45)
+
 ## [0.4.3](https://github.com/udibo/juniper/compare/0.4.2...0.4.3) (2026-06-01)
 
 ## [0.4.2](https://github.com/udibo/juniper/compare/0.4.1...0.4.2) (2026-05-31)
