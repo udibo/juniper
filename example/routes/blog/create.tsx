@@ -54,16 +54,16 @@ export default function CreatePost() {
               placeholder="Write your post content..."
             />
           </div>
-          <div className="flex gap-4">
+          <div className="flex flex-col sm:flex-row gap-3">
             <button
               type="submit"
-              className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold rounded-lg transition-colors disabled:opacity-50"
+              className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold rounded-lg transition-colors disabled:opacity-50 w-full sm:w-auto"
             >
               Publish
             </button>
             <Link
               to="/blog"
-              className="px-6 py-3 border border-slate-600 text-slate-300 hover:text-slate-100 hover:border-slate-500 rounded-lg transition-colors inline-flex items-center"
+              className="px-6 py-3 border border-slate-600 text-slate-300 hover:text-slate-100 hover:border-slate-500 rounded-lg transition-colors inline-flex items-center justify-center w-full sm:w-auto"
             >
               Cancel
             </Link>

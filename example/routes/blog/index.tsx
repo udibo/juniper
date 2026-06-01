@@ -52,7 +52,7 @@ export default function BlogIndex({
 
   return (
     <div>
-      <div className="mb-8 flex justify-between items-start">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start">
         <div>
           <h2 className="text-2xl font-bold text-slate-100 mb-2">Blog Posts</h2>
           <p className="text-slate-400">
@@ -61,7 +61,7 @@ export default function BlogIndex({
         </div>
         <Link
           to="/blog/create"
-          className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold rounded-xl transition-all hover:scale-105"
+          className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold rounded-xl transition-all hover:scale-105 text-center whitespace-nowrap sm:text-left"
         >
           Write a Post
         </Link>
@@ -130,7 +130,7 @@ export default function BlogIndex({
           </div>
         )}
 
-      <div className="mt-8 flex items-center justify-between">
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm text-slate-400">
           Showing newest posts first
         </div>

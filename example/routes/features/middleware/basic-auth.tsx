@@ -45,7 +45,7 @@ export default function BasicAuthMiddlewareExample({
         <h4 className="text-sm font-semibold text-slate-300 mb-2">
           basic-auth.ts
         </h4>
-        <pre className="text-sm text-emerald-400 font-mono overflow-x-auto">
+        <pre className="text-sm text-emerald-400 font-mono overflow-x-auto whitespace-pre-wrap wrap-break-word">
 {`import { Hono } from "hono";
 import { basicAuth } from "hono/basic-auth";
 

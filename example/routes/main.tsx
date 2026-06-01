@@ -14,7 +14,7 @@ function Shell({ children }: { children: ReactNode }) {
       <link rel="stylesheet" href="/build/main.css" precedence="default" />
       <div className="min-h-screen bg-linear-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100">
         <nav className="border-b border-slate-700/50 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-50">
-          <div className="max-w-6xl mx-auto px-6 py-4">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4">
             <div className="flex items-center justify-between">
               <Link
                 to="/"
@@ -22,7 +22,7 @@ function Shell({ children }: { children: ReactNode }) {
               >
                 Juniper
               </Link>
-              <div className="flex gap-8">
+              <div className="flex gap-6 sm:gap-8">
                 <Link
                   to="/features"
                   className="text-slate-300 hover:text-emerald-400 transition-colors font-medium"
@@ -39,7 +39,7 @@ function Shell({ children }: { children: ReactNode }) {
             </div>
           </div>
         </nav>
-        <main className="max-w-6xl mx-auto px-6 py-12">
+        <main className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
           {children}
         </main>
       </div>
@@ -63,7 +63,7 @@ export function ErrorBoundary(
     <Shell>
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center p-8 max-w-md">
-          <h1 className="text-4xl font-bold text-red-400 mb-4">
+          <h1 className="text-3xl sm:text-4xl font-bold text-red-400 mb-4">
             Something went wrong
           </h1>
           <p className="text-slate-300 mb-6">

@@ -16,7 +16,7 @@ export function CodeBlock({
       <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">
         {title}
       </h3>
-      <pre className="text-sm text-slate-300 font-mono overflow-x-auto">
+      <pre className="text-sm text-slate-300 font-mono overflow-x-auto whitespace-pre-wrap wrap-break-word">
         {children}
       </pre>
     </div>

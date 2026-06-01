@@ -10,7 +10,7 @@ export default function NestedErrorIndex() {
         <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">
           Route Structure
         </h3>
-        <pre className="text-sm text-slate-300 font-mono overflow-x-auto">
+        <pre className="text-sm text-slate-300 font-mono overflow-x-auto whitespace-pre-wrap wrap-break-word">
 {`routes/features/errors/nested/
 ├── main.tsx      ← Has ErrorBoundary (this file)
 ├── child.tsx     ← Throws error, NO ErrorBoundary

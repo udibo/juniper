@@ -54,10 +54,10 @@ export default function FetcherActionDemo() {
         shouldn't change the URL.
       </p>
 
-      <div className="bg-slate-800/50 rounded-xl p-8 border border-slate-700 mb-6">
+      <div className="bg-slate-800/50 rounded-xl p-6 sm:p-8 border border-slate-700 mb-6">
         <div className="text-center mb-8">
           <div
-            className={`text-7xl font-bold mb-2 transition-all ${
+            className={`text-4xl sm:text-6xl lg:text-7xl font-bold mb-2 transition-all ${
               isSubmitting ? "text-slate-500 scale-95" : "text-emerald-400"
             }`}
           >

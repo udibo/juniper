@@ -8,7 +8,7 @@ export default function FeaturesIndex() {
         Explore Juniper Features
       </h2>
       <p className="text-slate-400 max-w-md mx-auto mb-8">
-        Select a feature from the sidebar to see it in action. Each example
+        Select a feature from the navigation to see it in action. Each example
         demonstrates a different capability of the Juniper framework.
       </p>
       <div className="flex gap-4 justify-center">
