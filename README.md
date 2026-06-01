@@ -55,6 +55,17 @@ deno install
 deno task dev
 ```
 
+Or with PostgreSQL (Drizzle ORM + Zod, requires Docker):
+
+```bash
+deno run -A npm:degit udibo/juniper/templates/postgres my-app
+cd my-app
+deno install
+deno task docker:start
+deno task db:migrate
+deno task dev
+```
+
 Open your browser to `http://localhost:8000` to see your application.
 
 ## Example
@@ -129,7 +140,7 @@ Comprehensive guides for using the framework:
 
 ### Data & Backend
 
-- [Database](docs/database.md) - Deno KV and other databases
+- [Database](docs/database.md) - Deno KV and PostgreSQL
 
 ### Testing & Deployment
 

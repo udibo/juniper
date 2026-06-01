@@ -4,7 +4,9 @@
 
 Juniper doesn't prescribe a specific database solution, giving you the
 flexibility to choose what works best for your project. This guide covers Deno
-KV (built into Deno) and patterns for connecting to other databases.
+KV (built into Deno) and PostgreSQL (with Drizzle ORM and Zod), followed by
+general data-access patterns. Juniper works with any database that has a
+Deno-compatible driver.
 
 ## Deno KV
 
@@ -158,116 +160,346 @@ async function createUser(user: User): Promise<User> {
 }
 ```
 
-## Other Databases
+## PostgreSQL
 
-Juniper works with any database that has a Deno-compatible driver.
+For relational data, pair Juniper with [PostgreSQL](https://www.postgresql.org/)
+using [Drizzle ORM](https://orm.drizzle.team/) — a typed query builder with a
+migration toolkit — and the `pg` (node-postgres) driver. Validate untrusted
+input with [Zod](https://zod.dev/).
 
-### PostgreSQL
+> A complete, runnable version of everything in this section ships as the
+> **`postgres` template**
+> ([templates/postgres](https://github.com/udibo/juniper/tree/main/templates/postgres)).
+> It implements a small guestbook so you can see the full read/write loop. Clone
+> it with `deno run -A npm:degit udibo/juniper/templates/postgres my-app`.
 
-Use `postgres` (via npm) for PostgreSQL connections:
+### Dependencies
 
-```json
-{
-  "imports": {
-    "postgres": "npm:postgres@^3.4.4"
-  }
-}
-```
-
-```typescript
-// services/db.ts
-import postgres from "postgres";
-
-const sql = postgres(Deno.env.get("DATABASE_URL") ?? "");
-
-export { sql };
-```
-
-```typescript
-// services/user.ts
-import { sql } from "./db.ts";
-
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-}
-
-export async function getUser(id: string): Promise<User | null> {
-  const [user] = await sql<User[]>`
-    SELECT id, email, name FROM users WHERE id = ${id}
-  `;
-  return user ?? null;
-}
-
-export async function createUser(user: Omit<User, "id">): Promise<User> {
-  const [created] = await sql<User[]>`
-    INSERT INTO users (email, name)
-    VALUES (${user.email}, ${user.name})
-    RETURNING id, email, name
-  `;
-  return created;
-}
-```
-
-### SQLite
-
-Use `better-sqlite3` or Deno's built-in SQLite for local databases:
-
-```typescript
-// Using Deno's built-in SQLite (requires --unstable-ffi)
-const db = new Deno.Sqlite("./data/app.db");
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
-    name TEXT NOT NULL
-  )
-`);
-
-export function getUser(id: string) {
-  const stmt = db.prepare("SELECT * FROM users WHERE id = ?");
-  return stmt.get(id);
-}
-```
-
-### MongoDB
-
-Use the official MongoDB driver:
+Add the database packages to your import map:
 
 ```json
 {
   "imports": {
-    "mongodb": "npm:mongodb@^6.3.0"
+    "drizzle-kit": "npm:drizzle-kit@^0.31.10",
+    "drizzle-orm": "npm:drizzle-orm@^0.45.2",
+    "pg": "npm:pg@^8.20.0",
+    "@types/pg": "npm:@types/pg@^8.20.0",
+    "zod": "npm:zod@^4.3.6"
   }
 }
 ```
 
-```typescript
-// services/db.ts
-import { MongoClient } from "mongodb";
+### Running PostgreSQL Locally
 
-const client = new MongoClient(Deno.env.get("MONGODB_URI") ?? "");
-await client.connect();
+Use Docker Compose to run PostgreSQL for development and tests. Create a
+`docker-compose.yml`:
 
-export const db = client.db("myapp");
-export const users = db.collection("users");
+```yaml
+services:
+  postgres:
+    image: postgres:18
+    container_name: juniper-postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker/volumes/postgres:/var/lib/postgresql
+      - ./docker/postgres/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
 ```
 
+The mounted `docker/postgres/init-db.sql` creates the dev and test databases the
+first time the container starts:
+
+```sql
+CREATE DATABASE app_dev;
+CREATE DATABASE app_test;
+```
+
+Point each environment at its own database. In `.env`:
+
+```
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/app_dev
+```
+
+And in `.env.test`:
+
+```
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/app_test
+```
+
+### Schema
+
+Define your tables with Drizzle. Columns are written in camelCase and mapped to
+snake_case in PostgreSQL by the `casing: "snake_case"` option (so `createdAt`
+becomes the `created_at` column):
+
 ```typescript
-// services/user.ts
-import { users } from "./db.ts";
-import { ObjectId } from "mongodb";
+// db/schema.ts
+import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
 
-export async function getUser(id: string) {
-  return await users.findOne({ _id: new ObjectId(id) });
+export const messages = pgTable("messages", {
+  id: serial().primaryKey(),
+  name: text().notNull(),
+  body: text().notNull(),
+  createdAt: timestamp({ precision: 3 }).defaultNow().notNull(),
+});
+```
+
+### Connection
+
+Create the Drizzle client from a `node-postgres` connection pool. The pool opens
+no connection until the first query runs, so importing this module is cheap:
+
+```typescript
+// db/mod.ts
+import { getEnv } from "@udibo/juniper/utils/env";
+import { drizzle } from "drizzle-orm/node-postgres";
+
+import * as schema from "./schema.ts";
+
+export const db = drizzle({
+  connection: getEnv("DATABASE_URL")!,
+  casing: "snake_case",
+  schema,
+});
+
+let closed = false;
+
+/** Closes the pool. Call in a test's `afterAll` to release resources. */
+export async function closeDb(): Promise<void> {
+  if (closed) return;
+  closed = true;
+  await db.$client.end();
+}
+```
+
+### Migrations
+
+Configure Drizzle Kit with `drizzle.config.ts`:
+
+```typescript
+import { defineConfig } from "drizzle-kit";
+
+export default defineConfig({
+  schema: "./db/schema.ts",
+  out: "./db/drizzle",
+  dialect: "postgresql",
+  dbCredentials: {
+    url: Deno.env.get("DATABASE_URL")!,
+  },
+  casing: "snake_case",
+});
+```
+
+Add tasks for Docker and Drizzle Kit to `deno.json`:
+
+```json
+{
+  "tasks": {
+    "docker:start": "docker compose up -d --wait",
+    "docker:stop": "docker compose down",
+    "db:generate": "deno run -A --env-file npm:drizzle-kit generate",
+    "db:migrate:dev": "deno run -A --env-file npm:drizzle-kit migrate",
+    "db:migrate:test": "deno run -A --env-file --env-file=.env.test npm:drizzle-kit migrate",
+    "db:migrate": { "dependencies": ["db:migrate:dev", "db:migrate:test"] },
+    "db:studio": "deno run -A --env-file npm:drizzle-kit studio"
+  }
+}
+```
+
+The workflow for a schema change is: edit `db/schema.ts`, generate a migration,
+then apply it.
+
+```bash
+deno task docker:start   # Start PostgreSQL
+deno task db:generate    # Generate SQL from schema changes
+deno task db:migrate     # Apply migrations to the dev and test databases
+```
+
+### Service Layer
+
+Keep queries in a service module of plain exported functions, and validate
+untrusted input with Zod. Deriving the row type from the schema with
+`$inferSelect` keeps the type in sync with the table:
+
+```typescript
+// services/message.ts
+import { desc, eq } from "drizzle-orm";
+import { z } from "zod";
+
+import { db } from "@/db/mod.ts";
+import { messages } from "@/db/schema.ts";
+
+export type Message = typeof messages.$inferSelect;
+
+export const newMessageSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(100),
+  body: z.string().trim().min(1, "Message is required").max(1000),
+});
+
+export type NewMessage = z.infer<typeof newMessageSchema>;
+
+export async function listMessages(): Promise<Message[]> {
+  return await db.select().from(messages).orderBy(desc(messages.createdAt));
 }
 
-export async function createUser(user: { email: string; name: string }) {
-  const result = await users.insertOne(user);
-  return { ...user, _id: result.insertedId };
+export async function createMessage(data: NewMessage): Promise<Message> {
+  const [message] = await db.insert(messages).values(data).returning();
+  return message;
 }
+
+export async function deleteMessage(id: number): Promise<boolean> {
+  const deleted = await db.delete(messages).where(eq(messages.id, id))
+    .returning({ id: messages.id });
+  return deleted.length > 0;
+}
+```
+
+### Using the Database in Routes
+
+Because the service imports the connection (and therefore the `pg` driver), only
+call it from **server-only** route files (`.ts`). A `.ts` loader/action never
+ships to the browser, so your database code and credentials stay on the server.
+The matching `.tsx` file imports only the **types**, which are erased at build
+time.
+
+```ts
+// routes/index.ts — server loader + action
+import { redirect } from "react-router";
+
+import type {
+  AnyParams,
+  RouteActionArgs,
+  RouteLoaderArgs,
+} from "@udibo/juniper";
+
+import {
+  createMessage,
+  deleteMessage,
+  listMessages,
+  newMessageSchema,
+} from "@/services/message.ts";
+
+import type { GuestbookActionData, GuestbookLoaderData } from "./index.tsx";
+
+export async function loader(
+  _args: RouteLoaderArgs<AnyParams, GuestbookLoaderData>,
+): Promise<GuestbookLoaderData> {
+  return { messages: await listMessages() };
+}
+
+export async function action(
+  { request }: RouteActionArgs<AnyParams, GuestbookActionData>,
+): Promise<GuestbookActionData> {
+  const formData = await request.formData();
+
+  if (formData.get("intent") === "delete") {
+    const id = Number(formData.get("id"));
+    if (Number.isInteger(id)) await deleteMessage(id);
+    throw redirect("/");
+  }
+
+  const result = newMessageSchema.safeParse({
+    name: formData.get("name") ?? "",
+    body: formData.get("body") ?? "",
+  });
+  if (!result.success) {
+    const errors: NonNullable<GuestbookActionData["errors"]> = {};
+    for (const issue of result.error.issues) {
+      const field = issue.path[0];
+      if ((field === "name" || field === "body") && !errors[field]) {
+        errors[field] = issue.message;
+      }
+    }
+    return { errors };
+  }
+
+  await createMessage(result.data);
+  throw redirect("/");
+}
+```
+
+The component (`.tsx`) receives the data through props and imports only the
+`Message` type from the service:
+
+```tsx
+// routes/index.tsx
+import { Form } from "react-router";
+
+import type { AnyParams, RouteProps } from "@udibo/juniper";
+
+import type { Message } from "@/services/message.ts";
+
+export interface GuestbookLoaderData {
+  messages: Message[];
+}
+
+export interface GuestbookActionData {
+  errors?: { name?: string; body?: string };
+}
+
+export default function Guestbook(
+  { loaderData, actionData }: RouteProps<
+    AnyParams,
+    GuestbookLoaderData,
+    GuestbookActionData
+  >,
+) {
+  return (
+    <>
+      <Form method="post">
+        <input type="text" name="name" maxLength={100} required />
+        {actionData?.errors?.name && <span>{actionData.errors.name}</span>}
+        <textarea name="body" maxLength={1000} required />
+        {actionData?.errors?.body && <span>{actionData.errors.body}</span>}
+        <button type="submit">Sign guestbook</button>
+      </Form>
+      <ul>
+        {loaderData.messages.map((message) => (
+          <li key={message.id}>
+            <strong>{message.name}</strong>: {message.body}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+### Testing
+
+Tests run against the `app_test` database, so start and migrate PostgreSQL
+before running them:
+
+```bash
+deno task docker:start
+deno task db:migrate
+deno task test
+```
+
+Close the connection pool when a test file finishes querying the database so the
+test runner doesn't report a leaked resource:
+
+```typescript
+import { afterAll, describe, it } from "@std/testing/bdd";
+
+import { closeDb } from "@/db/mod.ts";
+
+describe("message service", () => {
+  afterAll(async () => {
+    await closeDb();
+  });
+
+  // ...tests that call the service
+});
 ```
 
 ## Data Access Patterns

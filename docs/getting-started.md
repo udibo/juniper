@@ -52,6 +52,18 @@ deno install
 deno task dev
 ```
 
+**PostgreSQL Template** - Demonstrates PostgreSQL with Drizzle ORM and Zod
+(requires [Docker](https://www.docker.com/) for the local database):
+
+```bash
+deno run -A npm:degit udibo/juniper/templates/postgres my-app
+cd my-app
+deno install
+deno task docker:start   # Start PostgreSQL
+deno task db:migrate     # Create the database schema
+deno task dev
+```
+
 Open your browser to `http://localhost:8000` to see your application.
 
 ### Creating from Scratch

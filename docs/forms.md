@@ -630,5 +630,5 @@ export async function action(
 **Related topics:**
 
 - [Error Handling](error-handling.md) - Error boundaries and HttpError
-- [Database](database.md) - Deno KV and other databases
+- [Database](database.md) - Deno KV and PostgreSQL
 - [Testing](testing.md) - Testing utilities and patterns

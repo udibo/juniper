@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: juniper-postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker/volumes/postgres:/var/lib/postgresql
+      - ./docker/postgres/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped

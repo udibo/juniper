@@ -276,7 +276,7 @@ allowing child routes to override parent metadata.
 
 ## Next Steps
 
-**Next:** [Database](database.md) - Deno KV and other databases
+**Next:** [Database](database.md) - Deno KV and PostgreSQL
 
 **Related topics:**
 
