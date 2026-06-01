@@ -90,8 +90,9 @@
     "pg": "npm:pg@^8.20.0",
     "@types/pg": "npm:@types/pg@^8.20.0",
     "zod": "npm:zod@^4.3.6",
-    "react": "npm:react@^19.2.6",
-    "@types/react": "npm:@types/react@^19.2.15",
+    "react": "npm:react@^19.2.7",
+    "react-dom": "npm:react-dom@^19.2.7",
+    "@types/react": "npm:@types/react@^19.2.16",
     "react-router": "npm:react-router@^7.16.0",
     "hono": "npm:hono@^4.12.23",
     "@testing-library/react": "npm:@testing-library/react@^16.3.2"
