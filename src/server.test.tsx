@@ -96,7 +96,6 @@ describe("createServer", () => {
       ],
     });
 
-    // Server route should take priority and return plain text, not HTML
     const testRes = await server.request("http://localhost/test");
     assertEquals(testRes.status, 200);
     assertEquals(await testRes.text(), "Server Route");
@@ -500,13 +499,11 @@ describe("createServer", () => {
       ],
     });
 
-    // Request to a non-existent path under /admin should use admin's error boundary
     const res = await server.request("http://localhost/admin/non-existent");
     assertEquals(res.status, 404);
     const html = await res.text();
     assertStringIncludes(html, "<!DOCTYPE html>");
     assertStringIncludes(html, "<div>Admin Error Boundary</div>");
-    // Should NOT use root error boundary
     assertEquals(html.includes("Root Error Boundary"), false);
   });
 
@@ -537,13 +534,11 @@ describe("createServer", () => {
       ],
     });
 
-    // Request to a non-existent path at root level should use root's error boundary
     const res = await server.request("http://localhost/non-existent");
     assertEquals(res.status, 404);
     const html = await res.text();
     assertStringIncludes(html, "<!DOCTYPE html>");
     assertStringIncludes(html, "<div>Root Error Boundary</div>");
-    // Should NOT use admin error boundary
     assertEquals(html.includes("Admin Error Boundary"), false);
   });
 
@@ -588,9 +583,6 @@ describe("createServer", () => {
       ],
     });
 
-    // Data request for root loader at a non-existent URL under /admin.
-    // This simulates client-side navigation to a 404 page where React Router
-    // needs to re-fetch the root route's loader data.
     const res = await server.request("http://localhost/admin/non-existent", {
       headers: { "X-Juniper-Route-Id": "/" },
     });
@@ -619,7 +611,6 @@ describe("createServer", () => {
           children: [
             {
               path: "settings",
-              // No error boundary on settings
               main: {
                 default: () => <Outlet />,
               },
@@ -655,7 +646,6 @@ describe("createServer", () => {
       ],
     });
 
-    // Request to non-existent path under /admin/settings should bubble up to admin's error boundary
     const res = await server.request(
       "http://localhost/admin/settings/non-existent",
     );
@@ -760,7 +750,6 @@ describe("redirect header preservation", () => {
     assertEquals(res.status, 200);
     assertEquals(res.headers.get("X-Juniper"), "redirect");
 
-    // All headers should be preserved except Location, Content-Type, Content-Length
     assertEquals(
       res.headers.get("Set-Cookie"),
       "session=abc123; Path=/; HttpOnly",
@@ -768,7 +757,6 @@ describe("redirect header preservation", () => {
     assertEquals(res.headers.get("X-Custom-Header"), "custom-value");
     assertEquals(res.headers.get("Cache-Control"), "no-store");
 
-    // Location should be in the JSON body, not as a header
     assertEquals(res.headers.get("Location"), null);
 
     const data = await res.json();
@@ -784,8 +772,6 @@ describe("redirect header preservation", () => {
     const server = createServer(import.meta.url, client, {
       path: "/",
       main: {
-        // A full-page redirect to a server-only route the client router
-        // cannot render (the OAuth2 authorize/callback case).
         loader: () => Promise.resolve(redirectDocument("/auth/login")),
       },
     });
@@ -796,8 +782,6 @@ describe("redirect header preservation", () => {
 
     assertEquals(res.status, 200);
     assertEquals(res.headers.get("X-Juniper"), "redirect");
-    // The internal reload-document header is not leaked as a response header;
-    // the intent travels in the JSON body so the client can act on it.
     assertEquals(res.headers.get("X-Remix-Reload-Document"), null);
 
     const data = await res.json();
@@ -838,7 +822,6 @@ describe("redirect header preservation", () => {
     assertEquals(res.status, 200);
     assertEquals(res.headers.get("X-Juniper"), "redirect");
 
-    // Multiple Set-Cookie headers should be preserved individually
     const cookies = res.headers.getSetCookie();
     assertEquals(cookies.length, 2);
     assertEquals(cookies[0], "access_token=abc; Path=/; HttpOnly");
@@ -860,9 +843,6 @@ describe("redirect header preservation", () => {
 
     const server = createServer(import.meta.url, client, {
       path: "/",
-      // A route-group guard that short-circuits BEFORE the React handlers — the
-      // case handleDataRequest never sees. The outer interceptor must still
-      // repackage it into the envelope.
       main: { default: guard },
     });
 
@@ -884,8 +864,6 @@ describe("redirect header preservation", () => {
 
     const { Hono } = await import("hono");
     const guard = new Hono();
-    // A middleware can return react-router's redirectDocument() Response; the
-    // framework relays the full-page intent the same as a loader/action would.
     guard.use(() => Promise.resolve(redirectDocument("/auth/login")));
 
     const server = createServer(import.meta.url, client, {
@@ -921,7 +899,6 @@ describe("redirect header preservation", () => {
       main: { default: guard },
     });
 
-    // No X-Juniper-Route-Id: a full page load. The browser follows the 302.
     const res = await server.request("http://localhost/");
 
     assertEquals(res.status, 302);
@@ -933,7 +910,6 @@ describe("redirect header preservation", () => {
 
 describe("build artifact cache control", () => {
   it("should set no-cache headers with etag for /build/main.js", async () => {
-    // Create a minimal public/build directory structure for serving
     const tempDir = await Deno.makeTempDir();
     try {
       const buildDir = `${tempDir}/public/build`;

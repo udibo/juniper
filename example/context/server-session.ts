@@ -21,7 +21,6 @@ export function createServerSession(): ServerSession {
   };
 }
 
-// Register server session context serialization
 registerContext<ServerSession>({
   name: "serverSession",
   context: serverSessionContext,

@@ -87,20 +87,9 @@ export function createServer<
   appWrapper.use(async (c, next) => {
     c.set("context", new RouterContextProvider());
     await next();
-    // Client-side (data-mode) navigations fetch loader/action data with an
-    // `X-Juniper-Route-Id` header and expect a redirect envelope, not a raw 3xx
-    // that `fetch` would silently follow. Repackage ANY redirect that surfaces
-    // on such a request — including one from a Hono handler/middleware that
-    // short-circuited before the React Router handlers (e.g. an auth guard's
-    // `c.redirect()`, or a `return redirectDocument()`) — into that envelope,
-    // honoring `redirectDocument()` (full-page) vs `redirect()` (SPA) uniformly.
-    // Document requests carry no such header and keep their browser-followed
-    // 302s. Loader/action redirects are already enveloped (status 200) by
-    // `handleDataRequest`, so `isRedirectResponse` skips them here.
+    // Data-mode requests (with `X-Juniper-Route-Id`) expect a redirect envelope, not a raw 3xx that `fetch` would silently follow.
     if (c.req.header("X-Juniper-Route-Id") && isRedirectResponse(c.res)) {
       c.res = toRedirectEnvelope(c.res);
-      // Assigning `c.res` merges the prior response's headers in; drop the ones
-      // that must not appear on the 200 envelope (they live in the body).
       c.res.headers.delete("Location");
       c.res.headers.delete("X-Remix-Reload-Document");
     }

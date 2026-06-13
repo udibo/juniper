@@ -7,7 +7,6 @@ import type {
   RouteProps,
 } from "@udibo/juniper";
 
-// Contexts for sharing data
 export interface ServerRequestInfo {
   requestId: string;
   serverTimestamp: string;
@@ -25,7 +24,6 @@ export const clientNavigationInfoContext = createContext<
   ClientNavigationInfo
 >();
 
-// Client middleware - runs during client-side navigation
 export const middleware: MiddlewareFunction[] = [
   async ({ context }, next) => {
     const clientInfo: ClientNavigationInfo = {
@@ -51,26 +49,22 @@ export interface LoaderData {
 export function loader(
   { context, serverLoader }: RouteLoaderArgs<AnyParams, LoaderData>,
 ): LoaderData | Promise<LoaderData> {
-  // Check if we have client navigation info (means we're doing client-side navigation)
   let clientInfo: ClientNavigationInfo | undefined;
   try {
     clientInfo = context.get(clientNavigationInfoContext);
   } catch {
-    // Context not set yet (SSR or initial load)
+    // ignore
   }
 
   if (!clientInfo) {
-    // Initial SSR - call server loader
     return serverLoader() as Promise<LoaderData>;
   }
 
-  // Client-side navigation - we have client middleware context
-  // Also get server info if it was set during SSR
   let serverInfo: ServerRequestInfo | undefined;
   try {
     serverInfo = context.get(serverRequestInfoContext);
   } catch {
-    // Server context not available on client
+    // ignore
   }
 
   return {
@@ -87,18 +81,17 @@ export default function CombinedMiddlewareExample({
 }: RouteProps<Record<string, string>, LoaderData>) {
   const { serverInfo, clientInfo, loadedAt, source } = loaderData;
 
-  // Get live context values from props (may not be set during SSR/initial load)
   let liveServerInfo: ServerRequestInfo | undefined;
   let liveClientInfo: ClientNavigationInfo | undefined;
   try {
     liveServerInfo = context.get(serverRequestInfoContext);
   } catch {
-    // Not set
+    // ignore
   }
   try {
     liveClientInfo = context.get(clientNavigationInfoContext);
   } catch {
-    // Not set
+    // ignore
   }
 
   return (

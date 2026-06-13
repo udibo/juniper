@@ -39,7 +39,7 @@ export function loader(
   try {
     navigationInfo = context.get(navigationInfoContext);
   } catch {
-    // Context not set (SSR or initial load) - fall back to server loader
+    // ignore
   }
   if (!navigationInfo) {
     return serverLoader() as Promise<LoaderData>;
@@ -60,7 +60,7 @@ export default function ClientMiddlewareExample({
   try {
     liveNavigationInfo = context.get(navigationInfoContext);
   } catch {
-    // Context not set during SSR or initial load
+    // ignore
   }
 
   return (

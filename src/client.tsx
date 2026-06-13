@@ -125,7 +125,6 @@ export class Client {
     this.routeObjects = [{ id: rootRouteId, path: rootRoute.path }];
     this.routeObjectMap = new Map();
 
-    // Extract htmlProps from root route module if available
     if (rootRoute.main && typeof rootRoute.main !== "function") {
       this.htmlProps = rootRoute.main.htmlProps;
     }
@@ -215,8 +214,7 @@ export class Client {
         this.routeFileMap.set(catchallRouteId, route.catchall);
         this.routeObjectMap.set(catchallRouteId, catchallRouteObject);
       } else {
-        // Add default catchall that throws 404 for unmatched routes
-        // This ensures errors bubble to the nearest ErrorBoundary
+        // Default catchall throws 404 so errors bubble to the nearest ErrorBoundary.
         const catchallRouteId = generateRouteId(currentPath, "", "catchall");
         const catchallRouteObject: RouteObject = {
           id: catchallRouteId,

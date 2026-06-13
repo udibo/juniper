@@ -309,7 +309,6 @@ async function renderDocument(
     await startActiveSpan("render.attempt", async (renderAttemptSpan) => {
       renderAttemptSpan.setAttribute("render.attempt.index", renderAttempts);
       try {
-        // Use CBOR-based serialization
         const hydrationData = {
           publicEnv: getPublicEnv(allPublicEnvKeys),
           serializedContext: serializeAllContext(requestContext),
@@ -523,7 +522,6 @@ function wrapLazyWithServerFallback(
     const result = await lazyFn() as Record<string, unknown>;
     const { middleware: _middleware, ...rest } = result;
 
-    // Strip client loader/action only if server has them
     if (hasServerLoader) delete rest.loader;
     if (hasServerAction) delete rest.action;
 
@@ -553,7 +551,6 @@ export function mergeServerRoutes<
     routeObj: RouteObject,
     serverModule: Pick<ServerRouteModule, "loader" | "action"> | undefined,
   ): void {
-    // Save client handlers before potentially deleting them
     const clientLoader = routeObj.loader;
     const clientAction = routeObj.action;
 
@@ -574,7 +571,6 @@ export function mergeServerRoutes<
         });
       };
     } else if (clientLoader) {
-      // Use client loader on server when no server loader exists
       routeObj.loader = clientLoader;
     }
 
@@ -590,7 +586,6 @@ export function mergeServerRoutes<
         });
       };
     } else if (clientAction) {
-      // Use client action on server when no server action exists
       routeObj.action = clientAction;
     }
   }
@@ -671,7 +666,6 @@ interface HandlersResult {
   errorHandler: ErrorHandler;
 }
 
-/** Response headers that must not be relayed onto the redirect envelope. */
 const REDIRECT_ENVELOPE_OMIT = new Set([
   "location",
   "content-type",
@@ -801,15 +795,12 @@ export function createHandlers<
 
         c.header("Vary", "Accept");
         if (dataOrResponse instanceof Response) {
-          // A loader/action redirect: relay it as the redirect envelope so the
-          // client navigates (SPA or full-page, per `redirectDocument()`).
           if (isRedirectResponse(dataOrResponse)) {
             return toRedirectEnvelope(dataOrResponse);
           }
           return dataOrResponse;
         }
 
-        // Check if data contains promises - if so, use streaming
         if (containsPromises(dataOrResponse)) {
           c.header("Content-Type", "application/cbor-stream");
 
@@ -819,7 +810,6 @@ export function createHandlers<
           });
         }
 
-        // No promises - use non-streaming response for better performance
         const cborData = await serializeLoaderData(dataOrResponse);
         return new Response(cborData as unknown as BodyInit, {
           headers: {
@@ -842,7 +832,6 @@ export function createHandlers<
     console.error(error);
 
     if (c.req.header("X-Juniper-Route-Id")) {
-      // Use registry-based error serialization
       const serialized = serializeError(error);
       const cborData = cborEncode(serialized);
       const headers = new Headers({
@@ -868,8 +857,6 @@ export function createHandlers<
       });
     }
 
-    // For 404s on paths with file extensions, return simple response
-    // to avoid wasting resources rendering pages for bot requests
     if (error.status === 404) {
       const url = new URL(c.req.url);
       const lastSegment = url.pathname.split("/").pop() ?? "";
@@ -962,7 +949,6 @@ export function buildApp<
     }
 
     routeApp.use(async (c, next) => {
-      // Index routes should only set context for exact path matches
       if (currentRouteId.endsWith("/index")) {
         const parentPath = currentRouteId.slice(0, -6) || "/";
         const path = new URL(c.req.url).pathname;
@@ -1113,10 +1099,7 @@ export function buildApp<
     app.route("*", catchallApp);
   }
 
-  // Catch data requests that didn't match any route handler at this level.
-  // This happens when the client navigates to a non-existent URL and React Router
-  // needs to re-fetch parent route data (e.g., GET /identity/applications with
-  // X-Juniper-Route-Id: "/" to refresh the root loader).
+  // Catches data requests unmatched at this level: React Router re-fetches parent route data when navigating to a non-existent URL.
   if (isClientRoute && errorHandler) {
     const handleDataRequest = reactHandlers[reactHandlers.length - 1];
     app.use("*", (c, next) => {

@@ -20,7 +20,6 @@ export function createQueryClient(): QueryClient {
   });
 }
 
-// Register QueryClient context serialization
 registerContext<QueryClient, DehydratedState | undefined>({
   name: "queryClient",
   context: queryClientContext,

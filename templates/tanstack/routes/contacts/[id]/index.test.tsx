@@ -241,7 +241,6 @@ describe("Contact view route", () => {
       ...contactViewRoute,
       path: "/contacts/:id",
       loader() {
-        // Return a promise that never resolves to keep showing HydrateFallback
         return new Promise(() => {});
       },
       HydrateFallback: contactViewRoute.HydrateFallback,

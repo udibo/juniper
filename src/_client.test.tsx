@@ -18,8 +18,6 @@ describe("App", () => {
   it("should render with suppressHydrationWarning", () => {
     render(<App>Test content</App>);
     const html = document.documentElement;
-    // suppressHydrationWarning is a React internal prop and won't be visible in the DOM
-    // but we can verify the html element exists and has the expected structure
     assertExists(html);
   });
 

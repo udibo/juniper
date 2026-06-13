@@ -39,7 +39,6 @@ export const postService = {
       entries.push(entry.value);
     }
 
-    // Sort by creation date, newest first
     entries.sort(
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -86,7 +85,7 @@ export const postService = {
 
   async delete(id: string): Promise<void> {
     const db = await getKv();
-    await this.get(id); // Ensure it exists
+    await this.get(id);
     await db.delete(["posts", id]);
   },
 };

@@ -34,7 +34,6 @@ const fmtCommand = new Deno.Command(Deno.execPath(), {
   stdout: "piped",
 });
 
-/** Normalizes a path to forward slashes for cross-platform comparison. */
 function toPosixPath(value: string): string {
   return value.replace(/\\/g, "/");
 }
@@ -216,17 +215,11 @@ export class Builder implements AsyncDisposable {
     return resolved;
   }
 
-  /**
-   * Recursively collects the watchable paths under {@linkcode dir}, descending
-   * only into directories that contain an ignored path and dropping ignored
-   * entries entirely.
-   */
   private async collectWatchPaths(
     dir: string,
     into: string[],
   ): Promise<void> {
     if (this.isPathIgnored(dir)) return;
-    // If no ignored path lives inside this directory, watch the whole subtree.
     const prefix = toPosixPath(dir).replace(/\/+$/, "") + "/";
     const containsIgnored = this.ignorePaths.some((ignore) =>
       toPosixPath(ignore).startsWith(prefix)
@@ -235,7 +228,6 @@ export class Builder implements AsyncDisposable {
       into.push(dir);
       return;
     }
-    // Otherwise descend one level and recurse, dropping ignored children.
     try {
       for await (const entry of Deno.readDir(dir)) {
         const child = path.join(dir, entry.name);
@@ -246,11 +238,10 @@ export class Builder implements AsyncDisposable {
         }
       }
     } catch {
-      // Directory became unreadable; skip it rather than crash the watcher.
+      // skip
     }
   }
 
-  /** Whether {@linkcode absolutePath} is itself an ignored path or inside one. */
   private isPathIgnored(absolutePath: string): boolean {
     const target = toPosixPath(absolutePath);
     return this.ignorePaths.some((ignore) => {
@@ -274,7 +265,6 @@ export class Builder implements AsyncDisposable {
     }
     if (activeBuilders.size === 0) {
       await esbuild.stop();
-      // Wait for esbuild to stop completely
       await delay(10);
     }
   }
