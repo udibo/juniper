@@ -124,6 +124,14 @@ jobs:
         with:
           fetch-depth: 0
           ssh-key: ${{ secrets.DEPLOY_KEY }}
+      # semantic-release runs on Node, not Deno: @sebbo2002/semantic-release-jsr
+      # shell-spawns its own downloaded `deno publish`, and that spawn's args are
+      # mangled by Deno's child_process Node-compat layer (the publish failed with
+      # "unrecognized subcommand"). Under real Node the plugin works as designed.
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
       - name: Setup Deno
         uses: denoland/setup-deno@667a34cdef165d8d2b2e98dde39547c9daac7282 # v2
         with:
@@ -143,12 +151,19 @@ jobs:
       - name: Run semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # Run through Deno, not npx: semantic-release and its plugins resolve
-        # from deno.lock under minimumDependencyAge with npm lifecycle scripts
-        # disabled, so the only code executing while id-token: write is active is
-        # pinned and integrity-checked. Versions are pinned in deno.json:
-        # semantic-release is held at ^24 because v25's engines (>=24.10) reject
-        # Deno's emulated Node; @sebbo2002/semantic-release-jsr is held at 3.2.1
-        # because 4.0.0 ships a CJS bundle semantic-release rejects as
-        # EPLUGINSCONF (https://github.com/sebbo2002/semantic-release-jsr/issues/153).
-        run: deno run -A npm:semantic-release
+        # Every package is pinned to an exact version so a malicious new release
+        # of a popular package can't execute here while id-token: write is active
+        # — npx has no lockfile, so the version IS the pin. @sebbo2002/semantic-
+        # release-jsr stays 3.2.1 because 4.0.0 ships a CJS bundle semantic-release
+        # rejects as EPLUGINSCONF (https://github.com/sebbo2002/semantic-release-jsr/issues/153).
+        # Bump these deliberately (transitive deps still float — see PR for the
+        # lockfile follow-up).
+        run: >-
+          npx
+          --package semantic-release@25.0.5
+          --package @semantic-release/changelog@6.0.3
+          --package @semantic-release/exec@7.1.0
+          --package @semantic-release/git@10.0.1
+          --package @semantic-release/github@12.0.8
+          --package @sebbo2002/semantic-release-jsr@3.2.1
+          semantic-release
