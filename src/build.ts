@@ -139,22 +139,41 @@ const activeBuilders = new Set<Builder>();
  * ```
  */
 export class Builder implements AsyncDisposable {
+  /** Absolute path to the project root; every other path resolves against it. */
   readonly projectRoot: string;
+  /** Absolute path to the routes directory scanned for file-based routes. */
   readonly routesPath: string;
+  /** Absolute path to the public directory served as static assets. */
   readonly publicPath: string;
+  /** Absolute path to the resolved `deno.json`/`deno.jsonc` config file. */
   readonly configPath: string;
+  /** Absolute path to the generated server entrypoint (`main.ts`). */
   readonly serverPath: string;
+  /** Absolute path to the generated client entrypoint (`main.tsx`). */
   readonly clientPath: string;
+  /** Absolute path to the application's client entry (`main.tsx`). */
   readonly entryPoint: string;
+  /** Paths watched for changes by the dev server; defaults to the project root. */
   readonly watchPaths: string | string[];
+  /**
+   * Absolute paths pruned from the watch tree.
+   * @see {@linkcode Builder.resolveWatchPaths}
+   */
   readonly ignorePaths: string[];
+  /** Absolute output directory for built assets (`public/build`). */
   readonly outdir: string;
+  /** All esbuild entry points: any extra entries plus the main client entry. */
   readonly entryPoints: string[];
+  /** Whether build output is written to disk; `false` is used in tests. */
   protected write: boolean;
+  /** Extra esbuild plugins inserted between the Deno resolver and loader. */
   protected plugins: esbuild.Plugin[];
+  /** The active esbuild incremental build context, once a build has started. */
   protected context?: esbuild.BuildContext;
+  /** Backing flag for {@linkcode Builder.isBuilding}. */
   protected _isBuilding: boolean;
 
+  /** Whether a build or rebuild is currently in progress. */
   get isBuilding(): boolean {
     return this._isBuilding;
   }
@@ -268,6 +287,10 @@ export class Builder implements AsyncDisposable {
       await delay(10);
     }
   }
+  /**
+   * Disposes the builder via explicit resource management (`await using`),
+   * delegating to {@linkcode Builder.dispose}.
+   */
   [Symbol.asyncDispose](): Promise<void> {
     return this.dispose();
   }
@@ -524,6 +547,16 @@ export const client = new Client(${routesConfigString});
     });
   }
 
+  /**
+   * Rebuilds the application using the esbuild context from a prior
+   * {@linkcode Builder.build}. Use this for incremental rebuilds (e.g. from the
+   * dev server); it throws if no build has started or one is already in progress.
+   *
+   * @param options - Which generated entrypoints to regenerate before rebuilding.
+   * @param options.server - Regenerate the server entrypoint (`main.ts`).
+   * @param options.client - Regenerate the client entrypoint (`main.tsx`).
+   * @returns A promise that resolves to the esbuild build results.
+   */
   rebuild(options: {
     server?: boolean;
     client?: boolean;

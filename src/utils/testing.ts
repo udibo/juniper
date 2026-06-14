@@ -152,17 +152,34 @@ export function simulateEnvironment<T extends void | Promise<void>>(
   });
 }
 
+/**
+ * A route definition for {@linkcode createRoutesStub}.
+ *
+ * Extends {@linkcode RouteModule} with the routing metadata the stub needs to
+ * place the route in the test router.
+ */
 export interface RouteStub extends RouteModule<AnyParams, unknown, unknown> {
+  /** The route's URL path segment. */
   path?: string;
+  /** Flags marking which server-side handlers the route simulates. */
   serverFlags?: ServerFlags;
+  /** Overrides the id used to match this route in the test router. */
   routeId?: string;
 }
 
+/**
+ * Props for the component returned by {@linkcode createRoutesStub}.
+ */
 export interface RoutesStubProps {
+  /** The initial history entries (URLs) the stubbed router starts at. */
   initialEntries?: string[];
+  /** Initial loader/action data used to hydrate the stubbed routes. */
   hydrationData?: HydrationState;
 }
 
+/**
+ * Options for {@linkcode createRoutesStub}.
+ */
 export interface CreateRoutesStubOptions {
   /**
    * A function to set up initial context values before rendering.
