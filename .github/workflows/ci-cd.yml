@@ -142,6 +142,11 @@ jobs:
       - name: Run semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # @sebbo2002/semantic-release-jsr@4.0.0 ships a CJS bundle that
+        # semantic-release rejects as an invalid plugin config (EPLUGINSCONF):
+        # https://github.com/sebbo2002/semantic-release-jsr/issues/153
+        # Fixed upstream on @next (4.0.1-develop); pin to the last good 3.x and
+        # un-pin to ^4.0.1 once it ships stable. The other tools track latest.
         run: >-
           npx
           --package semantic-release
@@ -149,5 +154,5 @@ jobs:
           --package @semantic-release/exec
           --package @semantic-release/git
           --package @semantic-release/github
-          --package @sebbo2002/semantic-release-jsr
+          --package @sebbo2002/semantic-release-jsr@3.2.1
           semantic-release
