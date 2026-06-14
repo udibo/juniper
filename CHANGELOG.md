@@ -1,3 +1,11 @@
+# [0.8.0](https://github.com/udibo/juniper/compare/0.7.1...0.8.0) (2026-06-14)
+
+### Features
+
+- document the full public API and export supporting types
+  ([#93](https://github.com/udibo/juniper/issues/93))
+  ([85aaa0b](https://github.com/udibo/juniper/commit/85aaa0bc01dae097e795924cbc04659a7522eef4))
+
 ## [0.7.1](https://github.com/udibo/juniper/compare/0.7.0...0.7.1) (2026-06-01)
 
 # [0.7.0](https://github.com/udibo/juniper/compare/0.6.0...0.7.0) (2026-06-01)
