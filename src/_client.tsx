@@ -67,8 +67,16 @@ export function useJuniperContext(): RouterContextProvider {
   return context;
 }
 
+/**
+ * Flags indicating which server-side handlers a route file exports.
+ *
+ * Set by the build system so the client knows whether to call the route's
+ * server loader/action over the network during navigation.
+ */
 export interface ServerFlags {
+  /** Whether the route exports a server-side `loader`. */
   loader?: boolean;
+  /** Whether the route exports a server-side `action`. */
   action?: boolean;
 }
 

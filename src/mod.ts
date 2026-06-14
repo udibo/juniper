@@ -348,9 +348,17 @@ export interface RouteLoaderArgs<
   Params extends AnyParams = AnyParams,
   LoaderData = unknown,
 > {
+  /** The request-scoped router context, shared across middleware, loaders, and actions. */
   context: RouterContextProvider;
+  /** The matched route params. */
   params: Params;
+  /** The incoming request. */
   request: Request;
+  /**
+   * Calls the route's server loader from a client loader, resolving its data
+   * (or a `Response`). Only meaningful in a client loader paired with a server
+   * loader; on the server it resolves the loader's own data.
+   */
   serverLoader: () => LoaderData | Response | Promise<LoaderData | Response>;
 }
 
@@ -405,9 +413,17 @@ export interface RouteActionArgs<
   Params extends AnyParams = AnyParams,
   ActionData = unknown,
 > {
+  /** The request-scoped router context, shared across middleware, loaders, and actions. */
   context: RouterContextProvider;
+  /** The matched route params. */
   params: Params;
+  /** The incoming request. */
   request: Request;
+  /**
+   * Calls the route's server action from a client action, resolving its data
+   * (or a `Response`). Only meaningful in a client action paired with a server
+   * action; on the server it resolves the action's own data.
+   */
   serverAction: () => ActionData | Response | Promise<ActionData | Response>;
 }
 
@@ -432,8 +448,11 @@ export interface RouteActionArgs<
 export interface RouteMiddlewareArgs<
   Params extends AnyParams = AnyParams,
 > {
+  /** The request-scoped router context, shared across middleware, loaders, and actions. */
   context: RouterContextProvider;
+  /** The matched route params. */
   params: Params;
+  /** The incoming request. */
   request: Request;
 }
 
@@ -651,8 +670,11 @@ export interface ErrorBoundaryProps<
   resetErrorBoundary: () => void;
 }
 
-/** A React component used for a route. */
-type BivariantComponent<Props> = {
+/**
+ * A React component type for a route export, with props compared bivariantly
+ * so route components stay assignable regardless of prop variance.
+ */
+export type BivariantComponent<Props> = {
   bivarianceHack(props: Props): ReactElement | null;
 }["bivarianceHack"];
 
@@ -1060,6 +1082,16 @@ export interface RouteModule<
  */
 export type HtmlProps = React.HTMLAttributes<HTMLHtmlElement>;
 
+/**
+ * The module shape for the root route (`routes/main.tsx`).
+ *
+ * Extends {@linkcode RouteModule} with {@linkcode RootRouteModule.htmlProps} for
+ * configuring the document's `<html>` element.
+ *
+ * @template Params - The type of route params. Defaults to `AnyParams`.
+ * @template LoaderData - The type of loader data. Defaults to `unknown`.
+ * @template ActionData - The type of action data. Defaults to `unknown`.
+ */
 export interface RootRouteModule<
   Params extends AnyParams = AnyParams,
   LoaderData = unknown,

@@ -29,13 +29,14 @@ import { env } from "./utils/_env.ts";
 export type { HydrationData, ServerFlags };
 
 /** Loads a non-root route module on demand. */
-type RouteModuleLoader = () => Promise<RouteModule>;
+export type RouteModuleLoader = () => Promise<RouteModule>;
 
 /** Loads the root route module on demand. */
-type RootRouteModuleLoader = () => Promise<RootRouteModule>;
+export type RootRouteModuleLoader = () => Promise<RootRouteModule>;
 
 /** A client route definition used by the generated `main.tsx`. */
 export interface ClientRoute {
+  /** The route's URL path segment. */
   path: string;
   /**
    * The route's module.
@@ -118,6 +119,12 @@ export class Client {
   /** Props to apply to the `<html>` element, from root route's htmlProps export. */
   htmlProps?: HtmlProps;
 
+  /**
+   * Builds the client route tree from a root route, ready to
+   * {@linkcode Client.hydrate}.
+   *
+   * @param rootRoute - The root client route, typically the generated `main.tsx`.
+   */
   constructor(rootRoute: RootClientRoute) {
     this.rootRoute = rootRoute;
     this.routeFileMap = new Map();
