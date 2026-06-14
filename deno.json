@@ -182,15 +182,9 @@
     }
   },
   "imports": {
-    "@sebbo2002/semantic-release-jsr": "npm:@sebbo2002/semantic-release-jsr@3.2.1",
-    "@semantic-release/changelog": "npm:@semantic-release/changelog@^6.0.3",
-    "@semantic-release/exec": "npm:@semantic-release/exec@^7.1.0",
-    "@semantic-release/git": "npm:@semantic-release/git@^10.0.1",
-    "@semantic-release/github": "npm:@semantic-release/github@^12.0.8",
     "react": "npm:react@^19.2.7",
     "react-dom": "npm:react-dom@^19.2.7",
-    "@types/react": "npm:@types/react@^19.2.16",
-    "semantic-release": "npm:semantic-release@^24.2.9"
+    "@types/react": "npm:@types/react@^19.2.16"
   },
   "compilerOptions": {
     "lib": [
