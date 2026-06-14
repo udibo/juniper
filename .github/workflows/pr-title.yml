@@ -1,6 +1,10 @@
 name: PR Title
 
 on:
+  # pull_request_target runs in the base-repo context (needed to read fork PR
+  # titles), but this workflow checks out NO code, writes NO cache, and holds
+  # only pull-requests: read — so it can't be used to poison a cache or reach
+  # secrets. Keep it that way: never add actions/checkout or a build step here.
   pull_request_target:
     types:
       - opened
@@ -16,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check PR title follows Conventional Commits
-        uses: amannn/action-semantic-pull-request@v5
+        uses: amannn/action-semantic-pull-request@e32d7e603df1aa1ba07e981f2a23455dee596825 # v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
