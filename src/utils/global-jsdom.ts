@@ -18,7 +18,7 @@
 import globalJsdom from "global-jsdom";
 import { stubFormData } from "./testing.ts";
 
-// Parse port from DENO_SERVE_ADDRESS (format: "tcp:0.0.0.0:8100") or default to 8000
+// DENO_SERVE_ADDRESS format: "tcp:0.0.0.0:8100".
 const address = Deno.env.get("DENO_SERVE_ADDRESS");
 let port = 8000;
 if (address) {
@@ -33,5 +33,5 @@ globalJsdom(undefined, {
   pretendToBeVisual: true,
 });
 
-// Stub FormData globally - this is never restored
+// Stubbed globally and never restored.
 stubFormData();

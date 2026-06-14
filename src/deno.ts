@@ -14,7 +14,6 @@ export class FakeSubprocessReadableStream
     this.stream = new ReadableStream(underlyingSource);
   }
 
-  // Delegate ReadableStream methods to the underlying stream
   getReader() {
     return this.stream.getReader();
   }
@@ -47,7 +46,6 @@ export class FakeSubprocessReadableStream
     return this.stream[Symbol.asyncIterator]();
   }
 
-  // SubprocessReadableStream specific methods
   async arrayBuffer(): Promise<ArrayBuffer> {
     const result = await this.getReader().read();
     return result.value?.buffer ?? new ArrayBuffer(0);
@@ -168,7 +166,6 @@ export class FakeChildProcess implements Deno.ChildProcess {
   get stdout() {
     return new FakeSubprocessReadableStream({
       start(controller) {
-        // Immediately close the stream for testing
         controller.close();
       },
     });
@@ -177,7 +174,6 @@ export class FakeChildProcess implements Deno.ChildProcess {
   get stderr() {
     return new FakeSubprocessReadableStream({
       start(controller) {
-        // Immediately close the stream for testing
         controller.close();
       },
     });
@@ -192,11 +188,9 @@ export class FakeChildProcess implements Deno.ChildProcess {
   }
 
   ref(): void {
-    // No-op for testing
   }
 
   unref(): void {
-    // No-op for testing
   }
 
   output(): Promise<Deno.CommandOutput> {

@@ -177,7 +177,6 @@ describe("Contacts index route", () => {
       path: "/contacts",
       default: contactsRoute.default,
       HydrateFallback: contactsRoute.HydrateFallback,
-      // Loader that never resolves to keep HydrateFallback visible
       loader: () => new Promise(() => {}),
     }], { getContext: getContext(queryClient) });
     render(

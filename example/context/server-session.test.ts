@@ -43,7 +43,6 @@ describe("server-session context", () => {
     it("should have sessionId as first 8 characters of a UUID", () => {
       const session = createServerSession();
 
-      // UUID first segment is 8 hex characters
       assertMatch(session.sessionId, /^[0-9a-f]{8}$/);
     });
   });

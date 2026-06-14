@@ -33,7 +33,6 @@ describe("Builder", () => {
       const tmp = await Deno.makeTempDir();
       const routesDir = path.resolve(tmp, "routes");
       await Deno.mkdir(routesDir, { recursive: true });
-      // server routes
       await Deno.writeTextFile(
         path.resolve(routesDir, "main.ts"),
         "export const default_ = {} as unknown as any;\nexport default default_\n",
@@ -53,7 +52,7 @@ describe("Builder", () => {
         "export const default_ = {} as unknown as any;\nexport default default_\n",
       );
 
-      const clientRoutesDir = routesDir; // client uses same root, but .tsx
+      const clientRoutesDir = routesDir;
       await Deno.writeTextFile(
         path.resolve(clientRoutesDir, "main.tsx"),
         "export default function X(){}\n",
@@ -84,7 +83,6 @@ describe("Builder", () => {
           true,
         );
 
-        // server side
         const serverChildren = [
           ...serverProps.fileModuleChildren,
           ...serverProps.parameterizedChildren,
@@ -92,22 +90,19 @@ describe("Builder", () => {
         ];
         assertEquals(Boolean(serverProps.main), true);
         assertEquals(Boolean(serverProps.index), true);
-        // has parameterized dir child and a catchall route under api
         assertEquals(serverChildren.some((c) => c.path === ":user"), true);
         assertEquals(serverChildren.some((c) => c.path === "api"), true);
 
-        // client side
         const clientChildren = [
           ...clientProps.fileModuleChildren,
           ...clientProps.parameterizedChildren,
           ...clientProps.directoryChildren,
         ];
-        assertEquals(Boolean(clientProps.main), true); // root main uses await import
+        assertEquals(Boolean(clientProps.main), true);
         assertEquals(Boolean(clientProps.index), true);
         assertEquals(clientChildren.some((c) => c.path === ":id"), true);
         assertEquals(clientChildren.some((c) => c.path === "blog"), true);
 
-        // spot check generatedRouteObjectToString formatting for a tiny object
         const s = generatedRouteObjectToString({
           path: "/",
           children: [{ path: ":id" }],
@@ -220,13 +215,11 @@ describe("Builder", () => {
         write: false,
       });
       const watchPaths = await builder.resolveWatchPaths();
-      // The root is expanded into its children so the ignored subtree is skipped.
       assertEquals(watchPaths.includes(exampleDir), false);
       assertEquals(
         watchPaths.includes(path.resolve(exampleDir, "public")),
         false,
       );
-      // Sibling directories are still watched as whole subtrees.
       assertEquals(
         watchPaths.includes(path.resolve(exampleDir, "routes")),
         true,
@@ -241,7 +234,6 @@ describe("Builder", () => {
         write: false,
       });
       const watchPaths = await builder.resolveWatchPaths();
-      // public is expanded so build is dropped but its siblings remain watched.
       assertEquals(
         watchPaths.includes(path.resolve(exampleDir, "public", "build")),
         false,
@@ -250,7 +242,6 @@ describe("Builder", () => {
         watchPaths.includes(path.resolve(exampleDir, "public", "images")),
         true,
       );
-      // Directories without an ignored descendant stay collapsed to one root.
       assertEquals(
         watchPaths.includes(path.resolve(exampleDir, "routes")),
         true,

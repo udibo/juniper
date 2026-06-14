@@ -77,7 +77,6 @@ describe("Serialization Module", () => {
 
   describe("registerType", () => {
     it("should register a custom type serializer", async () => {
-      // Custom class for testing
       class Money {
         constructor(public amount: number, public currency: string) {}
         static isMoney(value: unknown): value is Money {
@@ -95,7 +94,6 @@ describe("Serialization Module", () => {
         deserialize: (data) => new Money(data.amount, data.currency),
       });
 
-      // Use hydration data flow to test custom type serialization
       const money = new Money(100, "USD");
       const hydrationData = {
         matches: [{ id: "/" }],
@@ -289,7 +287,6 @@ describe("Serialization Module", () => {
       const serialized = await serializeHydrationData(hydrationData);
       const deserialized = deserializeHydrationData(serialized);
 
-      // The resolved promise should be reconstructed as a Promise
       const loaderData = deserialized.loaderData?.["/"] as {
         user: Promise<{ name: string }>;
         count: number;
@@ -352,7 +349,6 @@ describe("Serialization Module", () => {
     });
 
     it("should handle custom types in loader data", async () => {
-      // Register a custom type
       class Point {
         constructor(public x: number, public y: number) {}
         static isPoint(value: unknown): value is Point {
@@ -390,7 +386,6 @@ describe("Serialization Module", () => {
 
   describe("resetRegistries", () => {
     it("should clear custom registrations and restore built-ins", () => {
-      // Register a custom type
       registerType({
         name: "CustomType",
         is: (_v: unknown): _v is never => false,
@@ -398,10 +393,8 @@ describe("Serialization Module", () => {
         deserialize: (v) => v,
       });
 
-      // Reset should clear custom registrations
       resetRegistries();
 
-      // Should be able to register the same name again
       registerType({
         name: "CustomType",
         is: (_v: unknown): _v is never => false,
@@ -409,7 +402,6 @@ describe("Serialization Module", () => {
         deserialize: (v) => v,
       });
 
-      // Built-in error serializers should still work
       const error = new HttpError(400, "Bad Request");
       const serialized = serializeError(error);
       assertEquals(serialized.__errorType, "HttpError");
@@ -459,7 +451,6 @@ describe("Serialization Module", () => {
       const data = { message: "hello", count: 42 };
       const stream = createStreamingLoaderData(data);
 
-      // Create a mock Response from the stream
       const response = new Response(stream, {
         headers: { "Content-Type": "application/cbor-stream" },
       });
@@ -485,9 +476,7 @@ describe("Serialization Module", () => {
       }>(response);
 
       assertEquals(result.sync, "immediate");
-      // The deferred value should be a Promise
       assertEquals(result.deferred instanceof Promise, true);
-      // And should resolve to the correct value
       assertEquals(await result.deferred, "delayed value");
     });
 
@@ -581,7 +570,6 @@ describe("Serialization Module", () => {
     });
 
     it("should handle custom types in deferred data", async () => {
-      // Register a custom type
       class Point {
         constructor(public x: number, public y: number) {}
         static isPoint(value: unknown): value is Point {
@@ -616,7 +604,6 @@ describe("Serialization Module", () => {
     });
 
     it("should resolve promises in completion order for streaming", async () => {
-      // Use delays to test that promises resolve independently
       const { promise: slowPromise, resolve: slowResolve } = Promise
         .withResolvers<string>();
       const { promise: fastPromise, resolve: fastResolve } = Promise
@@ -637,11 +624,9 @@ describe("Serialization Module", () => {
         fast: Promise<string>;
       }>(response);
 
-      // Resolve fast before slow
       fastResolve("fast result");
       assertEquals(await result.fast, "fast result");
 
-      // Then resolve slow
       slowResolve("slow result");
       assertEquals(await result.slow, "slow result");
     });

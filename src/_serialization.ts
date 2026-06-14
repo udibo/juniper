@@ -47,15 +47,12 @@ export interface ContextSerializer<T, S = unknown> {
   deserialize: (data: S | undefined) => T;
 }
 
-// CBOR tag numbers for custom types
-// Using high tag numbers to avoid conflicts with standard CBOR tags
 const PROMISE_RESOLVED_TAG = 40000;
 const PROMISE_REJECTED_TAG = 40001;
 const CUSTOM_TYPE_TAG = 40002;
 const ERROR_TAG = 40003;
-const PROMISE_PENDING_TAG = 40004; // For streaming: placeholder for unresolved promise
+const PROMISE_PENDING_TAG = 40004;
 
-// Internal registries
 // deno-lint-ignore no-explicit-any
 const typeRegistry = new Map<string, TypeSerializer<any, any>>();
 // deno-lint-ignore no-explicit-any
@@ -128,7 +125,6 @@ export function resetRegistries(): void {
   initializeBuiltInSerializers();
 }
 
-// Find the matching type serializer for a value
 function findTypeSerializer(
   value: unknown,
 ): TypeSerializer<unknown, unknown> | undefined {
@@ -140,7 +136,6 @@ function findTypeSerializer(
   return undefined;
 }
 
-// Find the matching error serializer for an error
 function findErrorSerializer(
   error: unknown,
 ): ErrorSerializer<Error> | undefined {
@@ -167,7 +162,6 @@ export function serializeError(error: unknown): Record<string, unknown> {
     };
   }
 
-  // Fallback for unregistered errors
   if (error instanceof Error) {
     const serialized: Record<string, unknown> = {
       __errorType: "Error",
@@ -180,7 +174,6 @@ export function serializeError(error: unknown): Record<string, unknown> {
     return serialized;
   }
 
-  // Non-Error thrown values
   return { __errorType: "Unknown", value: error };
 }
 
@@ -198,22 +191,17 @@ export function deserializeError(data: Record<string, unknown>): unknown {
     return serializer.deserialize(data);
   }
 
-  // Fallback: try to create error from name
   if (errorType === "Unknown") {
     return data.value;
   }
 
-  // Create generic Error
   const error = new Error(data.message as string);
   if (data.name) error.name = data.name as string;
   if (data.stack) error.stack = data.stack as string;
   return error;
 }
 
-/**
- * Check if a value is a thenable (has a .then method).
- * This is more robust than instanceof Promise for cross-realm promises.
- */
+// Thenable check (not instanceof Promise) for cross-realm compatibility.
 function isThenable(value: unknown): value is PromiseLike<unknown> {
   return (
     value !== null &&
@@ -223,21 +211,11 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
   );
 }
 
-/**
- * Recursively process a value to prepare it for CBOR encoding.
- * - Converts Promises to tagged resolved/rejected values
- * - Converts custom types to tagged values
- * - Converts errors to tagged values
- *
- * @param value - The value to process
- * @returns The processed value ready for CBOR encoding
- */
 async function processValue(value: unknown): Promise<unknown> {
   if (value === null || value === undefined) {
     return value;
   }
 
-  // Use thenable check instead of instanceof Promise for cross-realm compatibility
   if (isThenable(value)) {
     try {
       const resolved = await value;
@@ -252,7 +230,6 @@ async function processValue(value: unknown): Promise<unknown> {
     return new Tag(ERROR_TAG, serializeError(value));
   }
 
-  // Check for custom types
   const typeSerializer = findTypeSerializer(value);
   if (typeSerializer) {
     return new Tag(CUSTOM_TYPE_TAG, {
@@ -266,7 +243,6 @@ async function processValue(value: unknown): Promise<unknown> {
     return processed;
   }
 
-  // Preserve Date objects - CBOR2 handles them natively
   if (value instanceof Date) {
     return value;
   }
@@ -282,15 +258,6 @@ async function processValue(value: unknown): Promise<unknown> {
   return value;
 }
 
-/**
- * Recursively restore values from CBOR decoded data.
- * - Converts tagged promise values back to Promises
- * - Converts tagged custom types back to their original types
- * - Converts tagged errors back to Error objects
- *
- * @param value - The decoded value to restore
- * @returns The restored value
- */
 function restoreValue(value: unknown): unknown {
   if (value === null || value === undefined) {
     return value;
@@ -326,7 +293,6 @@ function restoreValue(value: unknown): unknown {
       return deserializeError(value.contents as Record<string, unknown>);
     }
 
-    // Unknown tag, return contents
     return restoreValue(value.contents);
   }
 
@@ -334,7 +300,6 @@ function restoreValue(value: unknown): unknown {
     return value.map(restoreValue);
   }
 
-  // Preserve Date objects (CBOR2 automatically decodes date tags to Date instances)
   if (value instanceof Date) {
     return value;
   }
@@ -393,10 +358,6 @@ export function deserializeLoaderData<T = unknown>(data: Uint8Array): T {
   const decoded = decode(data);
   return restoreValue(decoded) as T;
 }
-
-// ============================================================================
-// Streaming Serialization (for client-side navigation with deferred data)
-// ============================================================================
 
 interface PendingPromise {
   id: string;
@@ -464,7 +425,6 @@ function processValueForStreaming(
     );
   }
 
-  // Preserve Date objects - CBOR2 handles them natively
   if (value instanceof Date) {
     return value;
   }
@@ -492,7 +452,7 @@ function encodeLengthPrefixedChunk(data: unknown): Uint8Array {
   const cborData = encode(data);
   const chunk = new Uint8Array(4 + cborData.length);
   const view = new DataView(chunk.buffer);
-  view.setUint32(0, cborData.length, false); // big-endian
+  view.setUint32(0, cborData.length, false);
   chunk.set(cborData, 4);
   return chunk;
 }
@@ -524,7 +484,6 @@ export function createStreamingLoaderData(
 
   return new ReadableStream<Uint8Array>({
     async start(controller) {
-      // Send initial chunk with structure and pending promise placeholders
       const initialChunk = encodeLengthPrefixedChunk(processedData);
       controller.enqueue(initialChunk);
 
@@ -533,12 +492,10 @@ export function createStreamingLoaderData(
         return;
       }
 
-      // Process all promises and send resolutions as they complete
       const resolutionPromises = pendingPromises.map(
         async ({ id, promise }) => {
           try {
             const resolved = await promise;
-            // Process the resolved value (handle nested custom types, errors, etc.)
             const processedValue = await processValue(resolved);
             const resolution: PromiseResolution = {
               id,
@@ -557,7 +514,6 @@ export function createStreamingLoaderData(
         },
       );
 
-      // Send resolutions as they complete (in completion order for lower latency)
       const remaining = [...resolutionPromises];
       while (remaining.length > 0) {
         const { chunk, index } = await Promise.race(
@@ -572,11 +528,6 @@ export function createStreamingLoaderData(
   });
 }
 
-/**
- * Restore a value from streaming format, wiring up pending promises.
- * Pending promise tags are converted to actual Promises that will be
- * resolved when the corresponding resolution message is received.
- */
 function restoreValueWithPendingPromises(
   value: unknown,
   promiseResolvers: Map<string, {
@@ -593,7 +544,6 @@ function restoreValueWithPendingPromises(
 
     if (tagNum === PROMISE_PENDING_TAG) {
       const id = value.contents as string;
-      // Create a promise that will be resolved when we receive the resolution
       const { promise, resolve, reject } = Promise.withResolvers<unknown>();
       promiseResolvers.set(id, { resolve, reject });
       return promise;
@@ -638,7 +588,6 @@ function restoreValueWithPendingPromises(
     );
   }
 
-  // Preserve Date objects (CBOR2 automatically decodes date tags to Date instances)
   if (value instanceof Date) {
     return value;
   }
@@ -654,16 +603,11 @@ function restoreValueWithPendingPromises(
   return value;
 }
 
-/**
- * Read a length-prefixed chunk from a reader.
- * Returns null if end of stream.
- */
 async function readLengthPrefixedChunk(
   reader: ReadableStreamDefaultReader<Uint8Array>,
 ): Promise<Uint8Array | null> {
   let buffer = new Uint8Array(0);
 
-  // Read until we have at least 4 bytes for the length
   while (buffer.length < 4) {
     const { done, value } = await reader.read();
     if (done) {
@@ -677,9 +621,8 @@ async function readLengthPrefixedChunk(
   }
 
   const view = new DataView(buffer.buffer, buffer.byteOffset);
-  const length = view.getUint32(0, false); // big-endian
+  const length = view.getUint32(0, false);
 
-  // Read until we have the full chunk
   while (buffer.length < 4 + length) {
     const { done, value } = await reader.read();
     if (done) {
@@ -693,10 +636,7 @@ async function readLengthPrefixedChunk(
 
   const chunkData = buffer.slice(4, 4 + length);
 
-  // If there's leftover data, we need to handle it
-  // For simplicity, we assume chunks align with reads (which they should for our use case)
   if (buffer.length > 4 + length) {
-    // This shouldn't happen with proper chunking, but let's handle it
     console.warn("Extra data after chunk, this may indicate a protocol issue");
   }
 
@@ -720,7 +660,6 @@ export async function deserializeStreamingLoaderData<T = unknown>(
     { resolve: (value: unknown) => void; reject: (error: unknown) => void }
   >();
 
-  // Read initial chunk
   const initialChunk = await readLengthPrefixedChunk(reader);
   if (!initialChunk) {
     throw new Error("Empty streaming response");
@@ -732,7 +671,6 @@ export async function deserializeStreamingLoaderData<T = unknown>(
     promiseResolvers,
   );
 
-  // If there are pending promises, start reading resolutions in background
   if (promiseResolvers.size > 0) {
     (async () => {
       try {
@@ -742,7 +680,6 @@ export async function deserializeStreamingLoaderData<T = unknown>(
           const resolver = promiseResolvers.get(resolution.id);
           if (resolver) {
             if (resolution.status === "resolved") {
-              // Restore the value (handles nested tags)
               const restoredValue = restoreValue(resolution.value);
               resolver.resolve(restoredValue);
             } else {
@@ -753,7 +690,6 @@ export async function deserializeStreamingLoaderData<T = unknown>(
           }
         }
       } catch (error) {
-        // If stream fails, reject all remaining promises
         for (const resolver of promiseResolvers.values()) {
           resolver.reject(error);
         }
@@ -814,7 +750,7 @@ export function serializeAllContext(
         result[name] = data;
       }
     } catch {
-      // Context not set, skip
+      // skip
     }
   }
 
@@ -880,7 +816,6 @@ export async function serializeHydrationData(
 ): Promise<SerializedHydrationData> {
   const { publicEnv, ...rest } = hydrationData;
 
-  // Process all values (resolve promises, convert custom types to tags)
   const processedData = await processValue(rest);
 
   return {
@@ -899,10 +834,8 @@ export async function serializeHydrationData(
 export function deserializeHydrationData(
   serialized: SerializedHydrationData,
 ): HydrationData {
-  // Decode from base64 and CBOR
   const decoded = decodeFromBase64<Record<string, unknown>>(serialized.data);
 
-  // Restore values (convert tags back to original types)
   const restored = restoreValue(decoded) as {
     serializedContext?: unknown;
     matches: { id: string }[];
@@ -915,16 +848,15 @@ export function deserializeHydrationData(
     publicEnv: serialized.publicEnv,
     serializedContext: restored.serializedContext,
     matches: restored.matches,
-    // Convert null to undefined for React Router compatibility
+    // React Router needs undefined, not null, for these fields.
     errors: restored.errors ?? undefined,
     loaderData: restored.loaderData ?? undefined,
     actionData: restored.actionData ?? undefined,
   };
 }
 
-// Initialize built-in error serializers
 function initializeBuiltInSerializers(): void {
-  // HttpError (must be registered before generic Error)
+  // Order matters: HttpError before generic Error, generic Error registered last as fallback.
   _addErrorSerializer<HttpError>({
     name: "HttpError",
     is: (e): e is HttpError => e instanceof HttpError || isHttpErrorLike(e),
@@ -952,7 +884,6 @@ function initializeBuiltInSerializers(): void {
     },
   });
 
-  // TypeError
   _addErrorSerializer<TypeError>({
     name: "TypeError",
     is: (e): e is TypeError => e instanceof TypeError,
@@ -972,7 +903,6 @@ function initializeBuiltInSerializers(): void {
     },
   });
 
-  // RangeError
   _addErrorSerializer<RangeError>({
     name: "RangeError",
     is: (e): e is RangeError => e instanceof RangeError,
@@ -992,7 +922,6 @@ function initializeBuiltInSerializers(): void {
     },
   });
 
-  // ReferenceError
   _addErrorSerializer<ReferenceError>({
     name: "ReferenceError",
     is: (e): e is ReferenceError => e instanceof ReferenceError,
@@ -1012,7 +941,6 @@ function initializeBuiltInSerializers(): void {
     },
   });
 
-  // SyntaxError
   _addErrorSerializer<SyntaxError>({
     name: "SyntaxError",
     is: (e): e is SyntaxError => e instanceof SyntaxError,
@@ -1032,7 +960,6 @@ function initializeBuiltInSerializers(): void {
     },
   });
 
-  // URIError
   _addErrorSerializer<URIError>({
     name: "URIError",
     is: (e): e is URIError => e instanceof URIError,
@@ -1052,7 +979,6 @@ function initializeBuiltInSerializers(): void {
     },
   });
 
-  // Generic Error (must be registered last as fallback)
   _addErrorSerializer<Error>({
     name: "Error",
     is: (e): e is Error => e instanceof Error && e.constructor === Error,
@@ -1073,5 +999,4 @@ function initializeBuiltInSerializers(): void {
   });
 }
 
-// Initialize built-in serializers on module load
 initializeBuiltInSerializers();

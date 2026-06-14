@@ -29,15 +29,9 @@ interface RebuildRequest {
   client: boolean;
 }
 
-/**
- * Regular expression to match valid route files
- */
 const VALID_ROUTE_FILE_REGEX =
   /^routes\/(?:(?!_)[^\/]+\/)*(?!_)[^\/]*(?<!\.test)\.tsx?$/;
 
-/**
- * Regular expression to match files that should NOT trigger rebuilds
- */
 const SHOULD_IGNORE_REGEX =
   /~|\.tmp$|\.lock$|\.log$|\.poll$|^(build|dev)\.ts$|^public\/build|\.test\./;
 
@@ -222,8 +216,6 @@ export class DevServer {
     if (SHOULD_IGNORE_REGEX.test(posixPath)) {
       return false;
     }
-    // Check if the path is in the ignorePaths list
-    // Normalize to forward slashes for cross-platform comparison
     const normalizedAbsPath = absolutePath.replace(/\\/g, "/");
     for (const ignorePath of this.builder.ignorePaths) {
       const normalizedIgnorePath = ignorePath.replace(/\\/g, "/");

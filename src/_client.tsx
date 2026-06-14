@@ -168,7 +168,7 @@ export function App({ children, htmlProps }: AppProps) {
 }
 
 const MAX_RELOAD_RETRIES = 2;
-const RELOAD_WINDOW_MS = 30000; // 30 seconds
+const RELOAD_WINDOW_MS = 30000;
 
 interface ReloadState {
   count: number;
@@ -189,10 +189,8 @@ function shouldReload(key: string): boolean {
   const { count, timestamp } = getReloadState(key);
   const now = Date.now();
 
-  // Reset counter if outside the time window
   if (now - timestamp > RELOAD_WINDOW_MS) return true;
 
-  // Stop refreshing if we've exceeded max retries
   return count < MAX_RELOAD_RETRIES;
 }
 
@@ -201,13 +199,11 @@ function recordReload(key: string): void {
   const now = Date.now();
 
   if (now - timestamp > RELOAD_WINDOW_MS) {
-    // Start new window
     sessionStorage.setItem(
       key,
       JSON.stringify({ count: 1, timestamp: now }),
     );
   } else {
-    // Increment within existing window
     sessionStorage.setItem(
       key,
       JSON.stringify({ count: count + 1, timestamp }),
@@ -219,23 +215,14 @@ function clearReloadState(key: string): void {
   try {
     sessionStorage.removeItem(key);
   } catch {
-    // Ignore errors (e.g., sessionStorage not available)
+    // ignore
   }
 }
 
 const LAZY_LOAD_RELOAD_KEY = "__juniper_lazy_load_reload";
 const SAME_LOCATION_RELOAD_KEY = "__juniper_same_location_reload";
 
-/**
- * A promise that never settles. Returned from a server-data fetch once a
- * full-page navigation or reload has been kicked off (`location.assign` /
- * `location.reload`), so React Router keeps the navigation in its *pending*
- * state — the current page stays rendered — until the browser replaces the
- * document. Resolving instead (even with `undefined`) lets the router commit
- * the navigation and render the destination route for a frame first, which
- * shows as a visible flash of the wrong page (e.g. an auth-gated page rendering
- * unauthenticated for a moment before the redirect).
- */
+// Never settles, so React Router stays pending during a full-page navigation/reload; resolving would render the destination route for a frame and flash the wrong page.
 function holdForDocumentNavigation(): Promise<never> {
   return new Promise<never>(() => {});
 }
@@ -258,19 +245,15 @@ async function fetchServerData(
 
   const contentType = response.headers.get("Content-Type");
 
-  // Handle streaming CBOR response (data with deferred promises)
   if (contentType === "application/cbor-stream") {
     if (!response.ok) {
-      // For errors, read the full stream and deserialize
       const buffer = await response.arrayBuffer();
       const deserialized = deserializeLoaderData(new Uint8Array(buffer));
       throw deserializeError(deserialized as Record<string, unknown>);
     }
-    // Stream the response - promises will be resolved as data arrives
     return await deserializeStreamingLoaderData(response);
   }
 
-  // Handle non-streaming CBOR response
   if (contentType === "application/cbor") {
     const buffer = await response.arrayBuffer();
     const deserialized = deserializeLoaderData(new Uint8Array(buffer));
@@ -289,31 +272,22 @@ async function fetchServerData(
     const currentUrl = new URL(globalThis.location.href);
     const redirectUrl = new URL(location, currentUrl);
 
-    // `redirectDocument()` requests a full-page navigation (e.g. to a
-    // server-only route the client router can't render). Hand it to the
-    // browser instead of attempting a client-side route transition, which
-    // would 404 on the unmatched route or mis-handle its response.
+    // `redirectDocument()` needs a real browser navigation; a client-side transition would 404 on the server-only route.
     if (redirectData.reloadDocument) {
       delay(0).then(() => {
         globalThis.location.assign(redirectUrl.href);
       });
-      // Hold the router pending so the destination route never renders before
-      // the browser navigation lands — otherwise the page flashes.
       return holdForDocumentNavigation();
     }
 
-    // If redirecting to the same location, do a browser reload instead
     if (redirectUrl.href === currentUrl.href) {
       if (shouldReload(SAME_LOCATION_RELOAD_KEY)) {
         recordReload(SAME_LOCATION_RELOAD_KEY);
         delay(0).then(() => {
           globalThis.location.reload();
         });
-        // Hold pending while the reload runs (same rationale as above).
         return holdForDocumentNavigation();
       }
-      // Reload retries exhausted — resolve so the router can render rather than
-      // hang forever.
       return undefined;
     }
 
@@ -611,7 +585,6 @@ export function createLazyRoute(
       }
       throw error;
     }
-    // Middleware can't be lazily loaded, so strip it from the result
     const { middleware: _, ...rest } = createRoute(
       routeFile,
       serverFlags,

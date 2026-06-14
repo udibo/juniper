@@ -118,7 +118,7 @@ export async function getServerFlags(
       return flags;
     }
   } catch {
-    // File doesn't exist or can't be read
+    // skip
   }
   return undefined;
 }

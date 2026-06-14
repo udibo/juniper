@@ -11,7 +11,6 @@ import {
 
 const app = new Hono<AppEnv>();
 
-// Server middleware - runs on every HTTP request
 app.use(async (c, next) => {
   const context = c.get("context");
 
@@ -31,7 +30,6 @@ app.use(async (c, next) => {
 
 export default app;
 
-// Server loader - called during SSR or when client calls serverLoader()
 export function loader(
   { context }: RouteLoaderArgs,
 ): LoaderData {
@@ -40,7 +38,7 @@ export function loader(
 
   return {
     serverInfo,
-    clientInfo: null, // Not available on server
+    clientInfo: null,
     loadedAt: new Date().toISOString(),
     source: "server",
   };

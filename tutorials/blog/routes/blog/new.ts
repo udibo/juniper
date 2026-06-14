@@ -7,7 +7,6 @@ export async function action({ request }: RouteActionArgs) {
   const title = formData.get("title") as string;
   const content = formData.get("content") as string;
 
-  // Validate
   const errors: Record<string, string> = {};
   if (!title || title.length < 3) {
     errors.title = "Title must be at least 3 characters";

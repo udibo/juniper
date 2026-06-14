@@ -5,14 +5,6 @@ import { describe, it } from "@std/testing/bdd";
 
 import { server } from "./main.ts";
 
-// Importing ./main.ts builds the database pool (through the routes), but these
-// tests never run a DB-backed loader in this process: the static-file test
-// short-circuits before route matching, and the "serves application" test runs
-// the loader in a spawned subprocess that owns and tears down its own pool. So
-// there's no in-process query to leak, and no closeDb() is needed here. A test
-// that calls `server.request("/")` would query in-process and must add
-// `afterAll(() => closeDb())` — see services/message.test.ts.
-
 describe("serves static files", () => {
   it("should serve a static file", async () => {
     const res = await server.request("http://localhost/favicon.ico");

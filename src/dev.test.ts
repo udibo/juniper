@@ -954,11 +954,9 @@ describe("DevServer", () => {
 
     it("isValidRouteFile returns true for route .ts/.tsx and false for private/test files", () => {
       const devServer = new DevServer({ builder });
-      // valid
       assertEquals(devServer.isValidRouteFile("routes/index.ts"), true);
       assertEquals(devServer.isValidRouteFile("routes/blog/index.tsx"), true);
       assertEquals(devServer.isValidRouteFile("routes/blog/[id].ts"), true);
-      // invalid: private files and tests
       assertEquals(
         devServer.isValidRouteFile("routes/_components/Button.tsx"),
         false,
@@ -1028,7 +1026,6 @@ describe("DevServer", () => {
     it("shouldTriggerRebuild honors ignore rules", () => {
       const devServer = new DevServer({ builder });
       const abs = (p: string) => `${builder.projectRoot}/${p}`;
-      // Ignored by suffixes
       assertEquals(
         devServer.shouldTriggerRebuild(abs("somefile~"), "somefile~"),
         false,
@@ -1045,7 +1042,6 @@ describe("DevServer", () => {
         devServer.shouldTriggerRebuild(abs("app.log"), "app.log"),
         false,
       );
-      // Ignored build/dev entrypoints
       assertEquals(
         devServer.shouldTriggerRebuild(abs("build.ts"), "build.ts"),
         false,
@@ -1054,7 +1050,6 @@ describe("DevServer", () => {
         devServer.shouldTriggerRebuild(abs("dev.ts"), "dev.ts"),
         false,
       );
-      // Ignored public build outputs
       assertEquals(
         devServer.shouldTriggerRebuild(
           abs("public/build/app.js"),
@@ -1062,7 +1057,6 @@ describe("DevServer", () => {
         ),
         false,
       );
-      // Underscore prefixed files/dirs trigger rebuilds (they may be imported by routes)
       assertEquals(
         devServer.shouldTriggerRebuild(abs("_private.ts"), "_private.ts"),
         true,
@@ -1074,7 +1068,6 @@ describe("DevServer", () => {
         ),
         true,
       );
-      // Ignored tests
       assertEquals(
         devServer.shouldTriggerRebuild(
           abs("routes/page.test.tsx"),
@@ -1082,7 +1075,6 @@ describe("DevServer", () => {
         ),
         false,
       );
-      // Allowed others
       assertEquals(
         devServer.shouldTriggerRebuild(
           abs("routes/page.tsx"),
@@ -1106,7 +1098,6 @@ describe("DevServer", () => {
       const devServer = new DevServer({ builder: builderWithIgnore });
       const abs = (p: string) => `${builderWithIgnore.projectRoot}/${p}`;
 
-      // Paths in ignored directories should not trigger rebuilds
       assertEquals(
         devServer.shouldTriggerRebuild(
           abs("docker/compose.yml"),
@@ -1129,7 +1120,6 @@ describe("DevServer", () => {
         false,
       );
 
-      // Paths not in ignored directories should still trigger rebuilds
       assertEquals(
         devServer.shouldTriggerRebuild(
           abs("routes/page.tsx"),
@@ -1180,8 +1170,6 @@ describe("DevServer", () => {
       }
     });
 
-    // Skipping explicit busy-builder test: Builder.isBuilding is read-only and non-trivial to override here.
-
     it("checkRebuildQueue rebuilds and restarts when idle", async () => {
       const devServer = new DevServer({ builder });
       devServer.queuedRebuild = {
@@ -1194,7 +1182,6 @@ describe("DevServer", () => {
         "rebuild",
         () => Promise.resolve({} as esbuild.BuildResult),
       );
-      // Spy on restartApp to verify it was called
       using _restartSpy = stub(
         devServer,
         "restartApp",

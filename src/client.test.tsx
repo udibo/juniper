@@ -94,8 +94,7 @@ describe("Client", () => {
 
     assertEquals(client.rootRoute.path, "/");
     assertEquals(client.routeFileMap.size, 8);
-    // 12 = 8 explicit routes + 4 implicit catchalls for routes without their own catchall
-    // Implicit catchalls: /about/[...], /blog/[...], /blog/create/[...], /blog/[id]/[...]
+    // 12 = 8 explicit routes + 4 implicit catchalls for routes without their own catchall.
     assertEquals(client.routeObjectMap.size, 12);
     assertEquals(client.routeObjects.length, 1);
 
@@ -210,7 +209,6 @@ describe("Client", () => {
     };
     const client = new Client(routesWithLazyMain);
 
-    // htmlProps is not extracted from lazy modules since they're not loaded yet
     assertEquals(client.htmlProps, undefined);
   });
 });
@@ -340,12 +338,7 @@ describe("createRoute", () => {
   });
 
   it("holds the navigation pending (no flash) on a reloadDocument redirect", async () => {
-    // A `reloadDocument` redirect (e.g. an auth guard bouncing to a server-only
-    // /auth/login) must trigger a full-page navigation WITHOUT the loader
-    // resolving — otherwise the router commits the navigation and renders the
-    // destination route for a frame before the browser leaves (the flash).
-    // fetchServerData reads globalThis.location.href and calls .assign(); Deno
-    // test has no DOM location, so provide a fake one.
+    // Deno test has no DOM location, but fetchServerData reads location.href and calls .assign().
     const assigned: string[] = [];
     const originalLocation = globalThis.location;
     Object.defineProperty(globalThis, "location", {
@@ -382,8 +375,6 @@ describe("createRoute", () => {
         pattern: "/identity",
       } as LoaderFunctionArgs);
 
-      // The loader must NOT settle — it holds the router pending while the
-      // browser navigates. Race it against a tick; the timeout must win.
       const pending = Symbol("pending");
       const outcome = await Promise.race([
         Promise.resolve(result).then(() => "settled"),
@@ -391,7 +382,6 @@ describe("createRoute", () => {
       ]);
       assert(outcome === pending, "loader should not resolve");
 
-      // And it kicked off a full-page navigation to the resolved URL.
       assertEquals(assigned, ["http://localhost/auth/login"]);
     } finally {
       Object.defineProperty(globalThis, "location", {
@@ -486,7 +476,6 @@ describe("getHydrationData", () => {
         assertEquals(data.errors["/blog"].name, "Bad Request");
         assertEquals(data.errors["/blog"].status, 400);
 
-        // CustomError without registered serializer falls back to generic Error
         assertIsError(data.errors["/blog/create"], Error, "Custom error");
         assertEquals(data.errors["/blog/create"] instanceof CustomError, false);
       }),
@@ -495,7 +484,6 @@ describe("getHydrationData", () => {
     it(
       "with registered CustomError serializer",
       async () => {
-        // Register CustomError serializer for this test
         registerCustomError();
         try {
           await simulateBrowser(errorHydrationData, () => {
@@ -512,7 +500,6 @@ describe("getHydrationData", () => {
             assertEquals(data.errors["/blog"].name, "Bad Request");
             assertEquals(data.errors["/blog"].status, 400);
 
-            // CustomError with registered serializer deserializes properly
             assertIsError(
               data.errors["/blog/create"],
               CustomError,
@@ -521,7 +508,6 @@ describe("getHydrationData", () => {
             assertEquals(data.errors["/blog/create"].detail, "Custom detail");
           })();
         } finally {
-          // Reset registries to clean up for other tests
           resetRegistries();
         }
       },
@@ -758,7 +744,6 @@ describe("HydrationData serialization and deserialization", () => {
   let hydrationData: HydrationData, deserializedHydrationData: HydrationData;
 
   beforeAll(async () => {
-    // Register CustomError for this test suite
     registerCustomError();
 
     hydrationData = {
