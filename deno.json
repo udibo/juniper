@@ -171,10 +171,6 @@
       "description": "Checks the code for errors, formatting, and runs the linter.",
       "command": "deno check && deno lint && deno fmt --check"
     },
-    "git:rebase": {
-      "description": "Gets your branch up to date with master after a squash merge.",
-      "command": "git fetch origin main && git rebase --onto origin/main HEAD"
-    },
     "lgtm:start": {
       "description": "Starts the LGTM service.",
       "command": "docker compose up -d --wait lgtm"
