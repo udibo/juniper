@@ -9,6 +9,10 @@
   - To run tests for a specific file, use `deno task test ./src/server.test.tsx`
   - Prefer running tests more narrowly to reduce token usage. Output is large
     when running all tests.
+  - Use `--reporter=dot` when running all tests, or any run where you don't need
+    a test's console output — it prints detail only for failures, keeping output
+    small. Drop it only when you need debug logs from the specific test you're
+    inspecting.
   - Temporarily change `describe` or `it` to `describe.only` or `it.only` to
     focus specific test groups or cases.
 - Workspace-specific test tasks are available:
