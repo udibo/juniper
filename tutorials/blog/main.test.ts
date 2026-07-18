@@ -1,4 +1,4 @@
-import { assertEquals, assertStringIncludes } from "@std/assert";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import { resolve } from "@std/path/resolve";
 import { mergeReadableStreams, TextLineStream } from "@std/streams";
 import { describe, it } from "@std/testing/bdd";
@@ -31,6 +31,7 @@ describe("serves application when running main.ts", () => {
         `--env-file=${resolve(import.meta.dirname!, "./.env.test")}`,
         resolve(import.meta.dirname!, "./main.ts"),
       ],
+      env: { DENO_SERVE_ADDRESS: "tcp:127.0.0.1:0" },
       stdout: "piped",
       stderr: "piped",
     });
@@ -39,20 +40,16 @@ describe("serves application when running main.ts", () => {
       .pipeThrough(new TextDecoderStream())
       .pipeThrough(new TextLineStream());
 
+    let url = "";
     for await (const line of stdout.values({ preventCancel: true })) {
-      if (line.includes("Listening on")) {
-        const address = Deno.build.os === "windows"
-          ? "http://localhost:8100/"
-          : "http://0.0.0.0:8100/ (http://localhost:8100/)";
-        assertEquals(
-          line,
-          `Listening on ${address}`,
-        );
+      if (line.includes("Listening on ")) {
+        url = line.split("Listening on ")[1].split(" ")[0];
         break;
       }
     }
+    assert(url, "server did not report its address");
 
-    const res = await fetch("http://localhost:8100/");
+    const res = await fetch(url);
     assertEquals(res.status, 200);
     assertEquals(res.headers.get("content-type"), "text/html; charset=utf-8");
     const html = await res.text();

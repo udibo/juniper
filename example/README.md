@@ -70,7 +70,8 @@ Run your test suite:
 deno task test
 ```
 
-Tests run on port 8100 by default so they don't conflict with the dev server.
+Tests use an OS-assigned port so they don't conflict with the dev server or with
+parallel test runs.
 
 ## Code Quality
 
