@@ -228,13 +228,11 @@ APP_ENV=production
 NODE_ENV=production
 ```
 
-**`.env.test`** - Test settings (uses a different port so tests can run
-alongside the dev server):
+**`.env.test`** - Test settings:
 
 ```bash
 APP_ENV=test
 OTEL_SERVICE_NAME=my-app-test
-DENO_SERVE_ADDRESS=tcp:0.0.0.0:8100
 ```
 
 > **Note:** These environment files contain only non-sensitive configuration.
@@ -334,12 +332,16 @@ deno task serve:prod
 
 ### Running Tests
 
-Run your test suite on a separate port (8100) so tests don't conflict with the
-dev server:
+Run your test suite:
 
 ```bash
 deno task test
 ```
+
+Tests that spawn the server inject `DENO_SERVE_ADDRESS=tcp:127.0.0.1:0` so it
+binds an OS-assigned free port, then discover the actual URL from the server's
+`Listening on` line. Parallel test runs never collide with each other or with
+the dev server.
 
 ### Code Quality
 

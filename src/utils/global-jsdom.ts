@@ -18,7 +18,7 @@
 import globalJsdom from "global-jsdom";
 import { stubFormData } from "./testing.ts";
 
-// DENO_SERVE_ADDRESS format: "tcp:0.0.0.0:8100".
+// DENO_SERVE_ADDRESS format: "tcp:0.0.0.0:8000".
 const address = Deno.env.get("DENO_SERVE_ADDRESS");
 let port = 8000;
 if (address) {

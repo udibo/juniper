@@ -83,9 +83,9 @@ point at your managed PostgreSQL instance.
 deno task test
 ```
 
-Tests run on port 8100 and connect to the `app_test` database, so make sure
-PostgreSQL is running and migrated (`deno task docker:start` then
-`deno task db:migrate`) before running them.
+Tests use an OS-assigned port (parallel-safe) and connect to the `app_test`
+database, so make sure PostgreSQL is running and migrated
+(`deno task docker:start` then `deno task db:migrate`) before running them.
 
 Any test that triggers a query should call `await closeDb()` in an `afterAll`
 hook (see [services/message.test.ts](services/message.test.ts)) to release the
