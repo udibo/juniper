@@ -1,3 +1,5 @@
+## [0.9.1](https://github.com/udibo/juniper/compare/0.9.0...0.9.1) (2026-07-25)
+
 # [0.9.0](https://github.com/udibo/juniper/compare/0.8.0...0.9.0) (2026-07-25)
 
 ### Features
