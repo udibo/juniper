@@ -16,7 +16,6 @@ import type {
   LoaderFunction,
   LoaderFunctionArgs,
   MiddlewareFunction as ReactRouterMiddlewareFunction,
-  RouterContextProvider,
 } from "react-router";
 import React, { createContext, Suspense, useContext } from "react";
 import type { ComponentType } from "react";
@@ -35,11 +34,12 @@ import type {
   ErrorBoundaryProps,
   HydrateFallbackProps,
   MiddlewareFunction,
+  RequestContext,
   RouteModule,
   RouteProps,
 } from "./mod.ts";
 
-const JuniperContext = createContext<RouterContextProvider | undefined>(
+const JuniperContext = createContext<RequestContext | undefined>(
   undefined,
 );
 
@@ -47,7 +47,7 @@ export function JuniperContextProvider({
   context,
   children,
 }: {
-  context: RouterContextProvider;
+  context: RequestContext;
   children: React.ReactNode;
 }) {
   return (
@@ -57,7 +57,7 @@ export function JuniperContextProvider({
   );
 }
 
-export function useJuniperContext(): RouterContextProvider {
+export function useJuniperContext(): RequestContext {
   const context = useContext(JuniperContext);
   if (!context) {
     throw new Error(
@@ -329,12 +329,12 @@ export type Route = {
   ErrorBoundary?: ComponentType;
   HydrateFallback?: ComponentType;
   loader?: (
-    args: LoaderFunctionArgs<RouterContextProvider>,
+    args: LoaderFunctionArgs<RequestContext>,
   ) => unknown | Promise<unknown>;
   action?: (
-    args: ActionFunctionArgs<RouterContextProvider>,
+    args: ActionFunctionArgs<RequestContext>,
   ) => unknown | Promise<unknown>;
-  middleware?: ReactRouterMiddlewareFunction<RouterContextProvider>[];
+  middleware?: ReactRouterMiddlewareFunction<RequestContext>[];
 };
 
 export type LazyRouteResult = Omit<Route, "middleware">;
@@ -407,9 +407,9 @@ export function createRoute(
     };
   }
 
-  let loader: LoaderFunction<RouterContextProvider> | undefined;
+  let loader: LoaderFunction<RequestContext> | undefined;
   if (_loader) {
-    loader = function loader(args: LoaderFunctionArgs<RouterContextProvider>) {
+    loader = function loader(args: LoaderFunctionArgs<RequestContext>) {
       const { context, params } = args;
       const request = withCachedRequest(args.request);
       const serverLoader = () => getServerLoader(request);
@@ -420,7 +420,7 @@ export function createRoute(
       return result;
     };
   } else if (hasServerLoader) {
-    loader = function loader(args: LoaderFunctionArgs<RouterContextProvider>) {
+    loader = function loader(args: LoaderFunctionArgs<RequestContext>) {
       if (HydrateFallback) {
         return { promise: getServerLoader(args.request) };
       }
@@ -429,18 +429,18 @@ export function createRoute(
   }
 
   let action:
-    | ActionFunction<RouterContextProvider>
+    | ActionFunction<RequestContext>
     | undefined;
 
   if (_action) {
-    action = function action(args: ActionFunctionArgs<RouterContextProvider>) {
+    action = function action(args: ActionFunctionArgs<RequestContext>) {
       const { context, params } = args;
       const request = withCachedRequest(args.request);
       const serverAction = () => getServerAction(request);
       return _action({ context, params, request, serverAction });
     };
   } else if (hasServerAction) {
-    action = function action(args: ActionFunctionArgs<RouterContextProvider>) {
+    action = function action(args: ActionFunctionArgs<RequestContext>) {
       const request = withCachedRequest(args.request);
       return getServerAction(request);
     };
@@ -532,19 +532,17 @@ export function createRoute(
   }
 
   let middleware:
-    | ReactRouterMiddlewareFunction<RouterContextProvider>[]
+    | ReactRouterMiddlewareFunction<RequestContext>[]
     | undefined;
   if (_middleware && _middleware.length > 0) {
     middleware = _middleware.map((mw: MiddlewareFunction) => {
-      const wrappedMiddleware: ReactRouterMiddlewareFunction<
-        RouterContextProvider
-      > = (
+      const wrappedMiddleware: ReactRouterMiddlewareFunction<RequestContext> = (
         args,
         next,
       ) => {
         return mw(
           {
-            context: args.context as RouterContextProvider,
+            context: args.context,
             params: args.params,
             request: args.request,
           },

@@ -16,6 +16,17 @@ import {
 export { HttpError, RouterContextProvider };
 
 /**
+ * The request-scoped context as route handlers and components receive it.
+ *
+ * Read `context.get(someContext)` and write `context.set(someContext, value)`
+ * through it exactly as before — the read-only wrapper only prevents replacing
+ * the provider itself, which React Router owns for the lifetime of a request.
+ * Reach for this over {@linkcode RouterContextProvider} whenever the value came
+ * from a loader, action, middleware, or component prop.
+ */
+export type RequestContext = Readonly<RouterContextProvider>;
+
+/**
  * React Router's redirect helpers, re-exported so routes can choose the
  * redirect kind from one import: {@linkcode redirect} for a client-side (SPA)
  * transition, {@linkcode redirectDocument} for a full-page navigation (the
@@ -349,7 +360,7 @@ export interface RouteLoaderArgs<
   LoaderData = unknown,
 > {
   /** The request-scoped router context, shared across middleware, loaders, and actions. */
-  context: RouterContextProvider;
+  context: RequestContext;
   /** The matched route params. */
   params: Params;
   /** The incoming request. */
@@ -414,7 +425,7 @@ export interface RouteActionArgs<
   ActionData = unknown,
 > {
   /** The request-scoped router context, shared across middleware, loaders, and actions. */
-  context: RouterContextProvider;
+  context: RequestContext;
   /** The matched route params. */
   params: Params;
   /** The incoming request. */
@@ -449,7 +460,7 @@ export interface RouteMiddlewareArgs<
   Params extends AnyParams = AnyParams,
 > {
   /** The request-scoped router context, shared across middleware, loaders, and actions. */
-  context: RouterContextProvider;
+  context: RequestContext;
   /** The matched route params. */
   params: Params;
   /** The incoming request. */
@@ -500,7 +511,7 @@ export type MiddlewareFunction<
   Params extends AnyParams = AnyParams,
 > = (
   args: RouteMiddlewareArgs<Params>,
-  next: () => Promise<RouterContextProvider>,
+  next: () => Promise<RequestContext>,
 ) => Promise<void> | void;
 
 /**
@@ -600,7 +611,7 @@ export interface RouteProps<
   /** The action data of the route. */
   actionData: ActionData;
   /** The router context shared by middleware, loaders, actions, and components. */
-  context: RouterContextProvider;
+  context: RequestContext;
 }
 
 /**
@@ -688,7 +699,7 @@ export interface HydrateFallbackProps<
   /** The params of the route. */
   params: Params;
   /** The router context shared by middleware, loaders, actions, and components. */
-  context: RouterContextProvider;
+  context: RequestContext;
 }
 
 /**
