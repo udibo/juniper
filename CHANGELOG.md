@@ -1,3 +1,10 @@
+# [0.9.0](https://github.com/udibo/juniper/compare/0.8.0...0.9.0) (2026-07-25)
+
+### Features
+
+- support react-router 8 ([#99](https://github.com/udibo/juniper/issues/99))
+  ([76f1f5c](https://github.com/udibo/juniper/commit/76f1f5ca7c51dc04b2a485f307f8e5cb6d9cad70))
+
 # [0.8.0](https://github.com/udibo/juniper/compare/0.7.1...0.8.0) (2026-06-14)
 
 ### Features
