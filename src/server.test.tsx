@@ -8,7 +8,10 @@ import {
 } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
 
+import { Hono } from "hono";
+
 import type { RouteLoaderArgs } from "./mod.ts";
+import { HttpError } from "./mod.ts";
 import { Client } from "./client.tsx";
 import { createServer } from "./server.tsx";
 
@@ -441,6 +444,71 @@ describe("createServer", () => {
     const html = await res.text();
     assertStringIncludes(html, "<!DOCTYPE html>");
     assertStringIncludes(html, "<div>Error occurred</div>");
+  });
+
+  it("should not run the action when rendering the error document for a refused POST", async () => {
+    let actionRuns = 0;
+    const client = new Client({
+      path: "/",
+      main: {
+        default: () => <div>Home</div>,
+        ErrorBoundary: () => <div>Refused</div>,
+      },
+    });
+
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        default: new Hono().use(() => {
+          throw new HttpError(403, "Forbidden");
+        }),
+        action: () => {
+          actionRuns++;
+          return Promise.resolve({ ok: true });
+        },
+      },
+    });
+
+    const res = await server.request("http://localhost/", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: "intent=mutate",
+    });
+
+    assertEquals(res.status, 403);
+    await res.text();
+    assertEquals(actionRuns, 0);
+  });
+
+  it("should not re-run the action when an error is thrown after it ran", async () => {
+    let actionRuns = 0;
+    const client = new Client({
+      path: "/",
+      main: {
+        default: () => <div>Home</div>,
+        ErrorBoundary: () => <div>Loader failed</div>,
+      },
+    });
+
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        action: () => {
+          actionRuns++;
+          return Promise.resolve({ ok: true });
+        },
+        loader: () => Promise.reject(new Error("Loader error")),
+      },
+    });
+
+    const res = await server.request("http://localhost/", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: "intent=mutate",
+    });
+
+    await res.text();
+    assertEquals(actionRuns, 1);
   });
 
   it("should handle unhandled errors with React Router's default ErrorBoundary", async () => {

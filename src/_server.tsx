@@ -464,13 +464,33 @@ async function renderDocument(
   });
 }
 
+/**
+ * The request the error document is rendered from.
+ *
+ * React Router's static handler dispatches the matched route's action for any
+ * non-GET method, so querying the original request again would run the action a
+ * second time — or, when the error came from middleware that refused the
+ * request before the action ever ran, would run it for the first time *after*
+ * the refusal. Rendering an error page only needs loader data, so a non-GET is
+ * always rendered from an equivalent GET.
+ */
+function errorDocumentRequest(request: Request): Request {
+  if (request.method === "GET" || request.method === "HEAD") return request;
+  return new Request(request.url, {
+    headers: request.headers,
+    signal: request.signal,
+  });
+}
+
 async function createErrorContext(
   error: Error,
   query: ReturnType<typeof createStaticHandler>["query"],
   request: Request,
   requestContext: RouterContextProvider,
 ): Promise<StaticHandlerContext | Response> {
-  const contextOrResponse = await query(request, { requestContext });
+  const contextOrResponse = await query(errorDocumentRequest(request), {
+    requestContext,
+  });
 
   if (contextOrResponse instanceof Response) {
     return contextOrResponse;
