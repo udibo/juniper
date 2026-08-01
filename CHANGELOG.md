@@ -1,3 +1,11 @@
+## [0.9.2](https://github.com/udibo/juniper/compare/0.9.1...0.9.2) (2026-08-01)
+
+### Bug Fixes
+
+- render the error document from a GET so a refused non-GET does not run its
+  action ([#102](https://github.com/udibo/juniper/issues/102))
+  ([2a92147](https://github.com/udibo/juniper/commit/2a921477694ee832f600228c2c5833168d5412ea))
+
 ## [0.9.1](https://github.com/udibo/juniper/compare/0.9.0...0.9.1) (2026-07-25)
 
 # [0.9.0](https://github.com/udibo/juniper/compare/0.8.0...0.9.0) (2026-07-25)
