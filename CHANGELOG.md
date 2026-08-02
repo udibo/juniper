@@ -1,3 +1,14 @@
+## [0.9.3](https://github.com/udibo/juniper/compare/0.9.2...0.9.3) (2026-08-02)
+
+### Bug Fixes
+
+- **testing:** define ResizeObserver in global-jsdom
+  ([#103](https://github.com/udibo/juniper/issues/103))
+  ([f49df56](https://github.com/udibo/juniper/commit/f49df5616cf5fc48910d7e5adf674edb18058666))
+- refresh the lockfile the 0.9.2 release left stale
+  ([#104](https://github.com/udibo/juniper/issues/104))
+  ([f39868f](https://github.com/udibo/juniper/commit/f39868f3ff833731194aba042cd0294762bf5a09))
+
 ## [0.9.2](https://github.com/udibo/juniper/compare/0.9.1...0.9.2) (2026-08-01)
 
 ### Bug Fixes
