@@ -10,7 +10,11 @@ import {
   RouterContextProvider,
   RouterProvider,
 } from "react-router";
-import type { RouteObject } from "react-router";
+import type {
+  Future,
+  HydrationState,
+  RouteObject,
+} from "react-router";
 import { HttpError } from "@udibo/http-error";
 import type { HtmlProps, RootRouteModule, RouteModule } from "./mod.ts";
 
@@ -33,6 +37,105 @@ export type RouteModuleLoader = () => Promise<RouteModule>;
 
 /** Loads the root route module on demand. */
 export type RootRouteModuleLoader = () => Promise<RootRouteModule>;
+
+/**
+ * Configuration options for the React Router instance created by the Juniper client.
+ * These options are passed to `createBrowserRouter` and allow customization of
+ * router behavior such as basename, future flags, and more.
+ *
+ * @example Basename for subdirectory deployment
+ * ```ts
+ * const client = new Client(routes, {
+ *   basename: "/my-app"
+ * });
+ * ```
+ *
+ * @example Opt-in to React Router v7 future flags
+ * ```ts
+ * const client = new Client(routes, {
+ *   future: {
+ *     v7_startTransition: true,
+ *     v7_relativeSplatPath: true
+ *   }
+ * });
+ * ```
+ */
+export interface ClientRouterOptions {
+  /**
+   * The base URL for the application.
+   * Useful when deploying to a subdirectory (e.g., GitHub Pages, subdirectory on a domain).
+   *
+   * @example
+   * ```ts
+   * // App will be served from https://example.com/my-app/
+   * basename: "/my-app"
+   * ```
+   */
+  basename?: string;
+
+  /**
+   * Future flags for React Router v7 compatibility and new features.
+   * See React Router documentation for available flags.
+   *
+   * @example
+   * ```ts
+   * future: {
+   *   v7_startTransition: true,
+   *   v7_relativeSplatPath: true,
+   *   v7_fetcherPersist: true,
+   *   v7_normalizeFormMethod: true,
+   *   v7_partialHydration: true,
+   *   v7_skipActionErrorRevalidation: true
+   * }
+   * ```
+   */
+   future?: Partial<Future> & {
+    v7_startTransition?: boolean;
+    v7_relativeSplatPath?: boolean;
+    v7_fetcherPersist?: boolean;
+    v7_normalizeFormMethod?: boolean;
+    v7_partialHydration?: boolean;
+    v7_skipActionErrorRevalidation?: boolean;
+  };
+
+  /**
+   * Custom window object to use for the router.
+   * Useful for testing or custom environments.
+   */
+  window?: Window;
+
+  /**
+   * Custom hydration data to use instead of the default hydration data from the server.
+   * Advanced use case for partial hydration or custom SSR setups.
+   */
+  hydrationData?: HydrationState;
+
+  /**
+   * Advanced: Provide a custom router factory function.
+   * This allows complete control over router creation, enabling use of
+   * createHashRouter, createMemoryRouter, or custom router implementations.
+   *
+   * If provided, this function will be called instead of createBrowserRouter
+   * with the routes and options.
+   *
+   * @param routes - The route objects
+   * @param options - The router options
+   * @returns A React Router instance
+   *
+   * @example Using createHashRouter
+   * ```ts
+   * import { createHashRouter } from "react-router";
+   *
+   * const client = new Client(routes, {
+   *   createRouter: (routes, options) => createHashRouter(routes, options)
+   * });
+   * ```
+   */
+  createRouter?: (
+    routes: RouteObject[],
+    options: Parameters<typeof createBrowserRouter>[1],
+  ) => ReturnType<typeof createBrowserRouter>;
+}
 
 /** A client route definition used by the generated `main.tsx`. */
 export interface ClientRoute {
@@ -118,15 +221,19 @@ export class Client {
   routeObjectMap: Map<string, RouteObject>;
   /** Props to apply to the `<html>` element, from root route's htmlProps export. */
   htmlProps?: HtmlProps;
+  /** Router configuration options. */
+  routerOptions?: ClientRouterOptions;
 
   /**
    * Builds the client route tree from a root route, ready to
    * {@linkcode Client.hydrate}.
    *
    * @param rootRoute - The root client route, typically the generated `main.tsx`.
+   * @param routerOptions - Optional configuration for the React Router instance.
    */
-  constructor(rootRoute: RootClientRoute) {
+  constructor(rootRoute: RootClientRoute, routerOptions?: ClientRouterOptions) {
     this.rootRoute = rootRoute;
+    this.routerOptions = routerOptions;
     this.routeFileMap = new Map();
     const rootRouteId = "/";
     this.routeObjects = [{ id: rootRouteId, path: rootRoute.path }];
@@ -291,8 +398,11 @@ export class Client {
   /**
    * Hydrates the application.
    * This function sets up the browser router and renders the application.
+   *
+   * @param overrideOptions - Optional router options to override the constructor options.
+   * Useful for testing or dynamic configuration.
    */
-  async hydrate() {
+  async hydrate(overrideOptions?: ClientRouterOptions) {
     const { matches, serializedContext, ...hydrationData } = this
       .getHydrationData();
 
@@ -304,10 +414,19 @@ export class Client {
       context,
     );
 
-    const router = createBrowserRouter(this.routeObjects, {
-      hydrationData,
+    const options = { ...this.routerOptions, ...overrideOptions };
+    const { createRouter, hydrationData: customHydrationData, ...routerOpts } =
+      options;
+
+    const routerOptions = {
+      hydrationData: customHydrationData ?? hydrationData,
       getContext: () => context,
-    });
+      ...routerOpts,
+    };
+
+    const router = createRouter
+      ? createRouter(this.routeObjects, routerOptions)
+      : createBrowserRouter(this.routeObjects, routerOptions);
 
     const htmlProps = this.htmlProps;
     function HydratedApp() {

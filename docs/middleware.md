@@ -9,6 +9,29 @@ Juniper supports two types of middleware:
 
 Both can set values on the context object and transform requests/responses.
 
+### React Router Compatibility
+
+Juniper's client middleware is fully compatible with React Router's middleware API. This means:
+
+- **Middleware from other React Router apps works with minimal changes**
+- You can import and use middleware from npm packages designed for React Router
+- Juniper's `MiddlewareFunction` type is compatible with React Router's
+- All React Router middleware arguments (`request`, `params`, `context`, `url`, `pattern`) are available
+
+```typescript
+// This middleware from a React Router app works directly in Juniper
+import type { MiddlewareFunction } from "react-router";
+
+export const myMiddleware: MiddlewareFunction = async ({ request, context }, next) => {
+  // Your middleware logic
+  return next();
+};
+
+export const middleware = [myMiddleware];
+```
+
+No wrapper or adapter needed - just import and use!
+
 ## Server Middleware (Hono)
 
 Server middleware uses Hono's middleware system and runs on every HTTP request.
@@ -250,8 +273,8 @@ app.use(async (c, next) => {
 
 ## Client Middleware
 
-Client middleware is defined in `.tsx` files and runs during client-side
-navigation.
+Client middleware is defined in route files (`.tsx` or `.ts`) and runs during client-side
+navigation. It's fully compatible with React Router's middleware API.
 
 ### Creating Client Middleware
 
@@ -262,13 +285,14 @@ Export a `middleware` array from your route file:
 import type { MiddlewareFunction } from "@udibo/juniper";
 
 export const middleware: MiddlewareFunction[] = [
-  async ({ context, request }) => {
+  async ({ context, request }, next) => {
     console.log("Dashboard middleware running");
 
     // Set context values
     context.set(dashboardContext, { loadedAt: new Date() });
 
-    // next() is called automatically after this middleware completes
+    // Call next() to continue to the next middleware or route handler
+    return next();
   },
 ];
 
@@ -277,17 +301,50 @@ export default function Dashboard() {
 }
 ```
 
+### Using React Router Middleware Directly
+
+You can use middleware written for React Router apps directly in Juniper:
+
+```typescript
+// Import from react-router for maximum compatibility
+import type { MiddlewareFunction } from "react-router";
+
+const loggingMiddleware: MiddlewareFunction = async ({ request, url, pattern }, next) => {
+  console.log(`Navigating to ${url.pathname} (pattern: ${pattern})`);
+  const start = performance.now();
+  const result = await next();
+  console.log(`Completed in ${performance.now() - start}ms`);
+  return result;
+};
+
+const authMiddleware: MiddlewareFunction = async ({ context, request }, next) => {
+  const token = getAuthToken(request);
+  if (!token) {
+    throw redirect("/login");
+  }
+  context.set(userContext, await getUser(token));
+  return next();
+};
+
+export const middleware = [loggingMiddleware, authMiddleware];
+```
+
 ### Middleware Arguments
 
-Client middleware receives these arguments:
+Client middleware receives React Router's standard arguments:
 
 ```typescript
 interface MiddlewareArgs {
-  context: RouterContextProvider; // Shared context object
-  request: Request; // The current request
+  request: Request;              // The current request
   params: Record<string, string>; // Route parameters
+  context: RouterContextProvider; // Shared context object
+  url: URL;                      // The URL being navigated to
+  pattern: string;               // The route pattern (e.g., "/users/:id")
+  // ... and more React Router-specific args
 }
 ```
+
+**Note:** Juniper automatically passes through all React Router middleware arguments, ensuring full compatibility with middleware from other React Router applications.
 
 Example with all arguments:
 
@@ -303,11 +360,49 @@ export const middleware: MiddlewareFunction[] = [
 ];
 ```
 
+### Shared Middleware
+
+You can define middleware in `.ts` files and reuse it across routes. The build system automatically detects middleware exports in both `.tsx` and `.ts` files:
+
+```typescript
+// lib/middleware/auth.ts
+import { redirect } from "react-router";
+import type { MiddlewareFunction } from "@udibo/juniper";
+
+export const requireAuth: MiddlewareFunction = async ({ context, request }, next) => {
+  const session = await getSession(request);
+  if (!session) {
+    throw redirect("/login");
+  }
+  context.set(userContext, session.user);
+  return next();
+};
+
+export const requireAdmin: MiddlewareFunction = async ({ context }, next) => {
+  const user = context.get(userContext);
+  if (user.role !== "admin") {
+    throw redirect("/unauthorized");
+  }
+  return next();
+};
+```
+
+```typescript
+// routes/admin/index.tsx
+import { requireAuth, requireAdmin } from "../../lib/middleware/auth";
+
+export const middleware = [requireAuth, requireAdmin];
+
+export default function AdminPage() {
+  return <h1>Admin Dashboard</h1>;
+}
+```
+
+**Note:** Middleware in `.ts` files must be isomorphic (work in both browser and server environments) if used on the client side.
+
 ### Calling Next
 
-If you don't call `next()`, it's called automatically after your middleware
-completes. You only need to call `next()` explicitly when you want to run code
-**after** child routes and their handlers have executed:
+You **must** call `next()` to continue the middleware chain (unlike the old API where it was automatic). This matches React Router's behavior:
 
 ```typescript
 export const middleware: MiddlewareFunction[] = [
@@ -315,11 +410,12 @@ export const middleware: MiddlewareFunction[] = [
     // Before downstream handlers
     const start = performance.now();
 
-    await next(); // Execute child middleware, loaders, actions, render
+    const result = await next(); // Execute child middleware, loaders, actions, render
 
     // After downstream handlers complete
     const duration = performance.now() - start;
     console.log(`Route took ${duration}ms`);
+    return result; // Pass through the result
   },
 ];
 ```

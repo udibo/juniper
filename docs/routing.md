@@ -5,6 +5,17 @@
 Juniper uses file-based routing where the file structure in your `routes`
 directory directly maps to URL paths.
 
+### Router Flexibility
+
+While Juniper uses file-based routing by default, it provides flexibility for advanced React Router configurations:
+
+- **Basename support**: Deploy your app to a subdirectory using the `basename` router option
+- **Future flags**: Opt into React Router v7 features via the `future` option
+- **Custom routers**: Use `createHashRouter`, `createMemoryRouter`, or custom router factories
+- **Server configuration**: Router options are automatically synchronized between client and server
+
+See [Configuration](configuration.md#router-configuration) for details on customizing the router.
+
 ### Route Files
 
 Routes are defined using two types of files:

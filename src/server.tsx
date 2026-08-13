@@ -24,7 +24,7 @@ import {
   mergeServerRoutes,
   toRedirectEnvelope,
 } from "./_server.tsx";
-import type { AppEnv, Route } from "./_server.tsx";
+import type { AppEnv, Route, ServerRouterOptions } from "./_server.tsx";
 
 export type { AppEnv };
 
@@ -63,13 +63,25 @@ export type { AppEnv };
  * }
  * ```
  *
+ * @example With router options (basename for subdirectory deployment)
+ * ```ts
+ * export const server = createServer(import.meta.url, client, routes, {
+ *   basename: "/my-app",
+ *   future: {
+ *     v7_startTransition: true
+ *   }
+ * });
+ * ```
+ *
  * @template E - Hono environment type
  * @template S - Hono schema type
  * @template BasePath - Base path string type
  *
  * @param moduleUrl - The URL of the module creating the server
  * @param client - The client configuration
- * @param routes - The server route configuration object
+ * @param route - The server route configuration object
+ * @param routerOptions - Optional router configuration (basename, future flags).
+ *   If not provided, will use options from client.routerOptions if available.
  * @returns A configured Hono application instance
  */
 export function createServer<
@@ -80,6 +92,7 @@ export function createServer<
   moduleUrl: string,
   client: Client,
   route: Route<E, S, BasePath>,
+  routerOptions?: ServerRouterOptions,
 ): Hono<E, S, BasePath> {
   const projectRoot = path.dirname(path.fromFileUrl(moduleUrl));
   const appWrapper = new Hono<E, S, BasePath>({ strict: true });
@@ -132,10 +145,18 @@ export function createServer<
   });
 
   const serverRoutes = mergeServerRoutes(route, client.routeObjects);
+
+  // Use provided router options, or fall back to client's router options, or empty object
+  const effectiveRouterOptions: ServerRouterOptions = routerOptions ?? {
+    basename: client.routerOptions?.basename,
+    future: client.routerOptions?.future,
+  };
+
   const { handlers, errorHandler } = createHandlers(
     route,
     serverRoutes,
     client.htmlProps,
+    effectiveRouterOptions,
   );
   const app = buildApp(
     route,

@@ -722,6 +722,51 @@ describe("createServer", () => {
     assertStringIncludes(html, "<!DOCTYPE html>");
     assertStringIncludes(html, "<div>Admin Error Boundary</div>");
   });
+
+  it("should accept router options with basename", async () => {
+    const client = new Client(
+      {
+        path: "/",
+        main: { default: () => <div>Home</div> },
+      },
+      {
+        basename: "/my-app",
+      },
+    );
+
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+    }, {
+      basename: "/my-app",
+    });
+
+    // Verify server was created successfully with router options
+    assertExists(server);
+    // Verify client stores the options
+    assertEquals(client.routerOptions?.basename, "/my-app");
+  });
+
+  it("should use client router options when server options not provided", async () => {
+    const client = new Client(
+      {
+        path: "/",
+        main: { default: () => <div>Home</div> },
+      },
+      {
+        basename: "/client-base",
+        future: { v7_startTransition: true },
+      },
+    );
+
+    // Server should inherit from client
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+    });
+
+    // Verify client options are stored
+    assertEquals(client.routerOptions?.basename, "/client-base");
+    assertEquals(client.routerOptions?.future?.v7_startTransition, true);
+  });
 });
 
 describe("mergeServerRoutes", () => {

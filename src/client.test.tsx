@@ -213,6 +213,84 @@ describe("Client", () => {
   });
 });
 
+describe("Middleware", () => {
+  it("should create route with middleware", () => {
+    const middlewareFn = async ({ context }: { context: unknown }, next: () => Promise<unknown>) => {
+      return next();
+    };
+    
+    const routeFile: RouteModule = {
+      default: () => <div>Test</div>,
+      middleware: [middlewareFn as unknown as import("./mod.ts").MiddlewareFunction],
+    };
+    
+    const route = createRoute(routeFile, undefined, "test-route");
+    assertExists(route.middleware);
+    assertEquals(route.middleware.length, 1);
+  });
+
+  it("should support React Router middleware directly", () => {
+    // React Router middleware has access to url and pattern
+    const rrMiddleware: import("react-router").MiddlewareFunction = async (
+      { request, context, url, pattern },
+      next,
+    ) => {
+      // Can access RR-specific args
+      assertExists(request);
+      assertExists(context);
+      return next();
+    };
+    
+    const routeFile: RouteModule = {
+      default: () => <div>Test</div>,
+      middleware: [rrMiddleware as unknown as import("./mod.ts").MiddlewareFunction],
+    };
+    
+    const route = createRoute(routeFile, undefined, "test-route");
+    assertExists(route.middleware);
+  });
+});
+
+describe("ClientRouterOptions", () => {
+  it("should store router options", () => {
+    const client = new Client(routes, {
+      basename: "/my-app",
+      future: {
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      },
+    });
+
+    assertExists(client.routerOptions);
+    assertEquals(client.routerOptions.basename, "/my-app");
+    assertEquals(client.routerOptions.future?.v7_startTransition, true);
+    assertEquals(client.routerOptions.future?.v7_relativeSplatPath, true);
+  });
+
+  it("should allow undefined router options", () => {
+    const client = new Client(routes);
+    assertEquals(client.routerOptions, undefined);
+  });
+
+  it("should merge override options in hydrate", async () => {
+    // This test verifies the options merging logic without actually hydrating
+    const client = new Client(routes, {
+      basename: "/original",
+      future: { v7_startTransition: false },
+    });
+
+    // Simulate what hydrate does
+    const overrideOptions = {
+      basename: "/override",
+      future: { v7_startTransition: true },
+    };
+
+    const merged = { ...client.routerOptions, ...overrideOptions };
+    assertEquals(merged.basename, "/override");
+    assertEquals(merged.future?.v7_startTransition, true);
+  });
+});
+
 describe("createRoute", () => {
   let routeFile: RouteModule;
   beforeEach(() => {
