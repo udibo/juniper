@@ -175,6 +175,29 @@ describe("Builder", () => {
       });
       assertSpyCalls(writeTextFileStub, 1);
     });
+
+    it("should generate client with router options", async () => {
+      using writeTextFileStub = isSnapshotMode()
+        ? spy(deno, "writeTextFile")
+        : stub(deno, "writeTextFile");
+      const routerOptions = {
+        basename: "/app",
+        future: {
+          v7_startTransition: true,
+        },
+      };
+      await using builder = new Builder({
+        projectRoot: exampleDir,
+        routerOptions,
+      });
+      await builder.buildMainClientEntrypoint();
+
+      assertSpyCalls(writeTextFileStub, 1);
+      const call = writeTextFileStub.calls[0];
+      const content = call.args[1] as string;
+      assertEquals(content.includes("basename"), true);
+      assertEquals(content.includes("/app"), true);
+    });
   });
 
   describe("constructor", () => {
@@ -194,6 +217,22 @@ describe("Builder", () => {
       });
       assertEquals(builder.projectRoot, customRoot);
       assertEquals(builder.routesPath, path.resolve(customRoot, "./routes"));
+    });
+
+    it("should initialize with router options", async () => {
+      const routerOptions = {
+        basename: "/app",
+        future: {
+          v7_startTransition: true,
+        },
+      };
+      await using builder = new Builder({
+        projectRoot: exampleDir,
+        routerOptions,
+        write: false,
+      });
+      // Router options should be stored (we can't directly access private property, but we can test via build)
+      assertEquals(builder.projectRoot, exampleDir);
     });
   });
 

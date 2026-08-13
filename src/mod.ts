@@ -465,6 +465,15 @@ export interface RouteMiddlewareArgs<
   params: Params;
   /** The incoming request. */
   request: Request;
+  /** 
+   * A URL instance representing the application location being navigated to or
+   * fetched.
+   */
+  url: URL;
+  /**
+   * Matched un-interpolated route pattern for the current path (i.e., /blog/:slug).
+   */
+  pattern: string;
 }
 
 /**
@@ -472,8 +481,12 @@ export interface RouteMiddlewareArgs<
  * Receives the same "data" arguments as a loader/action (request, params, context)
  * as the first parameter and a next function as the second parameter which will
  * call downstream handlers and then complete middlewares from the bottom-up.
+ * 
+ * This type is compatible with React Router's native MiddlewareFunction, allowing
+ * middleware from other React Router applications to work with minimal glue code.
  *
  * @template Params - The type of route params. Defaults to `AnyParams`.
+ * @template Result - The type of result returned by next(). Defaults to `void`.
  *
  * @example Authentication middleware
  * ```tsx
@@ -506,13 +519,27 @@ export interface RouteMiddlewareArgs<
  *
  * export const middleware = [loggingMiddleware];
  * ```
+ *
+ * @example React Router middleware compatibility
+ * ```tsx
+ * import type { MiddlewareFunction } from "react-router";
+ * 
+ * // React Router middleware works directly in Juniper
+ * const myMiddleware: MiddlewareFunction = async ({ request, context }, next) => {
+ *   console.log(request.url);
+ *   return next();
+ * };
+ * 
+ * export const middleware = [myMiddleware];
+ * ```
  */
 export type MiddlewareFunction<
   Params extends AnyParams = AnyParams,
+  Result = void,
 > = (
   args: RouteMiddlewareArgs<Params>,
-  next: () => Promise<RequestContext>,
-) => Promise<void> | void;
+  next: () => Promise<Result>,
+) => Promise<Result | void> | Result | void;
 
 /**
  * The props that are common to route components and error boundaries.

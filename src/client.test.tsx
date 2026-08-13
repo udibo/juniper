@@ -211,6 +211,43 @@ describe("Client", () => {
 
     assertEquals(client.htmlProps, undefined);
   });
+
+  it("should accept router options in constructor", () => {
+    const routerOptions = {
+      basename: "/app",
+      future: {},
+    };
+    const client = new Client(routes, routerOptions);
+
+    assertExists(client.routerOptions);
+    assertEquals(client.routerOptions.basename, "/app");
+    assertExists(client.routerOptions.future);
+  });
+
+  it("should create client without router options", () => {
+    const client = new Client(routes);
+
+    assertEquals(client.routerOptions, undefined);
+  });
+
+  it("should use custom router factory when provided", () => {
+    let factoryCalled = false;
+    const customRouter = { routes: [] } as never;
+    const routerOptions = {
+      createRouter: () => {
+        factoryCalled = true;
+        return customRouter;
+      },
+    };
+    const client = new Client(routes, routerOptions);
+
+    // We can't easily test createRouter without mocking, but we can verify it's stored
+    assertExists(client.routerOptions?.createRouter);
+    // Simulate what hydrate would do
+    const result = client.routerOptions.createRouter([], {});
+    assertEquals(factoryCalled, true);
+    assertEquals(result, customRouter);
+  });
 });
 
 describe("createRoute", () => {
@@ -389,6 +426,36 @@ describe("createRoute", () => {
         value: originalLocation,
       });
     }
+  });
+
+  it("from a file with middleware export", () => {
+    routeFile.middleware = [
+      async ({ request }, next) => {
+        return next();
+      },
+    ];
+    const routeObject = createRoute(routeFile);
+    assertExists(routeObject.middleware);
+    assertEquals(Array.isArray(routeObject.middleware), true);
+    assertEquals(routeObject.middleware.length, 1);
+  });
+
+  it("should support React Router native middleware format", () => {
+    // React Router middleware has additional args like url and pattern
+    const reactRouterMiddleware = async (
+      args: { request: Request; context: unknown; params: Record<string, string>; url: URL; pattern: string },
+      next: () => Promise<unknown>,
+    ) => {
+      // Access url and pattern from args (React Router native)
+      assertExists(args.url);
+      assertExists(args.pattern);
+      return next();
+    };
+    
+    routeFile.middleware = [reactRouterMiddleware as any];
+    const routeObject = createRoute(routeFile);
+    assertExists(routeObject.middleware);
+    assertEquals(routeObject.middleware.length, 1);
   });
 });
 

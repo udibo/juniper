@@ -10,7 +10,12 @@ import {
   RouterContextProvider,
   RouterProvider,
 } from "react-router";
-import type { RouteObject } from "react-router";
+import type {
+  DataRouter,
+  Future,
+  HydrationState,
+  RouteObject,
+} from "react-router";
 import { HttpError } from "@udibo/http-error";
 import type { HtmlProps, RootRouteModule, RouteModule } from "./mod.ts";
 
@@ -80,6 +85,43 @@ export interface RootClientRoute extends ClientRoute {
 }
 
 /**
+ * Options for configuring the React Router.
+ */
+export interface ClientRouterOptions {
+  /**
+   * The basename for the router.
+   * Useful when the app is deployed to a subdirectory.
+   * @example "/app" for an app hosted at example.com/app/
+   */
+  basename?: string;
+  /**
+   * Future flags for React Router.
+   * See https://reactrouter.com/en/main/upgrading/future-flags
+   */
+  future?: Partial<Future>;
+  /**
+   * The window object to use for the router.
+   * Defaults to the global window object.
+   * Useful for testing.
+   */
+  window?: Window;
+  /**
+   * Custom router factory function.
+   * Allows using createHashRouter, createMemoryRouter, or a custom router.
+   * @param routes - The route objects
+   * @param options - The router options including hydrationData and getContext
+   * @returns A React Router instance
+   */
+  createRouter?: (
+    routes: RouteObject[],
+    options: {
+      hydrationData?: HydrationState;
+      getContext?: () => RouterContextProvider;
+    },
+  ) => DataRouter;
+}
+
+/**
  * The client for a Juniper application.
  *
  * @example Creating a client
@@ -118,15 +160,19 @@ export class Client {
   routeObjectMap: Map<string, RouteObject>;
   /** Props to apply to the `<html>` element, from root route's htmlProps export. */
   htmlProps?: HtmlProps;
+  /** Router options for configuring React Router. */
+  routerOptions?: ClientRouterOptions;
 
   /**
    * Builds the client route tree from a root route, ready to
    * {@linkcode Client.hydrate}.
    *
    * @param rootRoute - The root client route, typically the generated `main.tsx`.
+   * @param routerOptions - Options for configuring the React Router.
    */
-  constructor(rootRoute: RootClientRoute) {
+  constructor(rootRoute: RootClientRoute, routerOptions?: ClientRouterOptions) {
     this.rootRoute = rootRoute;
+    this.routerOptions = routerOptions;
     this.routeFileMap = new Map();
     const rootRouteId = "/";
     this.routeObjects = [{ id: rootRouteId, path: rootRoute.path }];
@@ -289,6 +335,35 @@ export class Client {
   }
 
   /**
+   * Creates a router instance for the application.
+   * Can be overridden to customize router creation.
+   *
+   * @param routes - The route objects
+   * @param options - The router options including hydrationData and getContext
+   * @returns A React Router instance
+   */
+  protected createRouter(
+    routes: RouteObject[],
+    options: {
+      hydrationData?: HydrationState;
+      getContext?: () => RouterContextProvider;
+    },
+  ): DataRouter {
+    // Use custom router factory if provided
+    if (this.routerOptions?.createRouter) {
+      return this.routerOptions.createRouter(routes, options);
+    }
+
+    // Default to createBrowserRouter with provided options
+    return createBrowserRouter(routes, {
+      ...options,
+      basename: this.routerOptions?.basename,
+      future: this.routerOptions?.future,
+      window: this.routerOptions?.window,
+    });
+  }
+
+  /**
    * Hydrates the application.
    * This function sets up the browser router and renders the application.
    */
@@ -304,7 +379,7 @@ export class Client {
       context,
     );
 
-    const router = createBrowserRouter(this.routeObjects, {
+    const router = this.createRouter(this.routeObjects, {
       hydrationData,
       getContext: () => context,
     });
