@@ -535,22 +535,9 @@ export function createRoute(
     | ReactRouterMiddlewareFunction<RequestContext>[]
     | undefined;
   if (_middleware && _middleware.length > 0) {
-    middleware = _middleware.map((mw: MiddlewareFunction) => {
-      const wrappedMiddleware: ReactRouterMiddlewareFunction<RequestContext> = (
-        args,
-        next,
-      ) => {
-        return mw(
-          {
-            context: args.context,
-            params: args.params,
-            request: args.request,
-          },
-          next,
-        );
-      };
-      return wrappedMiddleware;
-    });
+    // Pass through React Router middleware directly for full compatibility
+    // with middleware from other React Router applications
+    middleware = _middleware as ReactRouterMiddlewareFunction<RequestContext>[];
   }
 
   return {

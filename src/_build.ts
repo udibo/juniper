@@ -295,7 +295,9 @@ export async function processClientDirectory(
       const serverFileName = getServerRouteFileName(entry.name);
       const serverFilePath = path.join(absoluteDirPath, serverFileName);
       const serverFlags = await getServerFlags(serverFilePath);
-      const hasMiddleware = await hasMiddlewareExport(clientFilePath);
+      const hasClientMiddleware = await hasMiddlewareExport(clientFilePath);
+      const hasServerMiddleware = await hasMiddlewareExport(serverFilePath);
+      const hasMiddleware = hasClientMiddleware || hasServerMiddleware;
       const routeImport = (isRootLevel || hasMiddleware)
         ? directImport
         : lazyImport;

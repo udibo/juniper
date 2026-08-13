@@ -73,6 +73,17 @@ export const builder = new Builder({
 
   // Paths to watch for changes in development (default: projectRoot)
   watchPaths: ["./routes", "./components"],
+
+  // Router configuration (optional)
+  router: {
+    // Base URL for subdirectory deployments (e.g., GitHub Pages)
+    basename: "/my-app",
+    // React Router v7 future flags
+    future: {
+      v7_startTransition: true,
+      v7_relativeSplatPath: true,
+    },
+  },
 });
 
 if (import.meta.main) {
@@ -214,6 +225,57 @@ export const builder = new Builder({
 ```
 
 Built files are output to the `public/build/` directory.
+
+### Router Configuration
+
+Juniper uses React Router under the hood. You can customize the router behavior via the `router` option in your `Builder` configuration:
+
+```typescript
+export const builder = new Builder({
+  projectRoot,
+  router: {
+    // Deploy to a subdirectory (e.g., https://example.com/my-app/)
+    basename: "/my-app",
+
+    // Opt-in to React Router v7 features
+    future: {
+      v7_startTransition: true,
+      v7_relativeSplatPath: true,
+      v7_fetcherPersist: true,
+      v7_normalizeFormMethod: true,
+      v7_partialHydration: true,
+      v7_skipActionErrorRevalidation: true,
+    },
+  },
+});
+```
+
+**Available router options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `basename` | `string` | Base URL for the app, useful for subdirectory deployments |
+| `future.v7_startTransition` | `boolean` | Use `startTransition` for state updates |
+| `future.v7_relativeSplatPath` | `boolean` | Fix splat path resolution |
+| `future.v7_fetcherPersist` | `boolean` | Persist fetcher state |
+| `future.v7_normalizeFormMethod` | `boolean` | Normalize form methods |
+| `future.v7_partialHydration` | `boolean` | Enable partial hydration |
+| `future.v7_skipActionErrorRevalidation` | `boolean` | Skip revalidation on action errors |
+
+These options are automatically applied to both the client-side router (`createBrowserRouter`) and the server-side router (`createStaticHandler`), ensuring consistent behavior during SSR and client-side navigation.
+
+For advanced use cases, you can also provide router options directly when creating a `Client`:
+
+```typescript
+import { Client } from "@udibo/juniper/client";
+
+export const client = new Client(routes, {
+  basename: "/my-app",
+  future: { v7_startTransition: true },
+  // Custom router factory for HashRouter, MemoryRouter, etc.
+  createRouter: (routes, options) => createHashRouter(routes, options),
+});
+```
 
 ## Environment Variables
 

@@ -1,5 +1,8 @@
 import type { ReactElement } from "react";
-import type { RouterContext } from "react-router";
+import type {
+  RouterContext,
+  MiddlewareFunction as ReactRouterMiddlewareFunction,
+} from "react-router";
 import {
   redirect,
   redirectDocument,
@@ -14,6 +17,14 @@ import {
 } from "./_serialization.ts";
 
 export { HttpError, RouterContextProvider };
+
+export type { ClientRouterOptions } from "./client.tsx";
+export type { ServerRouterOptions } from "./_server.tsx";
+
+// Re-export React Router middleware types for convenience
+export type {
+  MiddlewareFunction as ReactRouterMiddlewareFunction,
+} from "react-router";
 
 /**
  * The request-scoped context as route handlers and components receive it.
@@ -456,24 +467,50 @@ export interface RouteActionArgs<
  * ];
  * ```
  */
+/**
+ * Arguments passed to middleware functions.
+ * Compatible with React Router's middleware args.
+ */
 export interface RouteMiddlewareArgs<
   Params extends AnyParams = AnyParams,
 > {
-  /** The request-scoped router context, shared across middleware, loaders, and actions. */
-  context: RequestContext;
-  /** The matched route params. */
-  params: Params;
-  /** The incoming request. */
+  /** The incoming request */
   request: Request;
+  /** The matched route params */
+  params: Params;
+  /** The router context */
+  context: RequestContext;
+  /** The URL being navigated to */
+  url?: URL;
+  /** The route pattern */
+  pattern?: string;
 }
 
 /**
- * A middleware function exported by a route module.
- * Receives the same "data" arguments as a loader/action (request, params, context)
- * as the first parameter and a next function as the second parameter which will
- * call downstream handlers and then complete middlewares from the bottom-up.
+ * A middleware function for React Router.
+ * This is compatible with React Router's native middleware format.
  *
- * @template Params - The type of route params. Defaults to `AnyParams`.
+ * Middleware runs before loaders and actions, and can:
+ * - Modify the request/response
+ * - Set context values
+ * - Short-circuit by returning a response
+ * - Redirect
+ * - Perform authentication/authorization
+ *
+ * @template Params - The type of route params
+ * @template Result - The type of value returned by next()
+ *
+ * @example Basic middleware
+ * ```tsx
+ * import type { MiddlewareFunction } from "@udibo/juniper";
+ *
+ * export const middleware: MiddlewareFunction[] = [
+ *   async ({ request, context }, next) => {
+ *     console.log(request.url);
+ *     return next();
+ *   }
+ * ];
+ * ```
  *
  * @example Authentication middleware
  * ```tsx
@@ -487,32 +524,45 @@ export interface RouteMiddlewareArgs<
  *   }
  *   const user = await getUserById(session.userId);
  *   context.set(userContext, user);
- *   await next();
+ *   return next();
  * };
  *
  * export const middleware = [authMiddleware];
  * ```
  *
- * @example Logging middleware
+ * @example Using React Router middleware directly
  * ```tsx
- * import type { MiddlewareFunction } from "@udibo/juniper";
+ * import type { MiddlewareFunction as RRMiddleware } from "react-router";
  *
- * const loggingMiddleware: MiddlewareFunction = async ({ request }, next) => {
- *   console.log(`[${new Date().toISOString()}] ${request.method} ${request.url}`);
- *   const start = performance.now();
- *   await next();
- *   console.log(`[${new Date().toISOString()}] Completed in ${performance.now() - start}ms`);
+ * const myMiddleware: RRMiddleware = async ({ request }, next) => {
+ *   // Works with any React Router middleware!
+ *   return next();
  * };
  *
- * export const middleware = [loggingMiddleware];
+ * export const middleware = [myMiddleware];
  * ```
  */
 export type MiddlewareFunction<
   Params extends AnyParams = AnyParams,
+  Result = unknown,
+> = ReactRouterMiddlewareFunction<RequestContext>;
+
+/**
+ * A simplified middleware function type for common use cases.
+ * Compatible with React Router middleware but with Juniper's simpler signature.
+ */
+export type SimpleMiddlewareFunction<
+  Params extends AnyParams = AnyParams,
 > = (
-  args: RouteMiddlewareArgs<Params>,
-  next: () => Promise<RequestContext>,
-) => Promise<void> | void;
+  args: {
+    request: Request;
+    params: Params;
+    context: RequestContext;
+    url: URL;
+    pattern: string;
+  },
+  next: () => Promise<unknown>,
+) => Promise<void> | void | Promise<unknown> | unknown;
 
 /**
  * The props that are common to route components and error boundaries.

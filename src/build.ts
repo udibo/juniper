@@ -108,6 +108,47 @@ export interface BuildOptions {
    * Defaults to true.
    */
   write?: boolean;
+
+  /**
+   * Router configuration options for React Router.
+   * These options control basename, future flags, and other router behavior.
+   *
+   * @example Subdirectory deployment
+   * ```ts
+   * router: {
+   *   basename: "/my-app"
+   * }
+   * ```
+   *
+   * @example React Router v7 future flags
+   * ```ts
+   * router: {
+   *   basename: "/",
+   *   future: {
+   *     v7_startTransition: true,
+   *     v7_relativeSplatPath: true
+   *   }
+   * }
+   * ```
+   */
+  router?: {
+    /**
+     * The base URL for the application.
+     * Useful when deploying to a subdirectory.
+     */
+    basename?: string;
+    /**
+     * Future flags for React Router v7.
+     */
+    future?: {
+      v7_startTransition?: boolean;
+      v7_relativeSplatPath?: boolean;
+      v7_fetcherPersist?: boolean;
+      v7_normalizeFormMethod?: boolean;
+      v7_partialHydration?: boolean;
+      v7_skipActionErrorRevalidation?: boolean;
+    };
+  };
 }
 
 /**
@@ -172,6 +213,8 @@ export class Builder implements AsyncDisposable {
   protected context?: esbuild.BuildContext;
   /** Backing flag for {@linkcode Builder.isBuilding}. */
   protected _isBuilding: boolean;
+  /** Router configuration options. */
+  protected router?: BuildOptions["router"];
 
   /** Whether a build or rebuild is currently in progress. */
   get isBuilding(): boolean {
@@ -203,6 +246,7 @@ export class Builder implements AsyncDisposable {
     this.clientPath = path.resolve(this.projectRoot, "./main.tsx");
     this._isBuilding = false;
     this.write = options.write ?? true;
+    this.router = options.router;
   }
 
   /**
@@ -355,6 +399,21 @@ export class Builder implements AsyncDisposable {
         1,
       );
 
+      // Generate router options code if provided (for server)
+      let serverRouterOptionsCode = "";
+      if (this.router) {
+        const routerConfig: Record<string, unknown> = {};
+        if (this.router.basename !== undefined) {
+          routerConfig.basename = this.router.basename;
+        }
+        if (this.router.future) {
+          routerConfig.future = this.router.future;
+        }
+        if (Object.keys(routerConfig).length > 0) {
+          serverRouterOptionsCode = `, ${JSON.stringify(routerConfig, null, 2)}`;
+        }
+      }
+
       const fmt = fmtCommand.spawn();
       const fmtWriter = fmt.stdin.getWriter();
       const encoder = new TextEncoder();
@@ -366,7 +425,7 @@ import { createServer } from "@udibo/juniper/server";
 
 import { client } from "./main.tsx";
 
-export const server = createServer(import.meta.url, client, ${routesConfigString});
+export const server = createServer(import.meta.url, client, ${routesConfigString}${serverRouterOptionsCode});
 
 if (import.meta.main) {
   Deno.serve(server.fetch);
@@ -441,6 +500,21 @@ if (import.meta.main) {
         1,
       );
 
+      // Generate router options code if provided
+      let routerOptionsCode = "";
+      if (this.router) {
+        const routerConfig: Record<string, unknown> = {};
+        if (this.router.basename !== undefined) {
+          routerConfig.basename = this.router.basename;
+        }
+        if (this.router.future) {
+          routerConfig.future = this.router.future;
+        }
+        if (Object.keys(routerConfig).length > 0) {
+          routerOptionsCode = `, ${JSON.stringify(routerConfig, null, 2)}`;
+        }
+      }
+
       const fmt = fmtCommand.spawn();
       const fmtWriter = fmt.stdin.getWriter();
       const encoder = new TextEncoder();
@@ -450,7 +524,7 @@ if (import.meta.main) {
 
 import { Client } from "@udibo/juniper/client";
 
-export const client = new Client(${routesConfigString});
+export const client = new Client(${routesConfigString}${routerOptionsCode});
 `));
       fmtWriter.close();
       const { success, code } = await fmt.status;
