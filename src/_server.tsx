@@ -18,6 +18,7 @@ import {
 } from "react-router";
 import type {
   DataRouteObject,
+  Future,
   RouterContextProvider,
   StaticHandlerContext,
 } from "react-router";
@@ -269,6 +270,10 @@ async function convertToHttpError(cause: unknown): Promise<HttpError> {
 interface RenderOptions {
   allPublicEnvKeys: string[];
   htmlProps?: React.HTMLAttributes<HTMLHtmlElement>;
+  routerOptions?: {
+    basename?: string;
+    future?: Partial<Future>;
+  };
 }
 
 interface RenderDocumentOptions {
@@ -294,9 +299,11 @@ async function renderDocument(
     waitForAllReady,
     presetError,
   } = options;
-  const { allPublicEnvKeys, htmlProps } = renderOptions;
+  const { allPublicEnvKeys, htmlProps, routerOptions } = renderOptions;
 
-  const router = createStaticRouter(dataRoutes, context);
+  const router = createStaticRouter(dataRoutes, context, {
+    future: routerOptions?.future,
+  });
 
   let renderStream: Awaited<ReturnType<typeof renderToReadableStream>>;
   let aborted = false;
@@ -759,14 +766,22 @@ export function createHandlers<
   route: Route<E, S, BasePath>,
   routes: RouteObject[],
   htmlProps?: React.HTMLAttributes<HTMLHtmlElement>,
+  routerOptions?: {
+    basename?: string;
+    future?: Partial<Future>;
+  },
 ): HandlersResult {
   const factory = createFactory<AppEnv>();
   const allPublicEnvKeys = getAllPublicEnvKeys(route);
-  const { query, dataRoutes, queryRoute } = createStaticHandler(routes);
+  const { query, dataRoutes, queryRoute } = createStaticHandler(routes, {
+    basename: routerOptions?.basename,
+    future: routerOptions?.future,
+  });
 
   const renderOptions: RenderOptions = {
     allPublicEnvKeys,
     htmlProps,
+    routerOptions,
   };
 
   const handlers = factory.createHandlers(

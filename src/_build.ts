@@ -379,7 +379,7 @@ export async function processClientDirectory(
 }
 
 export function generatedRouteObjectToString(
-  obj: GeneratedRoute | ServerFlags | string | boolean | GeneratedRoute[],
+  obj: GeneratedRoute | ServerFlags | string | boolean | Record<string, unknown> | GeneratedRoute[],
   indentLevel: number = 0,
 ): string {
   const indent = "  ".repeat(indentLevel);

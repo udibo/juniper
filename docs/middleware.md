@@ -257,6 +257,8 @@ navigation.
 
 Export a `middleware` array from your route file:
 
+Juniper's middleware is fully compatible with React Router's native middleware format, allowing you to use middleware from other React Router applications with minimal changes.
+
 ```typescript
 // routes/dashboard/index.tsx
 import type { MiddlewareFunction } from "@udibo/juniper";
@@ -416,6 +418,49 @@ export const middleware: MiddlewareFunction[] = [
     console.log(`${request.url} loaded in ${duration}ms`);
   },
 ];
+```
+
+## React Router Compatibility
+
+Juniper's middleware system is designed to be compatible with React Router's native middleware format. This means you can use middleware from other React Router applications with minimal changes.
+
+### React Router Middleware Arguments
+
+In addition to `context`, `request`, and `params`, Juniper middleware also receives:
+
+- `url` - A URL instance for the current navigation
+- `pattern` - The matched route pattern (e.g., `/blog/:slug`)
+
+This matches React Router's `DataFunctionArgs` interface:
+
+```typescript
+import type { MiddlewareFunction } from "@udibo/juniper";
+
+export const middleware: MiddlewareFunction[] = [
+  async ({ request, context, params, url, pattern }, next) => {
+    console.log(`Navigating to ${url.pathname}`);
+    console.log(`Pattern: ${pattern}`);
+    console.log(`Params:`, params);
+    
+    return next();
+  },
+];
+```
+
+### Using React Router Middleware
+
+Middleware written for React Router works directly in Juniper:
+
+```typescript
+import type { MiddlewareFunction } from "react-router";
+
+const reactRouterMiddleware: MiddlewareFunction = async ({ request }, next) => {
+  // This works in Juniper without changes
+  console.log(request.url);
+  return next();
+};
+
+export const middleware = [reactRouterMiddleware];
 ```
 
 ## When Each Type Runs

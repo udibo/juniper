@@ -540,14 +540,10 @@ export function createRoute(
         args,
         next,
       ) => {
-        return mw(
-          {
-            context: args.context,
-            params: args.params,
-            request: args.request,
-          },
-          next,
-        );
+        // Pass through all args from React Router's DataFunctionArgs
+        // This makes Juniper middleware compatible with React Router middleware
+        // The args include: request, params, context, url, pattern, etc.
+        return mw(args as any, next as any);
       };
       return wrappedMiddleware;
     });

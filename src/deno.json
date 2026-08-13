@@ -9,6 +9,8 @@
     "./dev": "./dev.ts",
     "./server": "./server.tsx",
     "./client": "./client.tsx",
+    "./cli": "./cli.ts",
+    "./adapters": "./adapters.ts",
     "./utils/env": "./utils/env.ts",
     "./utils/otel": "./utils/otel.ts",
     "./utils/testing": "./utils/testing.ts",

@@ -136,6 +136,10 @@ export function createServer<
     route,
     serverRoutes,
     client.htmlProps,
+    client.routerOptions ? {
+      basename: client.routerOptions.basename,
+      future: client.routerOptions.future,
+    } : undefined,
   );
   const app = buildApp(
     route,
