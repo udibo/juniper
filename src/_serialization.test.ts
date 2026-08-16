@@ -205,6 +205,66 @@ describe("Serialization Module", () => {
       assertEquals(deserialized.message, "Not Found");
     });
 
+    it("sends a 5xx's generic message, never the internal one", () => {
+      const error = new HttpError(
+        500,
+        "Database error during updateTenantBranding: connection refused",
+      );
+      const serialized = serializeError(error);
+
+      assertEquals(
+        serialized.message,
+        error.exposedMessage,
+        "the wire carries what the rendering layer would show",
+      );
+      assertEquals(
+        (serialized.message as string).includes("connection refused"),
+        false,
+        "and never the internal detail — this payload reaches the browser",
+      );
+
+      const deserialized = deserializeError(serialized) as HttpError;
+      assertEquals(deserialized.message, error.exposedMessage);
+      assertEquals(
+        deserialized.exposedMessage,
+        error.exposedMessage,
+        "so both sides agree on what the error says",
+      );
+    });
+
+    it("keeps a 4xx's message, which is written for the caller", () => {
+      const error = new HttpError(404, "Tenant not found");
+      const serialized = serializeError(error);
+
+      assertEquals(serialized.message, "Tenant not found");
+      assertEquals(
+        (deserializeError(serialized) as HttpError).message,
+        "Tenant not found",
+      );
+    });
+
+    it("honours an explicit exposedMessage over the internal one", () => {
+      const error = new HttpError(403, "grant lookup failed for subject 42", {
+        expose: false,
+        exposedMessage: "You don't have permission to do that.",
+      });
+      const serialized = serializeError(error);
+
+      assertEquals(serialized.message, "You don't have permission to do that.");
+      assertEquals(
+        serialized.expose,
+        true,
+        "what reached the wire is exposable by construction, so the flag says so",
+      );
+
+      const deserialized = deserializeError(serialized) as HttpError;
+      assertEquals(
+        deserialized.exposedMessage,
+        "You don't have permission to do that.",
+        "and the getter agrees rather than re-genericizing what it was handed",
+      );
+    });
+
     it("should serialize and deserialize TypeError", () => {
       const error = new TypeError("Invalid type");
       const serialized = serializeError(error);
@@ -332,11 +392,13 @@ describe("Serialization Module", () => {
     });
 
     it("should handle errors in hydration data", async () => {
+      const thrown = new HttpError(
+        500,
+        "Internal Server Error: pool exhausted on shard 7",
+      );
       const hydrationData = {
         matches: [{ id: "/" }],
-        errors: {
-          "/": new HttpError(500, "Internal Server Error"),
-        },
+        errors: { "/": thrown },
       };
 
       const serialized = await serializeHydrationData(hydrationData);
@@ -345,7 +407,16 @@ describe("Serialization Module", () => {
       const error = deserialized.errors?.["/"] as HttpError;
       assertEquals(error instanceof HttpError, true);
       assertEquals(error.status, 500);
-      assertEquals(error.message, "Internal Server Error");
+      assertEquals(
+        error.message,
+        thrown.exposedMessage,
+        "the hydration script is browser-readable, so it carries the exposed message",
+      );
+      assertEquals(
+        JSON.stringify(serialized).includes("pool exhausted"),
+        false,
+        "and the internal detail never reaches the document",
+      );
     });
 
     it("should handle custom types in loader data", async () => {

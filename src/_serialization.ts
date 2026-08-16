@@ -861,11 +861,20 @@ function initializeBuiltInSerializers(): void {
     name: "HttpError",
     is: (e): e is HttpError => e instanceof HttpError || isHttpErrorLike(e),
     serialize: (error) => {
+      // `exposedMessage`, never `message`: this payload reaches the browser
+      // through client-navigation data errors and the SSR hydration script, and
+      // `message` is where an app puts detail meant for its own logs. The
+      // rendering layer already drew this boundary; the wire did not, so an
+      // internal message shipped to every client on a data-error path.
       const serialized: Record<string, unknown> = {
-        message: error.message,
+        message: error.exposedMessage,
         status: error.status,
+        // Everything written above is exposable by construction, so the flag
+        // says so rather than replaying a server-side decision the client
+        // cannot act on: `expose: false` here would make the deserialized
+        // error's `exposedMessage` disagree with the text it was handed.
+        expose: true,
       };
-      if (error.expose !== undefined) serialized.expose = error.expose;
       if (error.instance !== undefined) serialized.instance = error.instance;
       if (isDevelopment() && error.stack) {
         serialized.stack = error.stack;
