@@ -1,3 +1,13 @@
+## [0.9.4](https://github.com/udibo/juniper/compare/0.9.3...0.9.4) (2026-08-16)
+
+### Bug Fixes
+
+- **serialization:** serialize an HttpError's exposedMessage, not its message
+  ([#108](https://github.com/udibo/juniper/issues/108))
+  ([4e61252](https://github.com/udibo/juniper/commit/4e612527ecac08a1693089ab1ce50f7e07595b9d)),
+  closes [#518](https://github.com/udibo/juniper/issues/518)
+  [#104](https://github.com/udibo/juniper/issues/104)
+
 ## [0.9.3](https://github.com/udibo/juniper/compare/0.9.2...0.9.3) (2026-08-02)
 
 ### Bug Fixes
