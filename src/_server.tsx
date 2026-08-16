@@ -125,6 +125,17 @@ export function getRouteContext(): RouteContext | undefined {
 export type AppEnv = Env & {
   Variables: {
     context: RouterContextProvider;
+    /**
+     * A per-request CSP nonce, if the app generates one. Hono's `secureHeaders`
+     * sets this variable when its `contentSecurityPolicy` names `NONCE`, and
+     * Juniper applies it to every inline script it emits — its own hydration
+     * script, and the ones React's streaming renderer injects to resolve
+     * Suspense boundaries.
+     *
+     * Absent when the app does not use nonces, in which case nothing changes:
+     * the attribute is simply omitted.
+     */
+    secureHeadersNonce?: string;
   };
 };
 
@@ -207,12 +218,16 @@ export interface Route<
 }
 
 function HydrationScript(
-  { serializedHydrationData }: { serializedHydrationData: Promise<string> },
+  { serializedHydrationData, nonce }: {
+    serializedHydrationData: Promise<string>;
+    nonce?: string;
+  },
 ) {
   const hydrateScript = use(serializedHydrationData);
   return (
     <script
       type="module"
+      nonce={nonce}
       suppressHydrationWarning
       dangerouslySetInnerHTML={{ __html: hydrateScript }}
     />
@@ -298,6 +313,12 @@ async function renderDocument(
 
   const router = createStaticRouter(dataRoutes, context);
 
+  // Set by Hono's `secureHeaders` when the app's CSP names NONCE. Read here
+  // rather than generated, because the header carrying it is written by
+  // middleware that has already run — a nonce minted at render time would
+  // never match the policy the browser was given.
+  const nonce = c.get("secureHeadersNonce");
+
   let renderStream: Awaited<ReturnType<typeof renderToReadableStream>>;
   let aborted = false;
   let renderAttempts = 0;
@@ -346,11 +367,18 @@ async function renderDocument(
               <Suspense fallback={null}>
                 <HydrationScript
                   serializedHydrationData={serializedHydrationData}
+                  nonce={nonce}
                 />
               </Suspense>
             </App>
           </StrictMode>,
           {
+            // Covers what this file cannot reach: the scripts React injects
+            // itself to resolve Suspense boundaries, whose bodies differ per
+            // response and so can never be hashed. Without it a nonce on the
+            // hydration script alone would still leave `unsafe-inline`
+            // load-bearing.
+            nonce,
             bootstrapModules: ["/build/main.js"],
             bootstrapScripts,
             signal: request.signal,
