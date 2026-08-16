@@ -51,12 +51,12 @@ export function getInstance(): string | undefined {
  */
 export interface OtelUtils {
   /**
-   * Starts an active span and executes a function within its context.
+   * Starts an active span, runs `fn` inside it, and returns its result.
    *
-   * This method provides multiple overloads for different use cases:
-   * - Simple span with just a name and function
-   * - Span with options and function
-   * - Span with options, context, and function
+   * The span ends when `fn` returns or its promise settles. A thrown error is
+   * recorded on the span, sets the span status to `ERROR`, and is rethrown; an
+   * {@linkcode HttpError} with no `instance` gets one from
+   * {@linkcode getInstance}.
    */
   startActiveSpan: {
     <F extends (span: Span) => ReturnType<F>>(

@@ -201,9 +201,12 @@ export interface CreateRoutesStubOptions {
 /**
  * Creates a stub component for testing Juniper route modules.
  *
- * This helper uses Juniper's `createRoute` to convert route modules into
- * React Router route objects, then renders them in a memory router. This ensures
- * your tests run through the same adaptation layer as production.
+ * Renders the route modules in a memory router through the same adaptation
+ * layer the client uses, so components, loaders, actions, and error boundaries
+ * behave as they do in the browser.
+ *
+ * A route's `middleware` export is not run. Seed whatever middleware would have
+ * put on the context with {@linkcode CreateRoutesStubOptions.getContext}.
  *
  * @example Testing a route with a loader
  * ```tsx
@@ -505,13 +508,6 @@ export function fetchResolver(): [ResolveFetch, FakeFetch] {
   return [resolveFetch, fakeFetch];
 }
 
-/**
- * A mock FormData class that works with JSDOM form elements in Deno.
- *
- * Deno's native FormData constructor doesn't accept JSDOM HTMLFormElement objects,
- * which causes "Illegal constructor" errors when testing form submissions.
- * This class provides the same interface but extracts form data manually.
- */
 class MockFormData extends FormData {
   constructor(form?: HTMLFormElement) {
     super();

@@ -1027,11 +1027,20 @@ export interface RouteModule<
 }
 
 /**
- * The contract for the root route module.
+ * Props that can be applied to the `<html>` element.
+ * Useful for setting `lang`, `dir`, or other global HTML attributes.
+ */
+export type HtmlProps = React.HTMLAttributes<HTMLHtmlElement>;
+
+/**
+ * The module shape for the root route (`routes/main.tsx`).
  *
- * @template Params - The type of route params.
- * @template LoaderData - The loader return value type.
- * @template ActionData - The action return value type.
+ * Extends {@linkcode RouteModule} with {@linkcode RootRouteModule.htmlProps} for
+ * configuring the document's `<html>` element.
+ *
+ * @template Params - The type of route params. Defaults to `AnyParams`.
+ * @template LoaderData - The type of loader data. Defaults to `unknown`.
+ * @template ActionData - The type of action data. Defaults to `unknown`.
  *
  * @example Root route module with ErrorBoundary
  * ```tsx
@@ -1058,50 +1067,6 @@ export interface RouteModule<
  *   );
  * }
  * ```
- *
- * @example Custom error serialization with registerError
- * ```tsx
- * // In a shared module (e.g., errors.ts)
- * import { registerError } from "@udibo/juniper";
- *
- * class CustomError extends Error {
- *   code: string;
- *   constructor(message: string, code: string) {
- *     super(message);
- *     this.name = "CustomError";
- *     this.code = code;
- *   }
- * }
- *
- * registerError<CustomError>({
- *   name: "CustomError",
- *   is: (e): e is CustomError => e instanceof CustomError,
- *   serialize: (error) => ({
- *     message: error.message,
- *     code: error.code,
- *   }),
- *   deserialize: (data) => new CustomError(
- *     data.message as string,
- *     data.code as string,
- *   ),
- * });
- * ```
- */
-/**
- * Props that can be applied to the `<html>` element.
- * Useful for setting `lang`, `dir`, or other global HTML attributes.
- */
-export type HtmlProps = React.HTMLAttributes<HTMLHtmlElement>;
-
-/**
- * The module shape for the root route (`routes/main.tsx`).
- *
- * Extends {@linkcode RouteModule} with {@linkcode RootRouteModule.htmlProps} for
- * configuring the document's `<html>` element.
- *
- * @template Params - The type of route params. Defaults to `AnyParams`.
- * @template LoaderData - The type of loader data. Defaults to `unknown`.
- * @template ActionData - The type of action data. Defaults to `unknown`.
  */
 export interface RootRouteModule<
   Params extends AnyParams = AnyParams,

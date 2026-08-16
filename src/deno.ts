@@ -2,10 +2,7 @@
 
 import { spy } from "@std/testing/mock";
 
-/**
- * A fake SubprocessReadableStream for testing purposes.
- * Extends ReadableStream and implements Deno.SubprocessReadableStream.
- */
+/** A fake SubprocessReadableStream for testing purposes. */
 export class FakeSubprocessReadableStream
   implements Deno.SubprocessReadableStream {
   private stream: ReadableStream;

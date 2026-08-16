@@ -315,22 +315,10 @@ function restoreValue(value: unknown): unknown {
   return value;
 }
 
-/**
- * Encode data to CBOR binary format.
- *
- * @param data - The data to encode
- * @returns The CBOR encoded data as Uint8Array
- */
 export function cborEncode(data: unknown): Uint8Array {
   return encode(data);
 }
 
-/**
- * Decode CBOR binary data.
- *
- * @param data - The CBOR data to decode
- * @returns The decoded data
- */
 export function cborDecode<T = unknown>(data: Uint8Array): T {
   return decode(data) as T;
 }

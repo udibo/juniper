@@ -296,26 +296,16 @@ export class Builder implements AsyncDisposable {
   }
 
   /**
-   * Generates the main server file by scanning the routes directory and creating
-   * the appropriate route configuration. This function is used internally by the build script.
+   * Generates the server entrypoint from the routes directory and writes it to
+   * {@linkcode Builder.serverPath}, overwriting any existing `main.ts`.
    *
-   * This function walks through the routes directory, discovers all route files following
-   * Juniper's file-based routing conventions, and generates a main.ts file that imports
-   * and configures all routes using the createServer function.
+   * @throws Error if `deno fmt` rejects the generated file.
    *
-   * @example Generating main.ts file
+   * @example
    * ```ts
-   * import { Builder } from "@udibo/juniper/build";
-   *
-   * const projectRoot = new URL(".", import.meta.url).pathname;
-   * const builder = new Builder({ projectRoot });
-   * const mainFileContent = await builder.buildMainFile(projectRoot);
-   *
-   * await Deno.writeTextFile("main.ts", mainFileContent);
-   * console.log("Generated main.ts");
+   * await using builder = new Builder();
+   * await builder.buildMainServerEntrypoint();
    * ```
-   *
-   * @returns A promise that resolves to a boolean indicating whether the build was successful or not.
    */
   buildMainServerEntrypoint(): Promise<void> {
     return startActiveSpan("buildMainServerEntrypoint", async () => {
@@ -384,14 +374,10 @@ if (import.meta.main) {
   }
 
   /**
-   * Generates the main client file by scanning the routes directory for .tsx files
-   * and creating the appropriate client route configuration with lazy loading.
+   * Generates the client entrypoint from the routes directory and writes it to
+   * {@linkcode Builder.clientPath}, overwriting any existing `main.tsx`.
    *
-   * This function walks through the routes directory, discovers all .tsx route files
-   * following Juniper's file-based routing conventions, and generates a main.tsx file
-   * that imports and configures all client routes using the createClient function.
-   *
-   * @returns A promise that resolves when the client entry point is built.
+   * @throws Error if `deno fmt` rejects the generated file.
    */
   buildMainClientEntrypoint(): Promise<void> {
     return startActiveSpan("buildMainClientEntrypoint", async () => {
@@ -464,12 +450,14 @@ export const client = new Client(${routesConfigString});
   }
 
   /**
-   * Generates the build for a Juniper application.
+   * Runs the first build of the application. Once one has succeeded, every
+   * build after it must go through {@linkcode Builder.rebuild}; calling this
+   * again throws. A build that failed before esbuild started can be retried.
    *
-   * This function creates an esbuild context for the build and then triggers a build for the application.
-   * If you want to trigger a rebuild after the initial build, you can use the rebuild function.
+   * Regenerates and overwrites the server and client entrypoints first unless
+   * the builder was constructed with `write: false`.
    *
-   * @returns A promise that resolves to the build results.
+   * @returns A promise that resolves to the esbuild build results.
    */
   build(): Promise<esbuild.BuildResult<esbuild.BuildOptions>> {
     return startActiveSpan("build", async () => {
