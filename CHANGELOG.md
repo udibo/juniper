@@ -1,3 +1,12 @@
+# [0.10.0](https://github.com/udibo/juniper/compare/0.9.5...0.10.0) (2026-08-16)
+
+### Features
+
+- **server:** apply the request's CSP nonce to every inline script
+  ([#111](https://github.com/udibo/juniper/issues/111))
+  ([cdd1ad0](https://github.com/udibo/juniper/commit/cdd1ad08de1e6f53260bd6e8f54cc0f140bc11ee)),
+  closes [udibo/udibo#542](https://github.com/udibo/udibo/issues/542)
+
 ## [0.9.5](https://github.com/udibo/juniper/compare/0.9.4...0.9.5) (2026-08-16)
 
 ### Bug Fixes
