@@ -9,6 +9,7 @@ import {
 import type { LoaderFunctionArgs } from "react-router";
 
 import { Hono } from "hono";
+import { NONCE, secureHeaders } from "hono/secure-headers";
 
 import type { RouteLoaderArgs } from "./mod.ts";
 import { HttpError } from "./mod.ts";
@@ -71,6 +72,73 @@ describe("createServer", () => {
     const contactText = await contactRes.text();
     assertStringIncludes(contactText, "<!DOCTYPE html>");
     assertStringIncludes(contactText, "<div>Contact</div>");
+  });
+
+  it("puts the request's CSP nonce on every inline script it emits", async () => {
+    const client = new Client({
+      path: "/",
+      main: { default: () => <div>Nonced</div> },
+    });
+    const server = createServer(import.meta.url, client, { path: "/" });
+
+    // Wired the way an app does it: `secureHeaders` generates the nonce, writes
+    // it into the policy it sends, and exposes it for the renderer. Testing
+    // against the real middleware is the point — a hand-set variable would pass
+    // whatever name this happened to read.
+    const app = new Hono();
+    app.use(secureHeaders({
+      contentSecurityPolicy: { scriptSrc: ["'self'", NONCE] },
+    }));
+    app.route("/", server);
+
+    const response = await app.request("http://localhost/");
+    const text = await response.text();
+
+    const policy = response.headers.get("content-security-policy") ?? "";
+    const nonce = policy.match(/'nonce-([^']+)'/)?.[1];
+    assertExists(nonce, "the policy carries a nonce to match against");
+
+    // Match the hydration script *specifically*. Asserting the nonce appears
+    // anywhere passes on React's bootstrap tag alone, which carries it from the
+    // renderToReadableStream option — so the check would survive the attribute
+    // being dropped from the script this file actually renders.
+    const hydrationTag = text.match(
+      /<script[^>]*>(?=[^<]*__juniperHydrationData)/,
+    );
+    assertExists(hydrationTag, "the hydration script is in the document");
+    assertStringIncludes(hydrationTag[0], `nonce="${nonce}"`);
+
+    const bootstrapTag = text.match(
+      /<script[^>]*src="\/build\/main\.js"[^>]*>/,
+    );
+    assertExists(bootstrapTag, "React's bootstrap script is in the document");
+    assertStringIncludes(
+      bootstrapTag[0],
+      `nonce="${nonce}"`,
+      "the renderToReadableStream option covers what this file cannot reach",
+    );
+    assertEquals(
+      text.includes("unsafe-inline"),
+      false,
+      "nothing falls back to the directive this replaces",
+    );
+  });
+
+  it("omits the nonce attribute when the app sets none", async () => {
+    const client = new Client({
+      path: "/",
+      main: { default: () => <div>Plain</div> },
+    });
+    const server = createServer(import.meta.url, client, { path: "/" });
+
+    const text = await (await server.request("http://localhost/")).text();
+
+    assertEquals(
+      text.includes("nonce="),
+      false,
+      "an app without a CSP nonce keeps exactly the markup it had before",
+    );
+    assertStringIncludes(text, "__juniperHydrationData");
   });
 
   it("should give priority to server routes over client routes", async () => {
