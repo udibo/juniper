@@ -1,3 +1,14 @@
+## [0.9.5](https://github.com/udibo/juniper/compare/0.9.4...0.9.5) (2026-08-16)
+
+### Bug Fixes
+
+- **release:** re-resolve deno.lock after the version bump
+  ([#110](https://github.com/udibo/juniper/issues/110))
+  ([a45e091](https://github.com/udibo/juniper/commit/a45e091e5d95ff7d731ad02518d3fb5fc3542e0d)),
+  closes [#104](https://github.com/udibo/juniper/issues/104)
+  [#108](https://github.com/udibo/juniper/issues/108)
+  [#109](https://github.com/udibo/juniper/issues/109)
+
 ## [0.9.4](https://github.com/udibo/juniper/compare/0.9.3...0.9.4) (2026-08-16)
 
 ### Bug Fixes
