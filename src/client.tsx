@@ -103,9 +103,6 @@ export interface RootClientRoute extends ClientRoute {
  *   await client.hydrate();
  * }
  * ```
- *
- * @param rootRoute - The root client route.
- * @returns A new client instance.
  */
 export class Client {
   /** The root client route. */
@@ -247,9 +244,9 @@ export class Client {
   }
 
   /**
-   * Gets the hydration data for the application.
+   * Reads the hydration data the server embedded in the document.
    *
-   * @returns The hydration data for the application.
+   * @throws Error if the document was not server-rendered by Juniper.
    */
   getHydrationData(): HydrationData {
     const serializedHydrationData = env.getHydrationData();
