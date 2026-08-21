@@ -1,3 +1,12 @@
+## [0.10.1](https://github.com/udibo/juniper/compare/0.10.0...0.10.1) (2026-08-21)
+
+### Bug Fixes
+
+- recover from deploy skew instead of dying on it
+  ([#115](https://github.com/udibo/juniper/issues/115))
+  ([d5f8d3b](https://github.com/udibo/juniper/commit/d5f8d3b7ba23551dac1f5434a20aad50034b673f)),
+  closes [udibo/udibo#679](https://github.com/udibo/udibo/issues/679)
+
 # [0.10.0](https://github.com/udibo/juniper/compare/0.9.5...0.10.0) (2026-08-16)
 
 ### Features
