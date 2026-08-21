@@ -791,6 +791,12 @@ export interface HydrationData {
   loaderData?: Record<string, unknown>;
   /** Action data for each route */
   actionData?: Record<string, unknown>;
+  /**
+   * Identifier of the build that produced the document, compared against the
+   * `X-Juniper-Build` header on data responses to detect a new deployment.
+   * Absent when the server has no build output to identify.
+   */
+  buildId?: string;
 }
 
 /**
@@ -830,11 +836,13 @@ export function deserializeHydrationData(
     errors?: Record<string, unknown> | null;
     loaderData?: Record<string, unknown> | null;
     actionData?: Record<string, unknown> | null;
+    buildId?: string;
   };
 
   return {
     publicEnv: serialized.publicEnv,
     serializedContext: restored.serializedContext,
+    buildId: restored.buildId,
     matches: restored.matches,
     // React Router needs undefined, not null, for these fields.
     errors: restored.errors ?? undefined,

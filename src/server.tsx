@@ -20,6 +20,7 @@ import { getInstance } from "./utils/otel.ts";
 import {
   buildApp,
   createHandlers,
+  getBuildId,
   isRedirectResponse,
   mergeServerRoutes,
   toRedirectEnvelope,
@@ -86,12 +87,23 @@ export function createServer<
 
   appWrapper.use(async (c, next) => {
     c.set("context", new RouterContextProvider());
+    const buildId = await getBuildId(projectRoot);
+    if (buildId) c.set("buildId", buildId);
     await next();
+    const isDataRequest = c.req.header("X-Juniper-Route-Id") !== undefined;
     // Data-mode requests (with `X-Juniper-Route-Id`) expect a redirect envelope, not a raw 3xx that `fetch` would silently follow.
-    if (c.req.header("X-Juniper-Route-Id") && isRedirectResponse(c.res)) {
+    if (isDataRequest && isRedirectResponse(c.res)) {
       c.res = toRedirectEnvelope(c.res);
       c.res.headers.delete("Location");
       c.res.headers.delete("X-Remix-Reload-Document");
+    }
+    if (isDataRequest && buildId) {
+      try {
+        c.res.headers.set("X-Juniper-Build", buildId);
+      } catch {
+        c.res = new Response(c.res.body, c.res);
+        c.res.headers.set("X-Juniper-Build", buildId);
+      }
     }
   });
 
