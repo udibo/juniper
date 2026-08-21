@@ -136,8 +136,50 @@ export type AppEnv = Env & {
      * the attribute is simply omitted.
      */
     secureHeadersNonce?: string;
+    /**
+     * Identifier of the build serving this request, set by `createServer` when
+     * the project has client build output. Embedded in the hydration data and
+     * echoed as the `X-Juniper-Build` header on data responses so a stale tab
+     * can detect a new deployment before it requests a chunk that no longer
+     * exists.
+     */
+    buildId?: string;
   };
 };
+
+const buildIds = new Map<string, Promise<string | undefined>>();
+
+/**
+ * Identifier of the client build under `projectRoot`: a content hash of
+ * `public/build/main.js`, computed once per root for the life of the process —
+ * a deployment's build output never changes, and deriving it from content
+ * means every instance of one deployment agrees. Resolves `undefined` when
+ * there is no build output to identify, which leaves version-skew detection
+ * inert.
+ */
+export function getBuildId(projectRoot: string): Promise<string | undefined> {
+  let id = buildIds.get(projectRoot);
+  if (!id) {
+    id = (async () => {
+      try {
+        const content = await Deno.readFile(
+          path.resolve(projectRoot, "./public/build/main.js"),
+        );
+        const digest = new Uint8Array(
+          await crypto.subtle.digest("SHA-256", content),
+        );
+        return Array.from(
+          digest.subarray(0, 8),
+          (byte) => byte.toString(16).padStart(2, "0"),
+        ).join("");
+      } catch {
+        return undefined;
+      }
+    })();
+    buildIds.set(projectRoot, id);
+  }
+  return id;
+}
 
 interface ServerRouteModule {
   // deno-lint-ignore no-explicit-any -- Accepts any Hono app regardless of its type parameters
@@ -302,6 +344,7 @@ async function renderDocument(
           errors: context.errors ?? undefined,
           loaderData: context.loaderData ?? undefined,
           actionData: context.actionData ?? undefined,
+          buildId: c.get("buildId"),
         };
 
         const serializedHydrationData = serializeHydrationData(

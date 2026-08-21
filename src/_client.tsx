@@ -229,6 +229,63 @@ function clearReloadState(key: string): void {
 
 const LAZY_LOAD_RELOAD_KEY = "__juniper_lazy_load_reload";
 const SAME_LOCATION_RELOAD_KEY = "__juniper_same_location_reload";
+const BUILD_SKEW_RELOAD_KEY = "__juniper_build_skew_reload";
+
+interface RouterLocation {
+  pathname: string;
+  search: string;
+  hash: string;
+}
+
+interface NavigationalRouter {
+  state: {
+    location: RouterLocation;
+    navigation: { location?: RouterLocation };
+  };
+}
+
+let activeRouter: NavigationalRouter | undefined;
+
+/**
+ * Registers the hydrated router so failure recovery can hard-navigate to the
+ * navigation's destination instead of reloading whatever URL happens to be
+ * current. Called by `Client.hydrate`; `undefined` clears the registration.
+ */
+export function registerRouter(router: NavigationalRouter | undefined): void {
+  activeRouter = router;
+}
+
+function recoveryDestination(): string {
+  const target = activeRouter?.state.navigation.location ??
+    activeRouter?.state.location;
+  return target
+    ? `${target.pathname}${target.search}${target.hash}`
+    : globalThis.location.href;
+}
+
+/**
+ * Whether an error is a failed dynamic module import — the error a missing
+ * route chunk produces. Matched by message because every browser throws its
+ * own `TypeError` for it, and it matters to recovery: the browser caches the
+ * failed import for the document's lifetime, so only a document navigation
+ * (never a client-side retry) can succeed afterwards.
+ */
+export function isModuleLoadError(error: unknown): boolean {
+  return error instanceof TypeError &&
+    /dynamically imported module|Importing a module script failed/i
+      .test(error.message);
+}
+
+let clientBuildId: string | undefined;
+
+/**
+ * Records the build id the document was rendered with (from hydration data),
+ * compared against the `X-Juniper-Build` header on data responses to detect a
+ * new deployment. Called by `Client.hydrate`; `undefined` disables the check.
+ */
+export function setClientBuildId(buildId: string | undefined): void {
+  clientBuildId = buildId;
+}
 
 // Never settles, so React Router stays pending during a full-page navigation/reload; resolving would render the destination route for a frame and flash the wrong page.
 function holdForDocumentNavigation(): Promise<never> {
@@ -250,6 +307,22 @@ async function fetchServerData(
   }
 
   const response = await fetch(request.url, fetchOptions);
+
+  if (method === "GET") {
+    const serverBuildId = response.headers.get("X-Juniper-Build");
+    if (clientBuildId && serverBuildId) {
+      if (serverBuildId === clientBuildId) {
+        clearReloadState(BUILD_SKEW_RELOAD_KEY);
+      } else if (shouldReload(BUILD_SKEW_RELOAD_KEY)) {
+        recordReload(BUILD_SKEW_RELOAD_KEY);
+        await response.body?.cancel();
+        delay(0).then(() => {
+          globalThis.location.assign(request.url);
+        });
+        return holdForDocumentNavigation();
+      }
+    }
+  }
 
   const contentType = response.headers.get("Content-Type");
 
@@ -514,6 +587,12 @@ export function createRoute(
       }
 
       function resetErrorBoundary() {
+        if (isModuleLoadError(routeError)) {
+          globalThis.location.assign(
+            location.pathname + location.search + location.hash,
+          );
+          return;
+        }
         navigate(location.pathname, { replace: true });
       }
 
@@ -567,6 +646,13 @@ export function createRoute(
  * Creates a lazy route object that loads a `RouteModule` and converts it to a route object.
  * Note: Middleware cannot be lazily loaded per React Router constraints, so it is stripped.
  *
+ * A failed module load (typically a deployment replaced the hashed chunks an
+ * open tab still references) recovers by hard-navigating to the navigation's
+ * destination — the server can always render it, and the fresh document
+ * carries the new build's chunk names. Recovery is loop-guarded via
+ * `sessionStorage`; once the guard trips the error is left to surface in the
+ * nearest ErrorBoundary.
+ *
  * @param lazyRouteFile - The lazy route file to create a lazy route object from.
  * @param serverFlags - Flags indicating whether the route has server-side loader/action.
  * @param routeId - The route ID used for server data requests.
@@ -585,8 +671,9 @@ export function createLazyRoute(
     } catch (error) {
       if (shouldReload(LAZY_LOAD_RELOAD_KEY)) {
         recordReload(LAZY_LOAD_RELOAD_KEY);
+        const destination = recoveryDestination();
         delay(0).then(() => {
-          globalThis.location.reload();
+          globalThis.location.assign(destination);
         });
       }
       throw error;

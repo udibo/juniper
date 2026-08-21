@@ -21,6 +21,8 @@ import {
   deserializeHydrationData,
   generateRouteId,
   JuniperContextProvider,
+  registerRouter,
+  setClientBuildId,
 } from "./_client.tsx";
 import type { HydrationData, LazyRoute, ServerFlags } from "./_client.tsx";
 import { deserializeAllContext } from "./_serialization.ts";
@@ -288,12 +290,22 @@ export class Client {
   /**
    * Hydrates the application.
    * This function sets up the browser router and renders the application.
+   *
+   * A route module that fails to load here does not abort hydration: the
+   * failure is logged and the router is still created, so React Router
+   * re-attempts the load and surfaces the error in the nearest ErrorBoundary
+   * rather than leaving a server-rendered page with no interactivity.
    */
   async hydrate() {
-    const { matches, serializedContext, ...hydrationData } = this
+    const { matches, serializedContext, buildId, ...hydrationData } = this
       .getHydrationData();
+    setClientBuildId(buildId);
 
-    await this.loadLazyMatches(matches);
+    try {
+      await this.loadLazyMatches(matches);
+    } catch (error) {
+      console.error("Failed to load a route module during hydration:", error);
+    }
 
     const context = new RouterContextProvider();
     deserializeAllContext(
@@ -305,6 +317,7 @@ export class Client {
       hydrationData,
       getContext: () => context,
     });
+    registerRouter(router);
 
     const htmlProps = this.htmlProps;
     function HydratedApp() {

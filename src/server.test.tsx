@@ -1,5 +1,11 @@
-import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
+import {
+  assertEquals,
+  assertExists,
+  assertNotEquals,
+  assertStringIncludes,
+} from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
+import * as path from "@std/path";
 import {
   Outlet,
   redirectDocument,
@@ -16,8 +22,9 @@ import { HttpError } from "./mod.ts";
 import { Client } from "./client.tsx";
 import { createServer } from "./server.tsx";
 
-import { mergeServerRoutes } from "./_server.tsx";
-import { cborDecode } from "./_serialization.ts";
+import { getBuildId, mergeServerRoutes } from "./_server.tsx";
+import { cborDecode, deserializeHydrationData } from "./_serialization.ts";
+import type { SerializedHydrationData } from "./_serialization.ts";
 
 describe("createServer", () => {
   it("should return 404 for a non-existent route", async () => {
@@ -1102,6 +1109,111 @@ describe("build artifact cache control", () => {
       await res.body?.cancel();
     } finally {
       await Deno.remove(tempDir, { recursive: true });
+    }
+  });
+});
+
+describe("build id (deploy-skew handshake)", () => {
+  async function makeProject(mainJs?: string): Promise<string> {
+    const dir = await Deno.makeTempDir();
+    if (mainJs !== undefined) {
+      await Deno.mkdir(path.join(dir, "public", "build"), { recursive: true });
+      await Deno.writeTextFile(
+        path.join(dir, "public", "build", "main.js"),
+        mainJs,
+      );
+    }
+    return dir;
+  }
+
+  function makeServer(projectDir: string) {
+    const client = new Client({
+      path: "/",
+      main: { default: () => <div>Home</div> },
+    });
+    return createServer(
+      path.toFileUrl(path.join(projectDir, "main.ts")).href,
+      client,
+      {
+        path: "/",
+        main: { loader: () => Promise.resolve({ ok: true }) },
+      },
+    );
+  }
+
+  it("stamps data responses and hydration data with the same build id", async () => {
+    const dir = await makeProject(`console.log("build a");`);
+    try {
+      const server = makeServer(dir);
+
+      const dataRes = await server.request("http://localhost/", {
+        headers: { "X-Juniper-Route-Id": "/" },
+      });
+      assertEquals(dataRes.status, 200);
+      const buildId = dataRes.headers.get("X-Juniper-Build");
+      assertExists(buildId);
+      await dataRes.body?.cancel();
+
+      const docRes = await server.request("http://localhost/");
+      assertEquals(docRes.status, 200);
+      const html = await docRes.text();
+      const embedded = html.match(
+        /__juniperHydrationData = (.*?); await client\.hydrate\(\)/,
+      );
+      assertExists(embedded);
+      const hydrationData = deserializeHydrationData(
+        JSON.parse(embedded[1]) as SerializedHydrationData,
+      );
+      assertEquals(hydrationData.buildId, buildId);
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  });
+
+  it("omits the header when the project has no client build output", async () => {
+    const dir = await makeProject();
+    try {
+      const server = makeServer(dir);
+      const res = await server.request("http://localhost/", {
+        headers: { "X-Juniper-Route-Id": "/" },
+      });
+      assertEquals(res.status, 200);
+      assertEquals(res.headers.get("X-Juniper-Build"), null);
+      await res.body?.cancel();
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  });
+
+  it("does not stamp document responses", async () => {
+    const dir = await makeProject(`console.log("build a");`);
+    try {
+      const server = makeServer(dir);
+      const res = await server.request("http://localhost/");
+      assertEquals(res.status, 200);
+      assertEquals(res.headers.get("X-Juniper-Build"), null);
+      await res.body?.cancel();
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  });
+
+  it("derives the id from the build content, identically per content", async () => {
+    const dirA = await makeProject("a");
+    const dirB = await makeProject("b");
+    const dirA2 = await makeProject("a");
+    try {
+      const idA = await getBuildId(dirA);
+      const idB = await getBuildId(dirB);
+      const idA2 = await getBuildId(dirA2);
+      assertExists(idA);
+      assertExists(idB);
+      assertNotEquals(idA, idB);
+      assertEquals(idA2, idA);
+    } finally {
+      await Deno.remove(dirA, { recursive: true });
+      await Deno.remove(dirB, { recursive: true });
+      await Deno.remove(dirA2, { recursive: true });
     }
   });
 });

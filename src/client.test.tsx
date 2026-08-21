@@ -6,7 +6,13 @@ import {
   assertObjectMatch,
   assertRejects,
 } from "@std/assert";
-import { beforeAll, beforeEach, describe, it } from "@std/testing/bdd";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  it,
+} from "@std/testing/bdd";
 import { assertSpyCalls, stub } from "@std/testing/mock";
 import { delay } from "@std/async/delay";
 import { HttpError } from "./mod.ts";
@@ -28,6 +34,9 @@ import {
   createLazyRoute,
   createRoute,
   deserializeHydrationData,
+  isModuleLoadError,
+  registerRouter,
+  setClientBuildId,
 } from "./_client.tsx";
 import { serializeHydrationData } from "./_serialization.ts";
 
@@ -749,6 +758,7 @@ describe("HydrationData serialization and deserialization", () => {
     hydrationData = {
       publicEnv: { APP_ENV: "test", APP_NAME: "TestApp" },
       serializedContext: { testKey: "testValue" },
+      buildId: "0123456789abcdef",
       matches: [{ id: "/" }, { id: "/blog" }, { id: "/blog/index" }],
       errors: {
         "/": new Error("Oops"),
@@ -816,12 +826,17 @@ describe("HydrationData serialization and deserialization", () => {
       [
         "publicEnv",
         "serializedContext",
+        "buildId",
         "matches",
         "errors",
         "loaderData",
         "actionData",
       ],
     );
+  });
+
+  it("buildId is the same", () => {
+    assertEquals(deserializedHydrationData.buildId, "0123456789abcdef");
   });
 
   it("matches are the same", () => {
@@ -901,5 +916,286 @@ describe("HydrationData serialization and deserialization", () => {
 
   it("actionData is the same", async () => {
     await assertRouteDataErrors("Action", deserializedHydrationData.actionData);
+  });
+});
+
+describe("createLazyRoute failure recovery", () => {
+  const LAZY_LOAD_RELOAD_KEY = "__juniper_lazy_load_reload";
+  let assigned: string[];
+  let originalLocation: typeof globalThis.location;
+
+  beforeEach(() => {
+    sessionStorage.removeItem(LAZY_LOAD_RELOAD_KEY);
+    registerRouter(undefined);
+    assigned = [];
+    originalLocation = globalThis.location;
+    Object.defineProperty(globalThis, "location", {
+      configurable: true,
+      value: {
+        href: "http://localhost/current",
+        assign: (url: string) => void assigned.push(url),
+      },
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(globalThis, "location", {
+      configurable: true,
+      value: originalLocation,
+    });
+    sessionStorage.removeItem(LAZY_LOAD_RELOAD_KEY);
+    registerRouter(undefined);
+  });
+
+  function failingLazyRoute() {
+    return createLazyRoute(
+      () => Promise.reject(new Error("chunk missing")),
+      undefined,
+      "route-1",
+    );
+  }
+
+  it("hard-navigates to the in-flight navigation's destination", async () => {
+    registerRouter({
+      state: {
+        location: { pathname: "/current", search: "", hash: "" },
+        navigation: {
+          location: { pathname: "/destination", search: "?q=1", hash: "#top" },
+        },
+      },
+    });
+
+    await assertRejects(() => failingLazyRoute()(), Error, "chunk missing");
+    await delay(1);
+
+    assertEquals(assigned, ["/destination?q=1#top"]);
+  });
+
+  it("navigates to the settled location when no navigation is in flight", async () => {
+    registerRouter({
+      state: {
+        location: { pathname: "/current", search: "?tab=2", hash: "" },
+        navigation: {},
+      },
+    });
+
+    await assertRejects(() => failingLazyRoute()(), Error, "chunk missing");
+    await delay(1);
+
+    assertEquals(assigned, ["/current?tab=2"]);
+  });
+
+  it("falls back to location.href when no router is registered", async () => {
+    await assertRejects(() => failingLazyRoute()(), Error, "chunk missing");
+    await delay(1);
+
+    assertEquals(assigned, ["http://localhost/current"]);
+  });
+
+  it("stops navigating once the loop guard trips, so the error can surface", async () => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await assertRejects(() => failingLazyRoute()(), Error, "chunk missing");
+      await delay(1);
+    }
+
+    assertEquals(assigned.length, 2);
+  });
+});
+
+describe("build skew detection", () => {
+  const BUILD_SKEW_RELOAD_KEY = "__juniper_build_skew_reload";
+  let assigned: string[];
+  let originalLocation: typeof globalThis.location;
+
+  beforeEach(() => {
+    sessionStorage.removeItem(BUILD_SKEW_RELOAD_KEY);
+    setClientBuildId("build-a");
+    assigned = [];
+    originalLocation = globalThis.location;
+    Object.defineProperty(globalThis, "location", {
+      configurable: true,
+      value: {
+        href: "http://localhost/current",
+        assign: (url: string) => void assigned.push(url),
+      },
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(globalThis, "location", {
+      configurable: true,
+      value: originalLocation,
+    });
+    sessionStorage.removeItem(BUILD_SKEW_RELOAD_KEY);
+    setClientBuildId(undefined);
+  });
+
+  const routeFile: RouteModule = { default: () => <div>Route</div> };
+
+  function loaderArgs(url: string): LoaderFunctionArgs {
+    return {
+      context: {} as never,
+      params: {},
+      request: new Request(url),
+      url: new URL(url),
+      pattern: "/identity",
+    } as LoaderFunctionArgs;
+  }
+
+  it("turns a loader fetch answered by a newer build into a document navigation", async () => {
+    using _fetchStub = stub(
+      globalThis,
+      "fetch",
+      () =>
+        Promise.resolve(
+          new Response("{}", { headers: { "X-Juniper-Build": "build-b" } }),
+        ),
+    );
+
+    const routeObject = createRoute(routeFile, { loader: true }, "route-1");
+    assertExists(routeObject.loader);
+    const result = routeObject.loader(loaderArgs("http://localhost/identity"));
+
+    const pending = Symbol("pending");
+    const outcome = await Promise.race([
+      Promise.resolve(result).then(() => "settled"),
+      delay(10).then(() => pending),
+    ]);
+    assertEquals(outcome, pending);
+    assertEquals(assigned, ["http://localhost/identity"]);
+  });
+
+  it("accepts a matching build id and clears the loop guard", async () => {
+    sessionStorage.setItem(
+      BUILD_SKEW_RELOAD_KEY,
+      JSON.stringify({ count: 1, timestamp: Date.now() }),
+    );
+    using _fetchStub = stub(
+      globalThis,
+      "fetch",
+      () =>
+        Promise.resolve(
+          new Response("{}", { headers: { "X-Juniper-Build": "build-a" } }),
+        ),
+    );
+
+    const routeObject = createRoute(routeFile, { loader: true }, "route-1");
+    assertExists(routeObject.loader);
+    const result = await routeObject.loader(
+      loaderArgs("http://localhost/identity"),
+    );
+
+    assert(result instanceof Response);
+    assertEquals(assigned, []);
+    assertEquals(sessionStorage.getItem(BUILD_SKEW_RELOAD_KEY), null);
+  });
+
+  it("ignores responses that carry no build id", async () => {
+    using _fetchStub = stub(
+      globalThis,
+      "fetch",
+      () => Promise.resolve(new Response("{}")),
+    );
+
+    const routeObject = createRoute(routeFile, { loader: true }, "route-1");
+    assertExists(routeObject.loader);
+    const result = await routeObject.loader(
+      loaderArgs("http://localhost/identity"),
+    );
+
+    assert(result instanceof Response);
+    assertEquals(assigned, []);
+  });
+
+  it("does not turn an action into a document navigation", async () => {
+    using _fetchStub = stub(
+      globalThis,
+      "fetch",
+      () =>
+        Promise.resolve(
+          new Response("{}", { headers: { "X-Juniper-Build": "build-b" } }),
+        ),
+    );
+
+    const routeObject = createRoute(routeFile, { action: true }, "route-1");
+    assertExists(routeObject.action);
+    const body = new FormData();
+    body.set("title", "Hello");
+    const result = await routeObject.action({
+      context: {} as never,
+      params: {},
+      request: new Request("http://localhost/identity", {
+        method: "POST",
+        body,
+      }),
+      url: new URL("http://localhost/identity"),
+      pattern: "/identity",
+    } as ActionFunctionArgs);
+
+    assert(result instanceof Response);
+    assertEquals(assigned, []);
+  });
+
+  it("stops navigating once the loop guard trips", async () => {
+    using _fetchStub = stub(
+      globalThis,
+      "fetch",
+      () =>
+        Promise.resolve(
+          new Response("{}", { headers: { "X-Juniper-Build": "build-b" } }),
+        ),
+    );
+    const routeObject = createRoute(routeFile, { loader: true }, "route-1");
+    assertExists(routeObject.loader);
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const result = routeObject.loader(
+        loaderArgs("http://localhost/identity"),
+      );
+      const pending = Symbol("pending");
+      const outcome = await Promise.race([
+        Promise.resolve(result).then(() => "settled"),
+        delay(10).then(() => pending),
+      ]);
+      assertEquals(outcome, pending);
+    }
+    assertEquals(assigned.length, 2);
+
+    const result = await routeObject.loader(
+      loaderArgs("http://localhost/identity"),
+    );
+    assert(result instanceof Response);
+    assertEquals(assigned.length, 2);
+  });
+});
+
+describe("isModuleLoadError", () => {
+  it("matches each browser's failed dynamic import error", () => {
+    assert(
+      isModuleLoadError(
+        new TypeError(
+          "Failed to fetch dynamically imported module: http://localhost/build/a.js",
+        ),
+      ),
+    );
+    assert(
+      isModuleLoadError(
+        new TypeError("error loading dynamically imported module"),
+      ),
+    );
+    assert(
+      isModuleLoadError(new TypeError("Importing a module script failed.")),
+    );
+  });
+
+  it("does not match other errors", () => {
+    assert(!isModuleLoadError(new TypeError("x is not a function")));
+    assert(
+      !isModuleLoadError(
+        new Error("Failed to fetch dynamically imported module: x"),
+      ),
+    );
+    assert(!isModuleLoadError(new HttpError(404, "Not found")));
+    assert(!isModuleLoadError("Failed to fetch dynamically imported module"));
   });
 });
