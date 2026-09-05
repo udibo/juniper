@@ -1,3 +1,11 @@
+## [0.10.2](https://github.com/udibo/juniper/compare/0.10.1...0.10.2) (2026-09-05)
+
+### Bug Fixes
+
+- support native Windows build paths
+  ([#116](https://github.com/udibo/juniper/issues/116))
+  ([ae4e1f2](https://github.com/udibo/juniper/commit/ae4e1f2022ec3fdec78bb2fcefd4312f8dcf4967))
+
 ## [0.10.1](https://github.com/udibo/juniper/compare/0.10.0...0.10.1) (2026-08-21)
 
 ### Bug Fixes

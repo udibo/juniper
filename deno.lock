@@ -30,7 +30,7 @@
     "npm:@opentelemetry/api@^1.9.1": "1.9.1",
     "npm:@tailwindcss/postcss@^4.3.0": "4.3.0",
     "npm:@tanstack/react-query@^5.100.14": "5.100.14_react@19.2.7",
-    "npm:@testing-library/react@^16.3.2": "16.3.2_@testing-library+dom@10.4.1_@types+react@19.2.16_react@19.2.7_react-dom@19.2.7__react@19.2.7",
+    "npm:@testing-library/react@^16.3.2": "16.3.2_@testing-library+dom@10.4.1_@types+react@19.2.16_react@19.2.7_react-dom@19.2.7",
     "npm:@testing-library/user-event@^14.6.1": "14.6.1_@testing-library+dom@10.4.1",
     "npm:@types/pg@^8.20.0": "8.20.0",
     "npm:@types/react@^19.2.16": "19.2.16",
@@ -52,7 +52,7 @@
     "npm:quick-lru@^7.3.0": "7.3.0",
     "npm:react-dom@^19.2.7": "19.2.7_react@19.2.7",
     "npm:react-error-boundary@^6.1.2": "6.1.2_react@19.2.7",
-    "npm:react-router@^8.3.0": "8.3.0_react@19.2.7_react-dom@19.2.7__react@19.2.7",
+    "npm:react-router@^8.3.0": "8.3.0_react@19.2.7_react-dom@19.2.7",
     "npm:react@^19.2.7": "19.2.7",
     "npm:tailwindcss@^4.3.0": "4.3.0",
     "npm:zod@^4.4.3": "4.4.3"
@@ -328,14 +328,14 @@
     "@csstools/color-helpers@6.0.2": {
       "integrity": "sha512-LMGQLS9EuADloEFkcTBR3BwV/CGHV7zyDxVRtVDTwdI2Ca4it0CCVTT9wCkxSgokjE5Ho41hEPgb8OEUwoXr6Q=="
     },
-    "@csstools/css-calc@3.2.1_@csstools+css-parser-algorithms@4.0.0__@csstools+css-tokenizer@4.0.0_@csstools+css-tokenizer@4.0.0": {
+    "@csstools/css-calc@3.2.1_@csstools+css-parser-algorithms@4.0.0_@csstools+css-tokenizer@4.0.0": {
       "integrity": "sha512-DtdHlgXh5ZkA43cwBcAm+huzgJiwx3ZTWVjBs94kwz2xKqSimDA3lBgCjphYgwgVUMWatSM0pDd8TILB1yrVVg==",
       "dependencies": [
         "@csstools/css-parser-algorithms",
         "@csstools/css-tokenizer"
       ]
     },
-    "@csstools/css-color-parser@4.1.3_@csstools+css-parser-algorithms@4.0.0__@csstools+css-tokenizer@4.0.0_@csstools+css-tokenizer@4.0.0": {
+    "@csstools/css-color-parser@4.1.3_@csstools+css-parser-algorithms@4.0.0_@csstools+css-tokenizer@4.0.0": {
       "integrity": "sha512-DOgvIPkikIOixQRlD4YF31VN6fLLUTdrzhfRbis8vm0kMTgIbEPX0Ip/YX9fOeV9iywAS4sUUbTclpan7yYP8Q==",
       "dependencies": [
         "@csstools/color-helpers",
@@ -936,7 +936,7 @@
         "pretty-format"
       ]
     },
-    "@testing-library/react@16.3.2_@testing-library+dom@10.4.1_@types+react@19.2.16_react@19.2.7_react-dom@19.2.7__react@19.2.7": {
+    "@testing-library/react@16.3.2_@testing-library+dom@10.4.1_@types+react@19.2.16_react@19.2.7_react-dom@19.2.7": {
       "integrity": "sha512-XU5/SytQM+ykqMnAnvB2umaJNIOsLF3PVv//1Ew4CTcpz0/BRyy/af40qqrt7SjKpDdT1saBMc42CUok5gaw+g==",
       "dependencies": [
         "@babel/runtime",
@@ -1938,7 +1938,7 @@
     "react-is@17.0.2": {
       "integrity": "sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w=="
     },
-    "react-router@8.3.0_react@19.2.7_react-dom@19.2.7__react@19.2.7": {
+    "react-router@8.3.0_react@19.2.7_react-dom@19.2.7": {
       "integrity": "sha512-qyPMvW83jGIct3yiieisxdk9M745anqhpIMKN5m1t6yBMfgVPpt77aHOqs5fUlEJRMCGffg9BaQLH9oPVOL7xQ==",
       "dependencies": [
         "cookie-es",
@@ -2225,7 +2225,7 @@
           "jsr:@std/testing@^1.0.19",
           "jsr:@std/uuid@^1.1.1",
           "jsr:@udibo/esbuild-plugin-postcss@0.4",
-          "jsr:@udibo/juniper@~0.10.1",
+          "jsr:@udibo/juniper@~0.10.2",
           "npm:@opentelemetry/api@^1.9.1",
           "npm:@tailwindcss/postcss@^4.3.0",
           "npm:@testing-library/react@^16.3.2",
@@ -2276,7 +2276,7 @@
           "jsr:@std/path@^1.1.5",
           "jsr:@std/streams@^1.1.1",
           "jsr:@std/testing@^1.0.19",
-          "jsr:@udibo/juniper@~0.10.1",
+          "jsr:@udibo/juniper@~0.10.2",
           "npm:@opentelemetry/api@^1.9.1",
           "npm:@testing-library/react@^16.3.2",
           "npm:@types/react@^19.2.16",
@@ -2292,7 +2292,7 @@
           "jsr:@std/path@^1.1.5",
           "jsr:@std/streams@^1.1.1",
           "jsr:@std/testing@^1.0.19",
-          "jsr:@udibo/juniper@~0.10.1",
+          "jsr:@udibo/juniper@~0.10.2",
           "npm:@opentelemetry/api@^1.9.1",
           "npm:@testing-library/react@^16.3.2",
           "npm:@types/pg@^8.20.0",
@@ -2314,7 +2314,7 @@
           "jsr:@std/streams@^1.1.1",
           "jsr:@std/testing@^1.0.19",
           "jsr:@udibo/esbuild-plugin-postcss@0.4",
-          "jsr:@udibo/juniper@~0.10.1",
+          "jsr:@udibo/juniper@~0.10.2",
           "npm:@opentelemetry/api@^1.9.1",
           "npm:@tailwindcss/postcss@^4.3.0",
           "npm:@testing-library/react@^16.3.2",
@@ -2333,7 +2333,7 @@
           "jsr:@std/path@^1.1.5",
           "jsr:@std/streams@^1.1.1",
           "jsr:@std/testing@^1.0.19",
-          "jsr:@udibo/juniper@~0.10.1",
+          "jsr:@udibo/juniper@~0.10.2",
           "npm:@opentelemetry/api@^1.9.1",
           "npm:@tanstack/react-query@^5.100.14",
           "npm:@testing-library/react@^16.3.2",
@@ -2351,7 +2351,7 @@
           "jsr:@std/path@^1.1.5",
           "jsr:@std/streams@^1.1.1",
           "jsr:@std/testing@^1.0.19",
-          "jsr:@udibo/juniper@~0.10.1",
+          "jsr:@udibo/juniper@~0.10.2",
           "npm:@opentelemetry/api@^1.9.1",
           "npm:@testing-library/react@^16.3.2",
           "npm:@types/react@^19.2.16",
