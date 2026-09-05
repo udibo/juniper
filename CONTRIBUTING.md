@@ -20,6 +20,25 @@ Before contributing, ensure you have:
 - A code editor (VS Code with the Deno extension is recommended)
 - Docker (optional, for OpenTelemetry development)
 
+### Windows and Ubuntu
+
+Use a current stable Deno 2 release. The same `deno task` commands work in
+PowerShell and Bash; task commands use Deno's portable shell. Keep separate
+checkouts and `node_modules` directories for native Windows and WSL/Ubuntu.
+
+The repository attributes and editor defaults keep source files on LF. Configure
+a standalone clone locally as follows (Udibo's setup does this for its
+submodules):
+
+```sh
+git config --local core.autocrlf false
+git config --local core.eol lf
+git config --local core.safecrlf true
+```
+
+Docker is needed for the Postgres template tests and optional telemetry. The
+framework, minimal, Tailwind, TanStack, and blog suites need no database.
+
 ### Development Setup
 
 1. **Fork the repository** on GitHub
@@ -32,7 +51,7 @@ Before contributing, ensure you have:
 
 3. **Install dependencies:**
    ```bash
-   deno install
+   deno install --frozen
    ```
 
 4. **Run the example application:**
@@ -384,3 +403,7 @@ Releases are fully automated using
 - **Documentation** - Check the [docs](docs/) folder
 
 Thank you for contributing to Juniper!
+
+## Changelog
+
+- **2026-09-05** — Added native Windows/Ubuntu setup and LF guidance.
