@@ -6,6 +6,20 @@ Juniper projects work seamlessly with continuous integration and deployment
 pipelines. This guide covers setting up GitHub Actions for automated testing,
 linting, and deployment.
 
+## Juniper's compatibility checks
+
+The framework's `.github/workflows/ci-cd.yml` runs tests on Ubuntu, macOS, and
+Windows. Windows uses `setup-deno` with caching disabled. The matrix also builds
+the minimal and Tailwind production applications, exercising real CLI builds and
+CSS entries; a failed platform does not cancel the others. The database-backed
+Postgres template remains a separate Ubuntu job.
+
+Relative build entries such as `./main.css` resolve from the project root on
+every platform, including directory names containing spaces. Run both
+`deno task test` and `deno task build:prod:tailwindcss` when changing the
+builder. The generic application CI example below is independent of this
+framework matrix.
+
 ## GitHub Actions
 
 ### Workflow Configuration
@@ -385,3 +399,8 @@ jobs:
 
 - [Testing](testing.md) - Testing utilities and patterns
 - [Configuration](configuration.md) - Project and build configuration
+
+## Changelog
+
+- **2026-09-05** — Documented platform coverage and production-build checks for
+  Windows CSS entry failures.

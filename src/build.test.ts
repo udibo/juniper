@@ -21,6 +21,42 @@ const exampleDir = path.resolve(
 );
 
 describe("Builder", () => {
+  it("builds relative, absolute, and glob CSS entries from a project directory containing spaces", async () => {
+    const projectRoot = await Deno.makeTempDir({ prefix: "juniper build " });
+    try {
+      await Deno.writeTextFile(path.join(projectRoot, "deno.json"), "{}");
+      await Deno.writeTextFile(
+        path.join(projectRoot, "main.tsx"),
+        "export const value = 1;",
+      );
+      await Deno.writeTextFile(
+        path.join(projectRoot, "main.css"),
+        "body { color: red; }",
+      );
+      for (
+        const entry of [
+          "./main.css",
+          path.join(projectRoot, "main.css"),
+          "./*.css",
+        ]
+      ) {
+        await using builder = new Builder({
+          projectRoot,
+          entryPoints: [entry],
+          write: false,
+        });
+        const result = await builder.build();
+        assertEquals(result.errors, []);
+        const css = result.outputFiles?.find((file) =>
+          file.path.endsWith("main.css")
+        );
+        assertEquals(css?.text.includes("red"), true);
+      }
+    } finally {
+      await Deno.remove(projectRoot, { recursive: true });
+    }
+  });
+
   describe("internal helpers (_build)", () => {
     it("should identify client route types (dynamic and catchall)", () => {
       assertEquals(isClientDynamicRoute("[id].tsx"), true);

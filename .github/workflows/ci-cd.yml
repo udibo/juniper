@@ -28,7 +28,9 @@ jobs:
     name: Test on ${{ matrix.os }}
     needs: [format-and-lint]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
@@ -48,6 +50,10 @@ jobs:
           cache: false
       - name: Install dependencies
         run: deno ci
+      - name: Build minimal production application
+        run: deno task build:prod:minimal
+      - name: Build Tailwind production application
+        run: deno task build:prod:tailwindcss
       - name: Run Juniper tests with coverage (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: deno task test --coverage

@@ -71,6 +71,7 @@ export interface BuildOptions {
    * - All CSS files in routes: ["./routes/**\/*.css"]
    * - Multiple entry points: ["./styles/main.css", "./workers/sw.ts"]
    *
+   * Relative entries are resolved from the project root on every platform.
    * Built files will be placed in the public/build directory.
    * Defaults to an empty array.
    */
@@ -162,7 +163,7 @@ export class Builder implements AsyncDisposable {
   readonly ignorePaths: string[];
   /** Absolute output directory for built assets (`public/build`). */
   readonly outdir: string;
-  /** All esbuild entry points: any extra entries plus the main client entry. */
+  /** Absolute esbuild entry paths: extra entries plus the main client entry. */
   readonly entryPoints: string[];
   /** Whether build output is written to disk; `false` is used in tests. */
   protected write: boolean;
@@ -196,7 +197,12 @@ export class Builder implements AsyncDisposable {
       options.configPath ?? "./deno.json",
     );
     this.entryPoint = path.resolve(this.projectRoot, "./main.tsx");
-    this.entryPoints = [...(options.entryPoints ?? []), this.entryPoint];
+    this.entryPoints = [
+      ...(options.entryPoints ?? []).map((entry) =>
+        path.resolve(this.projectRoot, entry)
+      ),
+      this.entryPoint,
+    ];
     this.plugins = [...(options.plugins ?? [])];
     this.outdir = path.resolve(this.publicPath, "build");
     this.serverPath = path.resolve(this.projectRoot, "./main.ts");
@@ -494,10 +500,6 @@ export const client = new Client(${routesConfigString});
           await this.buildMainClientEntrypoint();
         }
 
-        const normalizedEntryPoints = Deno.build.os === "windows"
-          ? this.entryPoints.map((p) => path.toFileUrl(p).href)
-          : this.entryPoints;
-
         this.context = await esbuild.context({
           plugins: [
             reactCompilerPlugin({
@@ -507,7 +509,7 @@ export const client = new Client(${routesConfigString});
             denoPlugin({ configPath }),
           ],
           absWorkingDir: path.dirname(configPath),
-          entryPoints: normalizedEntryPoints,
+          entryPoints: this.entryPoints,
           outdir: this.outdir,
           outbase: this.projectRoot,
           bundle: true,
