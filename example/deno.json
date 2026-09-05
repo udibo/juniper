@@ -71,7 +71,8 @@
       "read": true,
       "write": true,
       "run": true,
-      "ffi": true
+      "ffi": true,
+      "sys": ["osRelease"]
     },
     "dev": {
       "env": true,
@@ -79,7 +80,8 @@
       "write": true,
       "net": true,
       "run": true,
-      "ffi": true
+      "ffi": true,
+      "sys": ["osRelease"]
     },
     "test": {
       "env": true,

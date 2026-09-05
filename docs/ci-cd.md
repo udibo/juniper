@@ -402,5 +402,9 @@ jobs:
 
 ## Changelog
 
+- **2026-09-05** — Tailwind build and dev permission profiles allow only the
+  `osRelease` system query needed by jiti's Windows terminal-color detection.
+  Reproduce CI builds without `NO_COLOR` or `TERM=dumb`, which bypass that
+  query.
 - **2026-09-05** — Documented platform coverage and production-build checks for
   Windows CSS entry failures.
