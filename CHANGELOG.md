@@ -1,3 +1,11 @@
+## [0.11.1](https://github.com/udibo/juniper/compare/0.11.0...0.11.1) (2026-09-08)
+
+### Bug Fixes
+
+- avoid errors during bundle recovery
+  ([#119](https://github.com/udibo/juniper/issues/119))
+  ([63bc7a5](https://github.com/udibo/juniper/commit/63bc7a566b2d0d6fe5bc6175a8fe621ca81602dc))
+
 # [0.11.0](https://github.com/udibo/juniper/compare/0.10.3...0.11.0) (2026-09-08)
 
 ### Features
