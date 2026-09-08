@@ -118,6 +118,8 @@ export class Client {
   /** Props to apply to the `<html>` element, from root route's htmlProps export. */
   htmlProps?: HtmlProps;
 
+  #rootModule?: RootRouteModule;
+
   /**
    * Builds the client route tree from a root route, ready to
    * {@linkcode Client.hydrate}.
@@ -132,6 +134,7 @@ export class Client {
     this.routeObjectMap = new Map();
 
     if (rootRoute.main && typeof rootRoute.main !== "function") {
+      this.#rootModule = rootRoute.main;
       this.htmlProps = rootRoute.main.htmlProps;
     }
 
@@ -145,8 +148,15 @@ export class Client {
       const routeId = routeObject.id!;
 
       if (typeof route.main === "function") {
+        const loadModule = route.main;
         routeObject.lazy = createLazyRoute(
-          route.main,
+          route === rootRoute
+            ? async () => {
+              const module = await (loadModule as RootRouteModuleLoader)();
+              this.#rootModule = module;
+              return module;
+            }
+            : loadModule,
           route.server,
           routeId,
         );
@@ -320,6 +330,7 @@ export class Client {
     registerRouter(router);
 
     const htmlProps = this.htmlProps;
+    const beforeHydrate = this.#rootModule?.beforeHydrate;
     function HydratedApp() {
       const [routerContext] = useState(() => context);
       return (
@@ -334,19 +345,38 @@ export class Client {
     }
 
     function hydrate() {
+      let dispose = beforeHydrate?.(document);
+      function release(): void {
+        document.defaultView?.removeEventListener("pagehide", onPageHide);
+        const cleanup = dispose;
+        dispose = undefined;
+        cleanup?.();
+      }
+      function onPageHide(event: PageTransitionEvent): void {
+        if (!event.persisted) release();
+      }
+      if (dispose) {
+        document.defaultView?.addEventListener("pagehide", onPageHide);
+      }
       startTransition(() => {
-        hydrateRoot(
-          document,
-          <HydratedApp />,
-          {
-            onUncaughtError: (error: unknown) => {
-              console.error("hydrate onUncaughtError", error);
+        try {
+          hydrateRoot(
+            document,
+            <HydratedApp />,
+            {
+              onUncaughtError: (error: unknown) => {
+                release();
+                console.error("hydrate onUncaughtError", error);
+              },
+              onCaughtError: (error: unknown) => {
+                console.error("hydrate onCaughtError", error);
+              },
             },
-            onCaughtError: (error: unknown) => {
-              console.error("hydrate onCaughtError", error);
-            },
-          },
-        );
+          );
+        } catch (error) {
+          release();
+          throw error;
+        }
       });
     }
 
