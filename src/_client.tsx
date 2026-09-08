@@ -651,7 +651,8 @@ export function createRoute(
  * destination — the server can always render it, and the fresh document
  * carries the new build's chunk names. Recovery is loop-guarded via
  * `sessionStorage`; once the guard trips the error is left to surface in the
- * nearest ErrorBoundary.
+ * nearest ErrorBoundary. During recovery the route remains pending so the
+ * current page stays visible until the document navigation completes.
  *
  * @param lazyRouteFile - The lazy route file to create a lazy route object from.
  * @param serverFlags - Flags indicating whether the route has server-side loader/action.
@@ -669,14 +670,16 @@ export function createLazyRoute(
       routeFile = await lazyRouteFile();
       clearReloadState(LAZY_LOAD_RELOAD_KEY);
     } catch (error) {
-      if (shouldReload(LAZY_LOAD_RELOAD_KEY)) {
+      const recover = (): Promise<never> => {
+        if (!shouldReload(LAZY_LOAD_RELOAD_KEY)) throw error;
         recordReload(LAZY_LOAD_RELOAD_KEY);
         const destination = recoveryDestination();
         delay(0).then(() => {
           globalThis.location.assign(destination);
         });
-      }
-      throw error;
+        return holdForDocumentNavigation();
+      };
+      return activeRouter ? { loader: recover, action: recover } : recover();
     }
     const { middleware: _, ...rest } = createRoute(
       routeFile,

@@ -748,6 +748,38 @@ after 2 attempts, the client stops refreshing.
 
 ## Navigation
 
+### Pending Navigation
+
+Juniper uses `HydrateFallback` for initial client hydration and deferred loader
+data within that route. It cannot provide feedback while that route's module is
+still downloading. For navigation that waits for a route module or a blocking
+server loader, render feedback in an already loaded layout with React Router's
+`useNavigation`:
+
+```tsx
+import { Outlet, useNavigation } from "react-router";
+
+export default function Main() {
+  const navigation = useNavigation();
+  return (
+    <>
+      <p role="status">
+        {navigation.state === "loading" ? "Loading page…" : ""}
+      </p>
+      <Outlet />
+    </>
+  );
+}
+```
+
+The current page remains visible until the destination is ready. If a deployment
+removed a lazy route bundle, Juniper recovers with a document navigation to the
+destination, including its query and fragment. The route stays pending during
+that recovery so an error boundary does not flash before the new SSR page
+arrives. If the reload guard is exhausted, the error reaches the boundary. If a
+document navigation is canceled, navigating away and back can retry recovery
+within that same limit.
+
 ### Link Component
 
 Use the `Link` component for client-side navigation:
