@@ -1,15 +1,17 @@
-import { delay } from "@std/async/delay";
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import * as path from "@std/path";
 import { afterAll, describe, it } from "@std/testing/bdd";
 import * as esbuild from "esbuild";
 
 import { reactCompilerPlugin } from "./react-compiler-plugin.ts";
+import { observeChildProcesses } from "./_testing-processes.ts";
+
+const spawnedProcesses = observeChildProcesses();
 
 describe("reactCompilerPlugin", () => {
   afterAll(async () => {
     await esbuild.stop();
-    await delay(10);
+    await spawnedProcesses[Symbol.asyncDispose]();
   });
 
   describe("basic functionality", () => {

@@ -508,20 +508,90 @@ export function fetchResolver(): [ResolveFetch, FakeFetch] {
   return [resolveFetch, fakeFetch];
 }
 
+type FormControl =
+  | HTMLInputElement
+  | HTMLButtonElement
+  | HTMLTextAreaElement
+  | HTMLSelectElement;
+
+function isSubmitButton(element: HTMLElement): boolean {
+  return element.localName === "button" &&
+      (element as HTMLButtonElement).type === "submit" ||
+    element.localName === "input" &&
+      ["submit", "image"].includes((element as HTMLInputElement).type);
+}
+
 class MockFormData extends FormData {
-  constructor(form?: HTMLFormElement) {
+  constructor(form?: HTMLFormElement, submitter: HTMLElement | null = null) {
     super();
-    if (form) {
-      const inputs = form.querySelectorAll("input, textarea, select");
-      inputs.forEach((input) => {
-        const el = input as
-          | HTMLInputElement
-          | HTMLTextAreaElement
-          | HTMLSelectElement;
-        if (el.name) {
-          this.append(el.name, el.value);
+    if (form === undefined) return;
+    if (!form || form.localName !== "form") {
+      throw new TypeError("Expected an HTMLFormElement");
+    }
+    if (submitter !== null) {
+      if (!isSubmitButton(submitter)) {
+        throw new TypeError("The specified element is not a submit button");
+      }
+      if ((submitter as HTMLButtonElement | HTMLInputElement).form !== form) {
+        throw new DOMException(
+          "The submitter does not belong to this form",
+          "NotFoundError",
+        );
+      }
+    }
+
+    const root = form.getRootNode() as ParentNode;
+    const controls = root.querySelectorAll<FormControl>(
+      "button, input, textarea, select",
+    );
+    for (const control of controls) {
+      if (
+        control.form !== form || control.matches(":disabled") ||
+        control.closest("datalist")
+      ) continue;
+      if (
+        ["submit", "image", "reset", "button"].includes(control.type) &&
+        control !== submitter
+      ) continue;
+      if (
+        ["checkbox", "radio"].includes(control.type) &&
+        !(control as HTMLInputElement).checked
+      ) continue;
+
+      const name = control.name;
+      if (control.localName === "input" && control.type === "image") {
+        const prefix = name ? `${name}.` : "";
+        this.append(`${prefix}x`, "0");
+        this.append(`${prefix}y`, "0");
+        continue;
+      }
+      if (!name) continue;
+      if (control.localName === "select") {
+        for (const option of (control as HTMLSelectElement).selectedOptions) {
+          if (!option.disabled && !option.closest("optgroup[disabled]")) {
+            this.append(name, option.value);
+          }
         }
-      });
+      } else if (control.localName === "input" && control.type === "file") {
+        const files = (control as HTMLInputElement).files;
+        if (files?.length) {
+          for (const file of files) {
+            if (!(file instanceof Blob)) {
+              throw new TypeError(
+                "Upload files created with the global File constructor, not window.File",
+              );
+            }
+            this.append(name, file, file.name);
+          }
+        } else {
+          this.append(
+            name,
+            new File([], "", { type: "application/octet-stream" }),
+          );
+        }
+      } else {
+        this.append(name, control.value);
+      }
     }
   }
 }
@@ -540,8 +610,10 @@ export interface FormDataStub extends Disposable {
  *
  * This is necessary because Deno's native FormData constructor throws
  * "Illegal constructor" when passed a JSDOM HTMLFormElement. This stub
- * replaces FormData with a compatible implementation that manually extracts
- * form field values.
+ * replaces FormData with a Deno-compatible implementation of successful form
+ * controls, including the selected submitter and controls associated by `form`.
+ * Create uploaded files with the global `File` constructor, not `window.File`,
+ * so their bytes remain compatible with Deno's multipart request bodies.
  *
  * **Note:** If you are using `@udibo/juniper/utils/global-jsdom` to set up JSDOM,
  * this function is already called automatically and you do not need to call it yourself.
