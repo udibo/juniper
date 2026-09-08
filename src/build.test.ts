@@ -1,10 +1,11 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import * as path from "@std/path";
-import { describe, it } from "@std/testing/bdd";
+import { afterAll, describe, it } from "@std/testing/bdd";
 import { assertSpyCall, assertSpyCalls, spy, stub } from "@std/testing/mock";
 
 import { Builder } from "./build.ts";
 import { isSnapshotMode } from "./utils/testing.ts";
+import { observeChildProcesses } from "./utils/_testing-processes.ts";
 
 import { deno } from "./deno.ts";
 import {
@@ -20,7 +21,12 @@ const exampleDir = path.resolve(
   "../example",
 );
 
+const spawnedProcesses = observeChildProcesses();
+
 describe("Builder", () => {
+  afterAll(async () => {
+    await spawnedProcesses[Symbol.asyncDispose]();
+  });
   it("builds relative, absolute, and glob CSS entries from a project directory containing spaces", async () => {
     const projectRoot = await Deno.makeTempDir({ prefix: "juniper build " });
     try {

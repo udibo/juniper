@@ -2256,6 +2256,7 @@
           "npm:@modelcontextprotocol/sdk@^1.29.0",
           "npm:@opentelemetry/api@^1.9.1",
           "npm:@testing-library/react@^16.3.2",
+          "npm:@testing-library/user-event@^14.6.1",
           "npm:@types/react@^19.2.16",
           "npm:babel-plugin-react-compiler@1",
           "npm:cbor2@^2.3.0",

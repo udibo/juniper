@@ -50,6 +50,7 @@
     "react-error-boundary": "npm:react-error-boundary@^6.1.2",
     "react-router": "npm:react-router@^8.3.0",
     "@testing-library/react": "npm:@testing-library/react@^16.3.2",
+    "@testing-library/user-event": "npm:@testing-library/user-event@^14.6.1",
     "global-jsdom": "npm:global-jsdom@^29.0.0"
   },
   "compilerOptions": {
