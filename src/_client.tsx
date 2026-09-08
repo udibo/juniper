@@ -670,15 +670,16 @@ export function createLazyRoute(
       routeFile = await lazyRouteFile();
       clearReloadState(LAZY_LOAD_RELOAD_KEY);
     } catch (error) {
-      if (shouldReload(LAZY_LOAD_RELOAD_KEY)) {
+      const recover = (): Promise<never> => {
+        if (!shouldReload(LAZY_LOAD_RELOAD_KEY)) throw error;
         recordReload(LAZY_LOAD_RELOAD_KEY);
         const destination = recoveryDestination();
         delay(0).then(() => {
           globalThis.location.assign(destination);
         });
         return holdForDocumentNavigation();
-      }
-      throw error;
+      };
+      return activeRouter ? { loader: recover, action: recover } : recover();
     }
     const { middleware: _, ...rest } = createRoute(
       routeFile,

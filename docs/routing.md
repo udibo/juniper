@@ -776,7 +776,9 @@ The current page remains visible until the destination is ready. If a deployment
 removed a lazy route bundle, Juniper recovers with a document navigation to the
 destination, including its query and fragment. The route stays pending during
 that recovery so an error boundary does not flash before the new SSR page
-arrives. If the reload guard is exhausted, the error reaches the boundary.
+arrives. If the reload guard is exhausted, the error reaches the boundary. If a
+document navigation is canceled, navigating away and back can retry recovery
+within that same limit.
 
 ### Link Component
 
