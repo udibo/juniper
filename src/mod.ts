@@ -1084,4 +1084,25 @@ export interface RootRouteModule<
    * ```
    */
   htmlProps?: HtmlProps;
+  /**
+   * Runs synchronously in the browser immediately before React hydration,
+   * after route loading and the idle delay. Use it to capture served DOM state
+   * that a component will consume when its ref attaches. It must not change
+   * markup or return a promise.
+   *
+   * An optional idempotent cleanup runs once on fatal hydration failure or permanent
+   * page departure. Caught errors and bfcache suspension do not dispose it;
+   * the hook should also release resources when its own work completes.
+   * A thrown error prevents hydration.
+   *
+   * @param document - The application document about to hydrate.
+   * @returns Optional cleanup for pending work.
+   * @example
+   * ```tsx
+   * export function beforeHydrate(document: Document): () => void {
+   *   return capturePendingFormEdits(document);
+   * }
+   * ```
+   */
+  beforeHydrate?: (document: Document) => void | (() => void);
 }
