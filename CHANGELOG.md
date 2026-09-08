@@ -1,3 +1,11 @@
+# [0.11.0](https://github.com/udibo/juniper/compare/0.10.3...0.11.0) (2026-09-08)
+
+### Features
+
+- add a before-hydration hook
+  ([#118](https://github.com/udibo/juniper/issues/118))
+  ([02f8ed9](https://github.com/udibo/juniper/commit/02f8ed9a18e5d22e546931ca90785c7beb725be8))
+
 ## [0.10.3](https://github.com/udibo/juniper/compare/0.10.2...0.10.3) (2026-09-08)
 
 ### Bug Fixes
