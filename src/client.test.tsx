@@ -16,7 +16,7 @@ import {
 import { assertSpyCalls, stub } from "@std/testing/mock";
 import { delay } from "@std/async/delay";
 import { HttpError } from "./mod.ts";
-import { Outlet } from "react-router";
+import { createMemoryRouter, Outlet } from "react-router";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 
 import { Client } from "./client.tsx";
@@ -955,6 +955,15 @@ describe("createLazyRoute failure recovery", () => {
     );
   }
 
+  async function assertPendingRecovery(
+    result: Promise<unknown>,
+  ): Promise<void> {
+    let outcome = "pending";
+    result.then(() => outcome = "resolved", () => outcome = "rejected");
+    await delay(10);
+    assertEquals(outcome, "pending");
+  }
+
   it("hard-navigates to the in-flight navigation's destination", async () => {
     registerRouter({
       state: {
@@ -965,10 +974,34 @@ describe("createLazyRoute failure recovery", () => {
       },
     });
 
-    await assertRejects(() => failingLazyRoute()(), Error, "chunk missing");
-    await delay(1);
+    await assertPendingRecovery(failingLazyRoute()());
 
     assertEquals(assigned, ["/destination?q=1#top"]);
+  });
+
+  it("keeps the current route without publishing an error during document recovery", async () => {
+    const router = createMemoryRouter([{
+      path: "/current",
+      Component: () => <div>Current page</div>,
+    }, {
+      path: "/destination",
+      lazy: failingLazyRoute(),
+    }], { initialEntries: ["/current"] });
+    registerRouter(router);
+    const errors: unknown[] = [];
+    const unsubscribe = router.subscribe((state) => {
+      if (state.errors) errors.push(state.errors);
+    });
+    try {
+      await assertPendingRecovery(router.navigate("/destination?q=1#top"));
+      assertEquals(assigned, ["/destination?q=1#top"]);
+      assertEquals(router.state.location.pathname, "/current");
+      assertEquals(router.state.navigation.state, "loading");
+      assertEquals(errors, []);
+    } finally {
+      unsubscribe();
+      router.dispose();
+    }
   });
 
   it("navigates to the settled location when no navigation is in flight", async () => {
@@ -979,24 +1012,23 @@ describe("createLazyRoute failure recovery", () => {
       },
     });
 
-    await assertRejects(() => failingLazyRoute()(), Error, "chunk missing");
-    await delay(1);
+    await assertPendingRecovery(failingLazyRoute()());
 
     assertEquals(assigned, ["/current?tab=2"]);
   });
 
   it("falls back to location.href when no router is registered", async () => {
-    await assertRejects(() => failingLazyRoute()(), Error, "chunk missing");
-    await delay(1);
+    await assertPendingRecovery(failingLazyRoute()());
 
     assertEquals(assigned, ["http://localhost/current"]);
   });
 
   it("stops navigating once the loop guard trips, so the error can surface", async () => {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      await assertRejects(() => failingLazyRoute()(), Error, "chunk missing");
-      await delay(1);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await assertPendingRecovery(failingLazyRoute()());
     }
+    await assertRejects(() => failingLazyRoute()(), Error, "chunk missing");
+    await delay(1);
 
     assertEquals(assigned.length, 2);
   });
