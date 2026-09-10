@@ -1,3 +1,11 @@
+## [0.11.2](https://github.com/udibo/juniper/compare/0.11.1...0.11.2) (2026-09-10)
+
+### Bug Fixes
+
+- harden runtime and public documentation
+  ([#122](https://github.com/udibo/juniper/issues/122))
+  ([930124a](https://github.com/udibo/juniper/commit/930124aa4ae0d8c6dffbfd6b795aa1add41f7d30))
+
 ## [0.11.1](https://github.com/udibo/juniper/compare/0.11.0...0.11.1) (2026-09-08)
 
 ### Bug Fixes
