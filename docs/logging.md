@@ -1,8 +1,3 @@
----
-title: Logging
-last_verified: 2026-09-09
----
-
 # Logging
 
 ## Overview
@@ -410,11 +405,3 @@ rm -rf docker/volumes/lgtm
 
 - [Error Handling](error-handling.md) - Error boundaries and HttpError
 - [Deployment](deployment.md) - Deploy to Deno Deploy, Docker, and more
-
-## Changelog
-
-- **2026-09-09** — Removed narrative comments from the revised metrics example.
-
-- **2026-09-09** — Made the KV tracing example concrete, corrected entry
-  handling, and removed personal data and unbounded request paths from telemetry
-  examples.

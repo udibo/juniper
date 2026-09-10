@@ -1,8 +1,3 @@
----
-title: Database
-last_verified: 2026-09-09
----
-
 # Database
 
 ## Overview
@@ -747,12 +742,3 @@ export async function action({ request }: RouteActionArgs) {
 
 - [Forms](forms.md) - Form handling with client and server actions
 - [Error Handling](error-handling.md) - Error boundaries and HttpError
-
-## Changelog
-
-- **2026-09-09** — Typed the transaction lookup and removed redundant comments
-  from the revised examples.
-
-- **2026-09-09** — Fixed the user-update transaction so unchanged emails retain
-  their index and changed emails preserve uniqueness under concurrent writes;
-  shared concurrent KV opens and documented handle cleanup.

@@ -1,8 +1,3 @@
----
-title: Juniper Guides
-last_verified: 2026-09-09
----
-
 # Juniper Guides
 
 Juniper renders React routes on Deno, uses Hono for HTTP requests, and uses
@@ -57,8 +52,3 @@ The [JSR API reference](https://jsr.io/@udibo/juniper/doc) documents exported
 types and methods. Guides explain how those APIs fit together. Examples that
 refer to application services assume those services exist; complete test
 examples include their fixtures.
-
-## Changelog
-
-- **2026-09-09** — Added a learning path, full guide index, and execution and
-  trust boundaries to make the documentation easier to navigate.

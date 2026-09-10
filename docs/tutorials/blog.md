@@ -1,8 +1,3 @@
----
-title: Building a Blog Application
-last_verified: 2026-09-09
----
-
 # Building a Blog Application
 
 This tutorial walks you through building a full-featured blog application with
@@ -1023,8 +1018,3 @@ Additional enhancements:
 - [Forms](../forms.md) - Form handling and validation
 - [Error Handling](../error-handling.md) - Error boundaries and HttpError
 - [Deployment](../deployment.md) - Deploy your application
-
-## Changelog
-
-- **2026-09-09** — Updated the Deno prerequisite and fixed dynamic page titles
-  to render one string.

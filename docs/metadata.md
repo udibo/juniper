@@ -1,8 +1,3 @@
----
-title: Metadata
-last_verified: 2026-09-09
----
-
 # Metadata
 
 ## React 19 Document Metadata
@@ -327,11 +322,3 @@ dynamic values. See React's
 - [Routing](routing.md) - File-based routing and data loading
 - [Styling](styling.md) - CSS and TailwindCSS integration
 - [Static Files](static-files.md) - Serving static assets
-
-## Changelog
-
-- **2026-09-09** — Replaced placeholder article content and removed redundant
-  comments from the revised metadata examples.
-
-- **2026-09-09** — Corrected title ownership and string children, typed route
-  examples, and escaped JSON-LD values embedded in HTML.

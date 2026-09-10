@@ -1,8 +1,3 @@
----
-title: Testing
-last_verified: 2026-09-09
----
-
 # Testing
 
 Use component tests for UI behavior, `createRoutesStub` for Juniper's client
@@ -362,12 +357,3 @@ snapshot diff and keep behavioral assertions for important state changes.
 - [Forms](forms.md): route actions and fetchers.
 - [Error handling](error-handling.md): failure paths and serialization.
 - [CI/CD](ci-cd.md): run the same validation in automation.
-
-## Changelog
-
-- **2026-09-09** — Clarified that waitForFakeTime drains due work without
-  advancing elapsed fake time.
-
-- **2026-09-09** — Replaced action tests that never submitted with complete
-  interaction tests, documented adapter boundaries and environment isolation,
-  and corrected task invocation, fixture cleanup, and snapshot arguments.

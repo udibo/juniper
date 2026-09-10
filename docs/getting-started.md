@@ -1,8 +1,3 @@
----
-title: Getting Started
-last_verified: 2026-09-09
----
-
 # Getting Started
 
 ## Prerequisites
@@ -371,8 +366,3 @@ deno task check
 - [Routing](routing.md) - File-based routing and data loading
 - [Middleware](middleware.md) - Server and client middleware
 - [Styling](styling.md) - CSS and TailwindCSS integration
-
-## Changelog
-
-- **2026-09-09** — Documented the Deno requirement for named permission sets and
-  aligned React Router with the tested template.

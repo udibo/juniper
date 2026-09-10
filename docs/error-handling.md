@@ -1,8 +1,3 @@
----
-title: Error Handling
-last_verified: 2026-09-09
----
-
 # Error Handling
 
 ## Overview
@@ -476,15 +471,3 @@ export function ErrorBoundary(
 - [Logging](logging.md) - Logging and OpenTelemetry
 - [Testing](testing.md) - Testing utilities and patterns
 - [Middleware](middleware.md) - Server and client middleware
-
-## Changelog
-
-- **2026-09-09** — Clarified custom error preservation by response path and
-  replaced unsupported rich-type claims with the serialization contract.
-
-- **2026-09-09** — Documented production error sanitization and
-  ancestor-boundary rendering without denied loader data; completed imports in
-  revised examples.
-
-- **2026-09-09** — Corrected shared-layout lifetime and client serializer
-  registration; distinguished exposed error messages from private details.

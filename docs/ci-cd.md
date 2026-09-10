@@ -1,8 +1,3 @@
----
-title: CI/CD
-last_verified: 2026-09-09
----
-
 # CI/CD
 
 ## Overview
@@ -421,15 +416,3 @@ jobs:
 
 - [Testing](testing.md) - Testing utilities and patterns
 - [Configuration](configuration.md) - Project and build configuration
-
-## Changelog
-
-- **2026-09-09** — Added explicit type and LCOV checks, frozen dependency
-  installation, registry permissions, and deployment validation guidance.
-
-- **2026-09-05** — Tailwind build and dev permission profiles allow only the
-  `osRelease` system query needed by jiti's Windows terminal-color detection.
-  Reproduce CI builds without `NO_COLOR` or `TERM=dumb`, which bypass that
-  query.
-- **2026-09-05** — Documented platform coverage and production-build checks for
-  Windows CSS entry failures.

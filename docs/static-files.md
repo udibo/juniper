@@ -1,8 +1,3 @@
----
-title: Static Files
-last_verified: 2026-09-09
----
-
 # Static Files
 
 ## Public Directory
@@ -281,8 +276,3 @@ export default app;
 - [Styling](styling.md) - CSS and TailwindCSS integration
 - [Configuration](configuration.md) - Project and build configuration
 - [Deployment](deployment.md) - Deploy to Deno Deploy, Docker, and more
-
-## Changelog
-
-- **2026-09-09** — Corrected automatic CSS inclusion and distinguished hashed
-  chunks from stable build entries when configuring long-lived caches.

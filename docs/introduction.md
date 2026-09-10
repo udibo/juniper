@@ -1,8 +1,3 @@
----
-title: Introduction
-last_verified: 2026-09-09
----
-
 # Introduction
 
 ## What is Juniper?
@@ -166,8 +161,3 @@ Juniper may not be the best fit for:
 - [Routing](routing.md) - File-based routing and data loading
 - [Tutorials](tutorials/README.md) - Step-by-step guides for building
   applications
-
-## Changelog
-
-- **2026-09-09** — Explained document requests, hydration, lazy navigation, and
-  the server trust boundary; removed an unmaintained framework comparison.
