@@ -1,3 +1,11 @@
+## [0.11.3](https://github.com/udibo/juniper/compare/0.11.2...0.11.3) (2026-09-10)
+
+### Bug Fixes
+
+- **docs:** remove guide metadata and history
+  ([#124](https://github.com/udibo/juniper/issues/124))
+  ([860cc11](https://github.com/udibo/juniper/commit/860cc119aaba849b0ceece06f70a68e61c75ea76))
+
 ## [0.11.2](https://github.com/udibo/juniper/compare/0.11.1...0.11.2) (2026-09-10)
 
 ### Bug Fixes
