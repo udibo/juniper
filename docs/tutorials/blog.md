@@ -1,3 +1,8 @@
+---
+title: Building a Blog Application
+last_verified: 2026-09-09
+---
+
 # Building a Blog Application
 
 This tutorial walks you through building a full-featured blog application with
@@ -12,8 +17,10 @@ Juniper. You'll learn how to:
 
 ## Prerequisites
 
-Before starting, make sure you have [Deno](https://deno.com/) installed (version
-2.0 or later).
+Before starting, install a current stable Deno 2 release from
+[Deno's installation guide](https://docs.deno.com/runtime/getting_started/installation/).
+The template uses current Deno APIs and named permission sets; early Deno 2
+versions do not provide every feature used here.
 
 ## Getting the Finished Code
 
@@ -561,7 +568,7 @@ export default function EditPost({
 
   return (
     <>
-      <title>Edit: {post.title}</title>
+      <title>{`Edit: ${post.title}`}</title>
       <div style={{ maxWidth: "600px", margin: "0 auto" }}>
         <Link
           to={`/blog/${post.id}`}
@@ -1016,3 +1023,8 @@ Additional enhancements:
 - [Forms](../forms.md) - Form handling and validation
 - [Error Handling](../error-handling.md) - Error boundaries and HttpError
 - [Deployment](../deployment.md) - Deploy your application
+
+## Changelog
+
+- **2026-09-09** — Updated the Deno prerequisite and fixed dynamic page titles
+  to render one string.

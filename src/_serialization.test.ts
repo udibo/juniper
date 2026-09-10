@@ -1,4 +1,5 @@
-import { assertEquals, assertRejects, assertThrows } from "@std/assert";
+import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
+import { delay } from "@std/async/delay";
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { HttpError } from "@udibo/http-error";
 
@@ -55,6 +56,11 @@ describe("Serialization Module", () => {
   });
 
   describe("encodeToBase64/decodeFromBase64", () => {
+    it("round-trips hydration data larger than the function argument limit", () => {
+      const input = { text: "水🌿".repeat(200_000) };
+      assertEquals(decodeFromBase64(encodeToBase64(input)), input);
+    });
+
     it("should encode and decode to base64 strings", () => {
       const input = { message: "hello world", count: 42 };
       const base64 = encodeToBase64(input);
@@ -375,7 +381,7 @@ describe("Serialization Module", () => {
       await assertRejects(
         async () => await loaderData.data,
         Error,
-        "Failed to load",
+        new HttpError(500).exposedMessage,
       );
     });
 
@@ -518,6 +524,117 @@ describe("Serialization Module", () => {
   });
 
   describe("createStreamingLoaderData/deserializeStreamingLoaderData", () => {
+    async function deferredFrames(): Promise<Uint8Array> {
+      return new Uint8Array(
+        await new Response(createStreamingLoaderData({
+          first: Promise.resolve("first value"),
+          second: Promise.resolve("second value"),
+        })).arrayBuffer(),
+      );
+    }
+
+    function chunkedResponse(chunks: Uint8Array[]): Response {
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            for (const chunk of chunks) controller.enqueue(chunk);
+            controller.close();
+          },
+        }),
+      );
+    }
+
+    for (const framing of ["coalesced", "split", "bytes"] as const) {
+      it(`resolves deferred data with ${framing} transport chunks`, async () => {
+        const bytes = await deferredFrames();
+        const firstFrameEnd = new DataView(bytes.buffer).getUint32(0, false) +
+          4;
+        const chunks = framing === "coalesced"
+          ? [bytes]
+          : framing === "bytes"
+          ? Array.from(bytes, (byte) => Uint8Array.of(byte))
+          : [
+            bytes.slice(0, 3),
+            bytes.slice(3, firstFrameEnd + 2),
+            bytes.slice(firstFrameEnd + 2),
+          ];
+        const data = await deserializeStreamingLoaderData<{
+          first: Promise<string>;
+          second: Promise<string>;
+        }>(chunkedResponse(chunks));
+        let values: unknown = "pending";
+        Promise.all([data.first, data.second]).then(
+          (result) => values = result,
+          (error) => values = error,
+        );
+        await delay(20);
+        assertEquals(values, ["first value", "second value"]);
+      });
+    }
+
+    it("rejects every unresolved value when the stream ends between frames", async () => {
+      const bytes = await deferredFrames();
+      const firstFrameEnd = new DataView(bytes.buffer).getUint32(0, false) + 4;
+      const response = chunkedResponse([bytes.slice(0, firstFrameEnd)]);
+      const data = await deserializeStreamingLoaderData<{
+        first: Promise<string>;
+        second: Promise<string>;
+      }>(response);
+      let outcomes: unknown = "pending";
+      Promise.allSettled([data.first, data.second]).then((results) => {
+        outcomes = results.map((result) => result.status);
+      });
+      await delay(20);
+      assertEquals(outcomes, ["rejected", "rejected"]);
+      assertEquals(response.body!.locked, false);
+    });
+
+    it("cancels and unlocks a response whose initial CBOR frame cannot decode", async () => {
+      let canceled = false;
+      const response = new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(Uint8Array.of(0, 0, 0, 1, 0xff));
+          },
+          cancel() {
+            canceled = true;
+          },
+        }),
+      );
+      await assertRejects(() => deserializeStreamingLoaderData(response));
+      assertEquals(response.body!.locked, false);
+      assert(canceled);
+    });
+
+    it("cancels and unlocks a malformed resolution stream after rejecting its values", async () => {
+      const bytes = await deferredFrames();
+      const firstFrameEnd = new DataView(bytes.buffer).getUint32(0, false) + 4;
+      let canceled = false;
+      const response = new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(bytes.slice(0, firstFrameEnd));
+            controller.enqueue(Uint8Array.of(0, 0, 0, 1, 0xff));
+          },
+          cancel() {
+            canceled = true;
+          },
+        }),
+      );
+      const data = await deserializeStreamingLoaderData<{
+        first: Promise<string>;
+        second: Promise<string>;
+      }>(response);
+      let outcomes: unknown = "pending";
+      Promise.allSettled([data.first, data.second]).then((results) => {
+        outcomes = results.map((result) => result.status);
+      });
+      await delay(20);
+      assertEquals(outcomes, ["rejected", "rejected"]);
+      assertEquals(response.body!.locked, false);
+      assert(canceled);
+    });
+
     it("should stream data without promises as single chunk", async () => {
       const data = { message: "hello", count: 42 };
       const stream = createStreamingLoaderData(data);
@@ -591,7 +708,7 @@ describe("Serialization Module", () => {
       await assertRejects(
         async () => await result.willFail,
         Error,
-        "Something went wrong",
+        new HttpError(500).exposedMessage,
       );
     });
 

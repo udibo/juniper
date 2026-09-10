@@ -1,8 +1,13 @@
 /**
  * This module provides the development server entrypoint for Juniper applications.
  *
- * It can be run directly with `deno run @udibo/juniper/dev` to start a development
- * server with hot reloading and automatic rebuilds.
+ * Run the application's dev task so its permissions and environment are loaded.
+ * The CLI accepts `--project-root` and `--port`. The port controls the reload event
+ * server (default 9001); configure the application's HTTP port separately through
+ * its serve task. A `build.ts` exporting `builder` supplies custom build options.
+ *
+ * Source changes rebuild the browser assets and restart the application's `serve`
+ * task from the builder's project root. Browser state is lost on the full reload.
  *
  * @module
  */

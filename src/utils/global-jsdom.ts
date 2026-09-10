@@ -5,7 +5,8 @@
  * at the top and it must be imported before `@testing-library/react`.
  *
  * This module automatically:
- * - Registers JSDOM globals (document, window, etc.) with the correct localhost URL
+ * - Registers JSDOM globals (document, window, etc.) at `http://localhost:8000`,
+ *   using the port from `DENO_SERVE_ADDRESS` when present
  * - Stubs FormData to work with JSDOM form elements
  * - Stubs `ResizeObserver`, which JSDOM does not implement, so that libraries
  *   which measure elements (Headless UI, Floating UI, TanStack Virtual) can run
@@ -14,9 +15,22 @@
  * The `ResizeObserver` stub never reports a resize. A test that asserts on
  * measured layout should drive the measurement itself rather than expect one.
  *
- * The only reason to use `npm:global-jsdom` directly instead is if you need a URL
- * other than localhost. If you do that, you should also call `stubFormData` from
- * `@udibo/juniper/utils/testing` since `npm:global-jsdom` will not automatically stub it.
+ * Setup lasts for the test module's process; there is no per-test teardown.
+ * Use `global-jsdom` directly when you need a different URL or explicit teardown,
+ * and pair it with `stubFormData` from `@udibo/juniper/utils/testing`.
+ *
+ * @example
+ * ```tsx
+ * import "@udibo/juniper/utils/global-jsdom";
+ * import { cleanup, render, screen } from "@testing-library/react";
+ * import { afterEach, it } from "@std/testing/bdd";
+ * import { assertEquals } from "@std/assert";
+ * afterEach(cleanup);
+ * it("renders the heading", () => {
+ *   render(<h1>Welcome</h1>);
+ *   assertEquals(screen.getByRole("heading").textContent, "Welcome");
+ * });
+ * ```
  *
  * @module utils/global-jsdom
  */
@@ -24,7 +38,6 @@
 import globalJsdom from "global-jsdom";
 import { stubFormData } from "./testing.ts";
 
-// DENO_SERVE_ADDRESS format: "tcp:0.0.0.0:8000".
 const address = Deno.env.get("DENO_SERVE_ADDRESS");
 let port = 8000;
 if (address) {
@@ -49,5 +62,4 @@ if (!("ResizeObserver" in globalThis)) {
   globalThis.ResizeObserver = NoopResizeObserver;
 }
 
-// Stubbed globally and never restored.
 stubFormData();

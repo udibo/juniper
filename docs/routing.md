@@ -1,3 +1,8 @@
+---
+title: Routing
+last_verified: 2026-09-09
+---
+
 # Routing
 
 ## File-Based Routing
@@ -179,46 +184,44 @@ export function ErrorBoundary(
 
 A route module can export:
 
-| Export            | Type      | Description                                         |
-| ----------------- | --------- | --------------------------------------------------- |
-| `default`         | Component | The React component to render                       |
-| `loader`          | Function  | Fetches data before rendering                       |
-| `action`          | Function  | Handles form submissions                            |
-| `middleware`      | Array     | Functions that run before loaders/actions           |
-| `ErrorBoundary`   | Component | Displays errors for this route                      |
-| `HydrateFallback` | Component | Shows during client hydration                       |
-| `publicEnvKeys`   | Array     | Environment variables exposed to client (root only) |
+| Export            | Type      | Description                                       |
+| ----------------- | --------- | ------------------------------------------------- |
+| `default`         | Component | The React component to render                     |
+| `loader`          | Function  | Fetches data before rendering                     |
+| `action`          | Function  | Handles form submissions                          |
+| `middleware`      | Array     | Functions that run before loaders/actions         |
+| `ErrorBoundary`   | Component | Displays errors for this route                    |
+| `HydrateFallback` | Component | Shows while deferred route data is unresolved     |
+| `beforeHydrate`   | Function  | Runs before React hydrates (root `main.tsx` only) |
 
-Juniper's serialization (used for context, loader data, action data, and errors)
-supports all standard JSON types plus: `undefined`, `bigint`, `Date`, `RegExp`,
-`Set`, `Map`, `Error`, and `URL`. Loaders and actions can also return `Promise`
-values. See
-[State Management](state-management.md#sharing-server-context-with-the-client)
-for details.
+Export `publicEnvKeys` from the root **server** module, `routes/main.ts`, to
+allowlist additional environment values in hydration data. See
+[configuration](configuration.md#public-environment-variables).
+
+Juniper serializes JSON-shaped data, `undefined`, `Date`, and `Error`. It also
+accepts `bigint` and promise values, with numeric and deferred-data behavior
+described in [serializable values](state-management.md#serializable-values).
+Register other classes with `registerType`; unregistered objects do not retain
+their class identity.
 
 ### Layout Wrapper Pattern
 
 When you want a route's default component, `ErrorBoundary`, and/or
 `HydrateFallback` to share the same layout, use a separate layout component that
-wraps the content in each export. This ensures that:
+wraps the content in each export. This gives normal, error, and loading states a
+consistent visual structure. It does not guarantee that a shared component stays
+mounted: switching to an error boundary replaces the normal route subtree. Put
+state that must survive a child error in an ancestor outside that boundary.
 
-1. **Shared UI stays mounted** - Navigation, headers, and metadata don't
-   re-render when transitioning between states.
-2. **Consistent visual structure** - Users see the same layout shell whether
-   viewing content, an error, or a loading state.
-3. **Smoother transitions** - React can efficiently reconcile the component tree
-   when the layout hierarchy matches.
-
-The layout component should be the **outermost wrapper** in each export. Any
-providers (like `QueryClientProvider`) go inside the layout:
+Keep providers available in every state that needs them. The following example
+shares a layout across each export:
 
 ```tsx
 // routes/main.tsx
 import { HttpError } from "@udibo/juniper";
-import type { ErrorBoundaryProps, HydrateFallbackProps } from "@udibo/juniper";
+import type { ErrorBoundaryProps } from "@udibo/juniper";
 import { Outlet } from "react-router";
 
-// Shared layout component
 function Layout({ children }: { children: React.ReactNode }) {
   return (
     <>
@@ -234,7 +237,6 @@ function Layout({ children }: { children: React.ReactNode }) {
 export default function Main() {
   return (
     <Layout>
-      {/* Providers go inside the layout */}
       <Outlet />
     </Layout>
   );
@@ -249,16 +251,14 @@ export function ErrorBoundary(
       <p>
         {error instanceof HttpError
           ? error.exposedMessage
-          : error instanceof Error
-          ? error.message
-          : String(error)}
+          : "Please try again later."}
       </p>
       <button onClick={resetErrorBoundary}>Try again</button>
     </Layout>
   );
 }
 
-export function HydrateFallback(props: HydrateFallbackProps) {
+export function HydrateFallback() {
   return (
     <Layout>
       <p>Loading...</p>
@@ -313,9 +313,9 @@ export function ErrorBoundary(
 ### Server Loaders
 
 Loaders fetch data before rendering a route. They always run on the server.
-Loader data is automatically serialized when sent to the client, supporting all
-standard JSON types plus: `undefined`, `bigint`, `Date`, `RegExp`, `Set`, `Map`,
-`Error`, `URL`, and `Promise`.
+Loader data is automatically serialized when sent to the client. Use
+[serializable values](state-management.md#serializable-values), and register
+custom classes rather than relying on their prototype surviving the transfer.
 
 - **Initial page load (SSR)**: The loader runs on the server and the data is
   included in the HTML response.
@@ -419,9 +419,11 @@ export default function Dashboard({ loaderData }: RouteProps) {
 
 ### Client Loaders
 
-Client loaders run in the browser and are defined by exporting a `loader`
-function from your `.tsx` route files (the file extension determines whether
-it's a server or client loader).
+Export a loader from `.tsx` when it needs to participate in client navigation.
+It is also a server-executable function: without a matching `.ts` loader, it
+runs during SSR. Use `isBrowser()` before reading browser-only APIs, or provide
+a server loader that returns the data needed for SSR. The `.tsx` filename does
+not make arbitrary imports safe for the browser.
 
 **Note:** If a client loader only calls `serverLoader()` and returns the result,
 it's unnecessary. The client automatically fetches from the server loader when
@@ -460,10 +462,10 @@ export default function Dashboard(
 }
 ```
 
-**Important:** Define your loader data types in the client route file (`.tsx`)
-rather than importing them from the server route file (`.ts`). This maintains
-proper separation between server and client code and prevents server-only code
-from being bundled into the client.
+Share loader data types with type-only imports or a shared type module. These
+imports are erased from the browser bundle; runtime imports of server services
+are not. Both loaders must return data their component can render, including the
+initial server-rendered shape.
 
 ### When Client Loaders Run
 
@@ -578,23 +580,28 @@ Use redirects in loaders to protect routes or redirect based on data:
 // routes/dashboard/index.ts
 import { redirect } from "react-router";
 import type { RouteLoaderArgs } from "@udibo/juniper";
+import { userContext } from "@/context/user.ts";
+import type { User } from "@/context/user.ts";
 
-export async function loader({ context }: RouteLoaderArgs) {
+export function loader({ context }: RouteLoaderArgs): { user: User } {
   const user = context.get(userContext);
 
-  // Redirect unauthenticated users
   if (!user) {
     throw redirect("/login");
   }
 
-  // Redirect based on user role
-  if (!user.isAdmin) {
+  if (user.role !== "admin") {
     throw redirect("/");
   }
 
   return { user };
 }
 ```
+
+This assumes `context/user.ts` exports the user context and `User` shape, as in
+[shared context](state-management.md#sharing-server-context-with-the-client).
+Initialize it in authenticated server middleware, which must still protect the
+underlying data requests and services.
 
 ### Redirecting from Actions
 
@@ -616,29 +623,30 @@ export async function action({ request }: RouteActionArgs) {
 
 ### Returning vs Throwing Redirects
 
-You can either return or throw a redirect. Throwing is recommended because it
-allows you to exclude `Response` from the return type:
+Throw redirects so navigation exits the loader or action immediately and its
+data type does not need to include `Response`. Server handlers and ordinary
+React Router handlers also support returned redirects. Keep redirect decisions
+in blocking loaders: adding `HydrateFallback` to an async client loader defers
+its promise to rendering, including its later rejection. Do not rely on either a
+returned or thrown response inside that deferred promise to navigate. Omit the
+fallback on a loader that redirects and use a mounted layout's `useNavigation()`
+status while it resolves.
 
 ```typescript
-// Return a redirect (return type must include Response)
-export async function action(
-  { request }: RouteActionArgs,
-): Promise<ActionData | Response> {
-  // ... process form
-  return redirect("/success");
-}
+import { redirect } from "react-router";
+import type { RouteActionArgs } from "@udibo/juniper";
 
-// Throw a redirect (return type excludes Response) - Recommended
 export async function action(
   { request }: RouteActionArgs,
-): Promise<ActionData> {
-  // ... process form
+): Promise<void> {
+  await saveForm(await request.formData());
   throw redirect("/success");
 }
 ```
 
-Throwing a redirect also ensures code after the redirect doesn't execute,
-similar to throwing an error.
+The example assumes an application `saveForm` service. If a surrounding `catch`
+handles failures, rethrow `Response` values before converting ordinary errors,
+or it will swallow the redirect.
 
 ### Client-Side Redirects
 
@@ -650,7 +658,7 @@ import { redirect } from "react-router";
 import type { AnyParams, RouteLoaderArgs } from "@udibo/juniper";
 
 interface SettingsLoaderData {
-  settings: UserSettings;
+  settings: { theme: "light" | "dark" };
 }
 
 export async function loader({
@@ -658,15 +666,19 @@ export async function loader({
 }: RouteLoaderArgs<AnyParams, SettingsLoaderData>): Promise<
   SettingsLoaderData
 > {
-  // Check client-side authentication
   const token = localStorage.getItem("authToken");
   if (!token) {
     throw redirect("/login");
   }
 
-  return serverLoader();
+  return await serverLoader();
 }
 ```
+
+The example assumes a matching server loader for SSR. The browser token check
+only controls navigation; validate the session on the server too. Keep this
+loader blocking, without `HydrateFallback`, so its redirect stays in router
+control flow.
 
 For client actions:
 
@@ -688,63 +700,47 @@ export async function action({
 
 ### Forcing a Page Refresh
 
-Redirecting to the exact same URL as the current request triggers a full browser
-refresh instead of a client-side navigation. This is useful when you need
-clients to load new client-side code, such as after a deployment.
-
-The redirect URL must match the request URL exactly (including query parameters)
-to trigger a refresh. A common pattern is to use a version cookie that the
-server sets on initial page load, then check during client-side navigation.
-
-To distinguish between full page loads and client-side data requests, check for
-the `X-Juniper-Route-Id` header. Juniper sets this header on all client-side
-requests for loader and action data:
+Throw `redirectDocument(destination)` when an action must load a fresh document
+at a destination. The helper is exported by both `@udibo/juniper` and
+`react-router`. This example pairs an action with a form at `/account/refresh`:
 
 ```typescript
-// routes/main.ts
-import { Hono } from "hono";
-import { redirect } from "react-router";
-import { getCookie, setCookie } from "hono/cookie";
-import type { AppEnv } from "@udibo/juniper/server";
+// routes/account/refresh.ts
+import { redirectDocument } from "@udibo/juniper";
+import type { RouteActionArgs } from "@udibo/juniper";
 
-const CURRENT_VERSION = "1.2.3"; // Update with each deployment
-
-const app = new Hono<AppEnv>();
-
-app.use(async (c, next) => {
-  const clientVersion = getCookie(c, "app-version");
-  const isClientNavigation = c.req.header("X-Juniper-Route-Id");
-
-  // Force refresh if client has outdated code during client-side navigation
-  if (
-    isClientNavigation && clientVersion && clientVersion !== CURRENT_VERSION
-  ) {
-    throw redirect(c.req.url); // Redirect to exact same URL triggers refresh
-  }
-
-  // Set/update version cookie on full page loads
-  if (!isClientNavigation) {
-    setCookie(c, "app-version", CURRENT_VERSION, { path: "/" });
-  }
-
-  await next();
-});
-
-export default app;
+export function action({ request }: RouteActionArgs): never {
+  throw redirectDocument(new URL("/account", request.url).href);
+}
 ```
 
-Common use cases for forcing a refresh:
+```tsx
+// routes/account/refresh.tsx
+import { Form } from "react-router";
 
-- **After deployments**: When new client code is available but the user's
-  browser has cached the old bundle.
-- **Version mismatches**: When the client and server versions are out of sync
-  and need to reload to get compatible code.
-- **Cache invalidation**: When you need to clear client-side state and start
-  fresh.
+export default function RefreshAccount(): React.JSX.Element {
+  return (
+    <Form method="post">
+      <button type="submit">Reload account</button>
+    </Form>
+  );
+}
+```
 
-To prevent infinite reload loops, Juniper limits same-location refreshes to 2
-attempts within a 30-second window. If the refresh doesn't resolve the issue
-after 2 attempts, the client stops refreshing.
+Ensure the destination exists and can render without issuing the same document
+redirect again. Explicit document redirects are application instructions, so the
+application must avoid redirect loops.
+
+Juniper already detects build-ID mismatches in server loader responses and
+recovers from missing lazy bundles. A custom version-cookie middleware is not
+needed for that mechanism. See
+[deployment](deployment.md#deploying-new-bundles).
+
+For compatibility, an ordinary redirect to the exact current **document URL**
+also requests a refresh, limited to two attempts within 30 seconds. The equality
+includes its query and fragment. It compares against the browser's current URL,
+which can differ from the pending loader request's URL; redirecting to
+`request.url` is not a reliable instruction to reload a new destination.
 
 ## Navigation
 
@@ -772,13 +768,33 @@ export default function Main() {
 }
 ```
 
-The current page remains visible until the destination is ready. If a deployment
-removed a lazy route bundle, Juniper recovers with a document navigation to the
-destination, including its query and fragment. The route stays pending during
-that recovery so an error boundary does not flash before the new SSR page
-arrives. If the reload guard is exhausted, the error reaches the boundary. If a
-document navigation is canceled, navigating away and back can retry recovery
-within that same limit.
+The current page remains visible until the destination's module and blocking
+loaders are ready. Adding `HydrateFallback` to a layout also defers that
+layout's async client loader during later navigation. Its fallback can replace
+the layout's content while that data is pending; do not add a root fallback just
+to indicate navigation progress.
+
+If a deployment removed a lazy route bundle, Juniper recovers with a document
+navigation to the destination, including its query and fragment. The route stays
+pending during that recovery so an error boundary does not flash before the new
+SSR page arrives. If the reload guard is exhausted, the error reaches the
+boundary. If a document navigation is canceled, navigating away and back can
+retry recovery within that same limit.
+
+### Before Hydration
+
+The root `routes/main.tsx` may export `beforeHydrate(document)`. Juniper calls
+it immediately before React hydrates the document. Use it to capture native form
+state that React or an enhanced control would otherwise replace, then hand that
+state to the control as it mounts. Keep the SSR structure consistent with
+React's initial render.
+
+The hook may return a cleanup function. Release observers and listeners as soon
+as their work is complete; Juniper also calls cleanup on an unrecoverable
+hydration failure or when the document is discarded. A page entering the
+back-forward cache retains its hook resources. This hook belongs to the root
+client module, not a lazy child route. See the
+[RootRouteModule API](https://jsr.io/@udibo/juniper/doc/~/RootRouteModule).
 
 ### Link Component
 
@@ -927,3 +943,15 @@ function SearchFilters() {
 - [Forms](forms.md) - Form handling with client and server actions
 - [Error Handling](error-handling.md) - Error boundaries and HttpError
 - [State Management](state-management.md) - Sharing data across your app
+
+## Changelog
+
+- **2026-09-09** — Corrected default serialization claims and linked the
+  supported-value and custom-registration contract.
+
+- **2026-09-09** — Replaced the incorrect version-cookie refresh recipe with an
+  explicit document redirect; clarified blocking authentication and cleaned up
+  revised examples.
+
+- **2026-09-09** — Clarified universal loader execution, deferred redirect
+  limits, layout remounting, root pending feedback, and the beforeHydrate hook.

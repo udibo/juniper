@@ -1,16 +1,44 @@
+---
+title: Metadata
+last_verified: 2026-09-09
+---
+
 # Metadata
 
 ## React 19 Document Metadata
 
 React 19 supports rendering `<title>`, `<meta>`, and `<link>` tags directly in
 components. These tags are automatically hoisted to the document `<head>` during
-rendering.
+rendering. Metadata with `itemProp` describes an item rather than the whole
+document and is not hoisted. Stylesheet links need `precedence` for React's
+special resource handling; see [styling](styling.md#linking-stylesheets).
+
+The route examples below use this loader data shape. In an application, export
+it from the matching route module and reuse it with a type-only import:
 
 ```tsx
-export default function BlogPost({ loaderData }: RouteProps) {
+import type { AnyParams, RouteProps } from "@udibo/juniper";
+
+interface LoaderData {
+  post: {
+    title: string;
+    excerpt: string;
+    content: string;
+    slug: string;
+    tags: string[];
+    coverImage: string;
+    publishedAt: string;
+    updatedAt: string;
+    author: { name: string };
+  };
+}
+
+export default function BlogPost(
+  { loaderData }: RouteProps<AnyParams, LoaderData>,
+): React.JSX.Element {
   return (
     <>
-      <title>{loaderData.post.title} | My Blog</title>
+      <title>{`${loaderData.post.title} | My Blog`}</title>
       <meta name="description" content={loaderData.post.excerpt} />
 
       <article>
@@ -22,14 +50,13 @@ export default function BlogPost({ loaderData }: RouteProps) {
 }
 ```
 
-This eliminates the need for third-party helmet libraries.
+The snippets below are alternative renderings using those same types.
 
 ## Setting Page Titles
 
 Set the page title using the `<title>` element:
 
 ```tsx
-// Static title
 export default function About() {
   return (
     <>
@@ -38,24 +65,31 @@ export default function About() {
     </>
   );
 }
+```
 
-// Dynamic title from loader data
-export default function BlogPost({ loaderData }: RouteProps) {
+For a dynamic title, use the route's typed loader data:
+
+```tsx
+export default function BlogPost(
+  { loaderData }: RouteProps<AnyParams, LoaderData>,
+) {
   return (
     <>
       <title>{loaderData.post.title}</title>
-      <article>{/* content */}</article>
+      <article>{loaderData.post.content}</article>
     </>
   );
 }
+```
 
-// Title with fallback
-export default function Product({ loaderData }: RouteProps) {
-  const title = loaderData.product?.name || "Product";
+A reusable component can supply a fallback when a name is absent:
+
+```tsx
+export function ProductTitle({ name }: { name?: string }): React.JSX.Element {
+  const title = name || "Product";
   return (
     <>
-      <title>{title} | Store</title>
-      {/* content */}
+      <title>{`${title} | Store`}</title>
     </>
   );
 }
@@ -66,23 +100,22 @@ export default function Product({ loaderData }: RouteProps) {
 Add meta tags for SEO and social sharing:
 
 ```tsx
-export default function BlogPost({ loaderData }: RouteProps) {
+export default function BlogPost(
+  { loaderData }: RouteProps<AnyParams, LoaderData>,
+) {
   const { post } = loaderData;
 
   return (
     <>
-      {/* Basic SEO */}
       <title>{post.title}</title>
       <meta name="description" content={post.excerpt} />
       <meta name="keywords" content={post.tags.join(", ")} />
 
-      {/* Robots */}
       <meta name="robots" content="index, follow" />
 
-      {/* Canonical URL */}
       <link rel="canonical" href={`https://example.com/blog/${post.slug}`} />
 
-      <article>{/* content */}</article>
+      <article>{loaderData.post.content}</article>
     </>
   );
 }
@@ -112,7 +145,9 @@ Common meta tags:
 Add Open Graph tags for rich social media previews:
 
 ```tsx
-export default function BlogPost({ loaderData }: RouteProps) {
+export default function BlogPost(
+  { loaderData }: RouteProps<AnyParams, LoaderData>,
+) {
   const { post } = loaderData;
   const url = `https://example.com/blog/${post.slug}`;
 
@@ -121,7 +156,6 @@ export default function BlogPost({ loaderData }: RouteProps) {
       <title>{post.title}</title>
       <meta name="description" content={post.excerpt} />
 
-      {/* Open Graph */}
       <meta property="og:type" content="article" />
       <meta property="og:title" content={post.title} />
       <meta property="og:description" content={post.excerpt} />
@@ -129,20 +163,18 @@ export default function BlogPost({ loaderData }: RouteProps) {
       <meta property="og:image" content={post.coverImage} />
       <meta property="og:site_name" content="My Blog" />
 
-      {/* Article-specific */}
       <meta property="article:published_time" content={post.publishedAt} />
       <meta property="article:author" content={post.author.name} />
       {post.tags.map((tag) => (
         <meta key={tag} property="article:tag" content={tag} />
       ))}
 
-      {/* Twitter Card */}
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content={post.title} />
       <meta name="twitter:description" content={post.excerpt} />
       <meta name="twitter:image" content={post.coverImage} />
 
-      <article>{/* content */}</article>
+      <article>{loaderData.post.content}</article>
     </>
   );
 }
@@ -153,7 +185,9 @@ export default function BlogPost({ loaderData }: RouteProps) {
 Add JSON-LD structured data for rich search results:
 
 ```tsx
-export default function BlogPost({ loaderData }: RouteProps) {
+export default function BlogPost(
+  { loaderData }: RouteProps<AnyParams, LoaderData>,
+) {
   const { post } = loaderData;
 
   const structuredData = {
@@ -175,14 +209,21 @@ export default function BlogPost({ loaderData }: RouteProps) {
       <title>{post.title}</title>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(structuredData).replace(/</g, "\\u003c"),
+        }}
       />
 
-      <article>{/* content */}</article>
+      <article>{loaderData.post.content}</article>
     </>
   );
 }
 ```
+
+Escape `<` in JSON embedded through `dangerouslySetInnerHTML` so a value such as
+`</script>` cannot close the script element in the served HTML. JSON-LD's
+non-executable MIME type does not change HTML parsing. React escapes ordinary
+text children, but it does not escape `dangerouslySetInnerHTML` for you.
 
 Common structured data types:
 
@@ -224,18 +265,20 @@ const breadcrumbData = {
 
 ## Per-Route Metadata
 
-Set default metadata in your root layout and override in child routes:
+Give each document one owner for its title and description. Keep shared tags
+such as the viewport and favicon in the root layout; put page-specific tags in
+the leaf page and its error boundary.
 
 ```tsx
-// routes/main.tsx - Default metadata
+// routes/main.tsx
+import { Outlet } from "react-router";
+
 export default function Main() {
   return (
     <>
       <meta charSet="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <meta name="description" content="My awesome application" />
       <link rel="icon" href="/favicon.ico" />
-      <title>My App</title>
 
       <Outlet />
     </>
@@ -244,35 +287,36 @@ export default function Main() {
 ```
 
 ```tsx
-// routes/blog/index.tsx - Override for blog section
+// routes/blog/index.tsx
 export default function BlogList() {
   return (
     <>
       <title>Blog | My App</title>
       <meta name="description" content="Read our latest blog posts" />
-
-      {/* Blog list content */}
     </>
   );
 }
 ```
 
 ```tsx
-// routes/blog/[id]/index.tsx - Dynamic metadata
-export default function BlogPost({ loaderData }: RouteProps) {
+// routes/blog/[id]/index.tsx
+export default function BlogPost(
+  { loaderData }: RouteProps<AnyParams, LoaderData>,
+) {
   return (
     <>
-      <title>{loaderData.post.title} | My App</title>
+      <title>{`${loaderData.post.title} | My App`}</title>
       <meta name="description" content={loaderData.post.excerpt} />
-
-      {/* Post content */}
     </>
   );
 }
 ```
 
-React 19 automatically handles duplicate tags - the last rendered value wins,
-allowing child routes to override parent metadata.
+React hoists metadata into the head; it does not implement a last-rendered-wins
+override system. In particular, rendering two titles leaves both in the head.
+Render a title as a **single string**, using interpolation when it contains
+dynamic values. See React's
+[title reference](https://react.dev/reference/react-dom/components/title).
 
 ## Next Steps
 
@@ -283,3 +327,11 @@ allowing child routes to override parent metadata.
 - [Routing](routing.md) - File-based routing and data loading
 - [Styling](styling.md) - CSS and TailwindCSS integration
 - [Static Files](static-files.md) - Serving static assets
+
+## Changelog
+
+- **2026-09-09** — Replaced placeholder article content and removed redundant
+  comments from the revised metadata examples.
+
+- **2026-09-09** — Corrected title ownership and string children, typed route
+  examples, and escaped JSON-LD values embedded in HTML.

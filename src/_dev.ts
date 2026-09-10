@@ -255,10 +255,9 @@ export class DevServer {
     const routeFilesChanged = Array.from(relativePaths)
       .filter((p) => this.isValidRouteFile(p));
     this.queuedRebuild = {
-      server: this.queuedRebuild?.server ??
+      server: this.queuedRebuild?.server ||
         routeFilesChanged.some((p) => p.endsWith(".ts")),
-      client: this.queuedRebuild?.client ??
-        routeFilesChanged.some((p) => p.endsWith(".tsx")),
+      client: this.queuedRebuild?.client || routeFilesChanged.length > 0,
     };
     this.checkRebuildQueue();
   }
@@ -291,7 +290,14 @@ export class DevServer {
     console.log("🚀 Starting app...");
 
     const command = deno.command(Deno.execPath(), {
-      args: ["task", "serve", "--hot-reload"],
+      args: [
+        "task",
+        "serve",
+        "--hot-reload",
+        "--dev-server-port",
+        String(this.port),
+      ],
+      cwd: this.builder.projectRoot,
       stdout: "piped",
       stderr: "piped",
     });

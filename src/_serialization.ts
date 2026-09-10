@@ -61,6 +61,7 @@ const typeSerializers: TypeSerializer<any, any>[] = [];
 const errorRegistry = new Map<string, ErrorSerializer<any>>();
 // deno-lint-ignore no-explicit-any
 const errorSerializers: ErrorSerializer<any>[] = [];
+const builtInErrorSerializers = new Set<ErrorSerializer<Error>>();
 // deno-lint-ignore no-explicit-any
 const contextRegistry = new Map<string, ContextSerializer<any, any>>();
 
@@ -121,6 +122,7 @@ export function resetRegistries(): void {
   typeSerializers.length = 0;
   errorRegistry.clear();
   errorSerializers.length = 0;
+  builtInErrorSerializers.clear();
   contextRegistry.clear();
   initializeBuiltInSerializers();
 }
@@ -145,6 +147,45 @@ function findErrorSerializer(
     }
   }
   return undefined;
+}
+
+/** Hides unexpected server error details outside development, preserving explicit error serializers. */
+export function sanitizeServerError(error: unknown): unknown {
+  if (
+    isDevelopment() || !(error instanceof Error) ||
+    error instanceof HttpError || isHttpErrorLike(error)
+  ) {
+    return error;
+  }
+  const serializer = findErrorSerializer(error);
+  if (serializer && !builtInErrorSerializers.has(serializer)) return error;
+  return new HttpError(500, {
+    message: new HttpError(500).exposedMessage,
+    expose: true,
+  });
+}
+
+/** Applies server error privacy to deferred plain data before SSR consumes it. */
+export function sanitizeServerData<T>(data: T): T {
+  if (isThenable(data)) {
+    return Promise.resolve(data).then(sanitizeServerData, (error) => {
+      throw sanitizeServerError(error);
+    }) as T;
+  }
+  if (
+    data === null || typeof data !== "object" ||
+    data instanceof Error || isHttpErrorLike(data) || findTypeSerializer(data)
+  ) {
+    return data;
+  }
+  if (Array.isArray(data)) return data.map(sanitizeServerData) as T;
+  const prototype = Object.getPrototypeOf(data);
+  if (prototype !== Object.prototype && prototype !== null) return data;
+  return Object.fromEntries(
+    Object.entries(data).map((
+      [key, value],
+    ) => [key, sanitizeServerData(value)]),
+  ) as T;
 }
 
 /**
@@ -222,7 +263,10 @@ async function processValue(value: unknown): Promise<unknown> {
       const processedValue = await processValue(resolved);
       return new Tag(PROMISE_RESOLVED_TAG, processedValue);
     } catch (error) {
-      return new Tag(PROMISE_REJECTED_TAG, serializeError(error));
+      return new Tag(
+        PROMISE_REJECTED_TAG,
+        serializeError(sanitizeServerError(error)),
+      );
     }
   }
 
@@ -495,7 +539,7 @@ export function createStreamingLoaderData(
             const resolution: PromiseResolution = {
               id,
               status: "rejected",
-              error: serializeError(error),
+              error: serializeError(sanitizeServerError(error)),
             };
             return encodeLengthPrefixedChunk(resolution);
           }
@@ -591,46 +635,43 @@ function restoreValueWithPendingPromises(
   return value;
 }
 
-async function readLengthPrefixedChunk(
+function createLengthPrefixedReader(
   reader: ReadableStreamDefaultReader<Uint8Array>,
-): Promise<Uint8Array | null> {
+): () => Promise<Uint8Array | null> {
   let buffer = new Uint8Array(0);
 
-  while (buffer.length < 4) {
-    const { done, value } = await reader.read();
-    if (done) {
-      if (buffer.length === 0) return null;
-      throw new Error("Unexpected end of stream while reading chunk length");
+  return async () => {
+    while (buffer.length < 4) {
+      const { done, value } = await reader.read();
+      if (done) {
+        if (buffer.length === 0) return null;
+        throw new Error("Unexpected end of stream while reading chunk length");
+      }
+      const newBuffer = new Uint8Array(buffer.length + value.length);
+      newBuffer.set(buffer);
+      newBuffer.set(value, buffer.length);
+      buffer = newBuffer;
     }
-    const newBuffer = new Uint8Array(buffer.length + value.length);
-    newBuffer.set(buffer);
-    newBuffer.set(value, buffer.length);
-    buffer = newBuffer;
-  }
 
-  const view = new DataView(buffer.buffer, buffer.byteOffset);
-  const length = view.getUint32(0, false);
+    const view = new DataView(buffer.buffer, buffer.byteOffset);
+    const length = view.getUint32(0, false);
 
-  while (buffer.length < 4 + length) {
-    const { done, value } = await reader.read();
-    if (done) {
-      throw new Error("Unexpected end of stream while reading chunk data");
+    while (buffer.length < 4 + length) {
+      const { done, value } = await reader.read();
+      if (done) {
+        throw new Error("Unexpected end of stream while reading chunk data");
+      }
+      const newBuffer = new Uint8Array(buffer.length + value.length);
+      newBuffer.set(buffer);
+      newBuffer.set(value, buffer.length);
+      buffer = newBuffer;
     }
-    const newBuffer = new Uint8Array(buffer.length + value.length);
-    newBuffer.set(buffer);
-    newBuffer.set(value, buffer.length);
-    buffer = newBuffer;
-  }
 
-  const chunkData = buffer.slice(4, 4 + length);
-
-  if (buffer.length > 4 + length) {
-    console.warn("Extra data after chunk, this may indicate a protocol issue");
-  }
-
-  return chunkData;
+    const chunkData = buffer.slice(4, 4 + length);
+    buffer = buffer.slice(4 + length);
+    return chunkData;
+  };
 }
-
 /**
  * Deserialize streaming loader data from a Response.
  * Reads the stream and returns the data structure with promises that
@@ -648,22 +689,26 @@ export async function deserializeStreamingLoaderData<T = unknown>(
     { resolve: (value: unknown) => void; reject: (error: unknown) => void }
   >();
 
-  const initialChunk = await readLengthPrefixedChunk(reader);
-  if (!initialChunk) {
-    throw new Error("Empty streaming response");
+  const readChunk = createLengthPrefixedReader(reader);
+  let data: unknown;
+  try {
+    const initialChunk = await readChunk();
+    if (!initialChunk) throw new Error("Empty streaming response");
+    data = restoreValueWithPendingPromises(
+      decode(initialChunk),
+      promiseResolvers,
+    );
+  } catch (error) {
+    reader.cancel(error).catch(() => {});
+    reader.releaseLock();
+    throw error;
   }
-
-  const decodedInitial = decode(initialChunk);
-  const data = restoreValueWithPendingPromises(
-    decodedInitial,
-    promiseResolvers,
-  );
 
   if (promiseResolvers.size > 0) {
     (async () => {
       try {
         let chunk: Uint8Array | null;
-        while ((chunk = await readLengthPrefixedChunk(reader)) !== null) {
+        while ((chunk = await readChunk()) !== null) {
           const resolution = decode(chunk) as PromiseResolution;
           const resolver = promiseResolvers.get(resolution.id);
           if (resolver) {
@@ -677,18 +722,25 @@ export async function deserializeStreamingLoaderData<T = unknown>(
             promiseResolvers.delete(resolution.id);
           }
         }
+        if (promiseResolvers.size > 0) {
+          throw new Error(
+            "Unexpected end of stream before all promises resolved",
+          );
+        }
       } catch (error) {
         for (const resolver of promiseResolvers.values()) {
           resolver.reject(error);
         }
+        promiseResolvers.clear();
+        reader.cancel(error).catch(() => {});
       } finally {
         reader.releaseLock();
       }
     })();
   } else {
+    reader.cancel().catch(() => {});
     reader.releaseLock();
   }
-
   return data as T;
 }
 
@@ -700,7 +752,11 @@ export async function deserializeStreamingLoaderData<T = unknown>(
  */
 export function encodeToBase64(data: unknown): string {
   const bytes = cborEncode(data);
-  return btoa(String.fromCharCode(...bytes));
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 32768) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768));
+  }
+  return btoa(binary);
 }
 
 /**
@@ -808,9 +864,16 @@ export interface HydrationData {
 export async function serializeHydrationData(
   hydrationData: HydrationData,
 ): Promise<SerializedHydrationData> {
-  const { publicEnv, ...rest } = hydrationData;
+  const { publicEnv, errors, ...rest } = hydrationData;
 
-  const processedData = await processValue(rest);
+  const processedData = await processValue({
+    ...rest,
+    errors: errors && Object.fromEntries(
+      Object.entries(errors).map((
+        [id, error],
+      ) => [id, sanitizeServerError(error)]),
+    ),
+  });
 
   return {
     version: 2,
@@ -1002,6 +1065,9 @@ function initializeBuiltInSerializers(): void {
       return error;
     },
   });
+  for (const serializer of errorSerializers) {
+    builtInErrorSerializers.add(serializer);
+  }
 }
 
 initializeBuiltInSerializers();

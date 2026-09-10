@@ -9,6 +9,7 @@ import type { SSEStreamingApi } from "hono/streaming";
 
 import { Builder } from "./build.ts";
 import { isSnapshotMode } from "./utils/testing.ts";
+import { observeChildProcesses } from "./utils/_testing-processes.ts";
 
 import { DevServer } from "./_dev.ts";
 import {
@@ -23,6 +24,64 @@ const exampleDir = path.resolve(
   path.dirname(path.fromFileUrl(import.meta.url)),
   "example",
 );
+
+describe("server handler changes during development", () => {
+  it("updates client handler flags after adding and removing server exports", async () => {
+    const projectRoot = await Deno.makeTempDir({ prefix: "juniper dev " });
+    const processes = observeChildProcesses();
+    try {
+      const routesPath = path.join(projectRoot, "routes");
+      const serverPath = path.join(routesPath, "index.ts");
+      await Deno.mkdir(routesPath);
+      await Deno.writeTextFile(
+        path.join(projectRoot, "deno.json"),
+        JSON.stringify({ imports: { "@udibo/juniper/client": "./client.ts" } }),
+      );
+      await Deno.writeTextFile(
+        path.join(projectRoot, "client.ts"),
+        "export class Client { constructor(public routes: unknown) {} }",
+      );
+      await Deno.writeTextFile(
+        path.join(routesPath, "index.tsx"),
+        "export default null;",
+      );
+      await Deno.writeTextFile(serverPath, "export const value = 1;");
+      await using builder = new Builder({ projectRoot });
+      const devServer = new DevServer({ builder });
+      using restartStub = stub(
+        devServer,
+        "restartApp",
+        () => Promise.resolve(),
+      );
+      await builder.build();
+      for (const hasHandlers of [true, false]) {
+        await Deno.writeTextFile(
+          serverPath,
+          hasHandlers
+            ? 'export function loader() { return "data"; }\nexport function action() { return "saved"; }'
+            : "export const value = 1;",
+        );
+        {
+          using queueStub = stub(
+            devServer,
+            "checkRebuildQueue",
+            () => Promise.resolve(),
+          );
+          devServer.handleFileEvents([{ kind: "modify", paths: [serverPath] }]);
+          assertSpyCalls(queueStub, 1);
+        }
+        await devServer.checkRebuildQueue();
+        const generated = await Deno.readTextFile(builder.clientPath);
+        assertEquals(generated.includes("loader: true"), hasHandlers);
+        assertEquals(generated.includes("action: true"), hasHandlers);
+      }
+      assertSpyCalls(restartStub, 2);
+    } finally {
+      await processes[Symbol.asyncDispose]();
+      await Deno.remove(projectRoot, { recursive: true });
+    }
+  });
+});
 
 describe("DevServer", () => {
   let writeTextFileStub: Spy<
@@ -70,6 +129,21 @@ describe("DevServer", () => {
   });
 
   describe("constructor", () => {
+    it("passes the reload port to the application process", async () => {
+      const devServer = new DevServer({ builder, port: 3210 });
+      await devServer.startApp();
+      try {
+        assertEquals(commandStub.calls[0].args[1]?.args, [
+          "task",
+          "serve",
+          "--hot-reload",
+          "--dev-server-port",
+          "3210",
+        ]);
+      } finally {
+        await devServer.stop();
+      }
+    });
     it("should initialize with default options", () => {
       const devServer = new DevServer();
       assertEquals(devServer.port, 9001);
@@ -247,7 +321,7 @@ describe("DevServer", () => {
 
         assertSpyCalls(rebuildStub, 1);
         assertSpyCall(rebuildStub, 0, {
-          args: [{ server: true, client: false }],
+          args: [{ server: true, client: true }],
         });
         assertEquals(await startPromise, undefined);
       } finally {
@@ -440,6 +514,29 @@ describe("DevServer", () => {
   });
 
   describe("rebuild merging", () => {
+    it("retains route changes queued after an unrelated change during a build", async () => {
+      class BusyBuilder extends Builder {
+        override get isBuilding(): boolean {
+          return true;
+        }
+      }
+      await using busyBuilder = new BusyBuilder({ projectRoot: exampleDir });
+      const devServer = new DevServer({ builder: busyBuilder });
+      for (
+        const changed of [
+          "components/button.tsx",
+          "routes/page.tsx",
+          "routes/page.ts",
+        ]
+      ) {
+        devServer.handleFileEvents([{
+          kind: "modify",
+          paths: [path.join(exampleDir, changed)],
+        }]);
+      }
+      assertEquals(devServer.queuedRebuild, { server: true, client: true });
+    });
+
     it("should merge multiple rebuild requests", async () => {
       const buildStub = stub(
         builder,
@@ -563,7 +660,14 @@ describe("DevServer", () => {
 
         assertSpyCall(commandStub, 0, {
           args: [Deno.execPath(), {
-            args: ["task", "serve", "--hot-reload"],
+            args: [
+              "task",
+              "serve",
+              "--hot-reload",
+              "--dev-server-port",
+              "9001",
+            ],
+            cwd: builder.projectRoot,
             stdout: "piped",
             stderr: "piped",
           }],

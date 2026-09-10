@@ -1,3 +1,8 @@
+---
+title: Database
+last_verified: 2026-09-09
+---
+
 # Database
 
 ## Overview
@@ -16,37 +21,34 @@ retrieving data.
 
 ### Setup
 
-Open a KV database connection:
+Enable KV with `"unstable": ["kv"]` in `deno.json`. Share the in-flight open
+operation so concurrent first requests reuse one handle:
 
 ```typescript
 // services/db.ts
-let kv: Deno.Kv | undefined;
-
-export async function getKv(): Promise<Deno.Kv> {
-  if (!kv) {
-    kv = await Deno.openKv();
-  }
-  return kv;
-}
-
-export function closeKv(): void {
-  kv?.close();
-  kv = undefined;
-}
-```
-
-For testing, use an in-memory database:
-
-```typescript
 import { isTest } from "@udibo/juniper/utils/env";
 
-export async function getKv(): Promise<Deno.Kv> {
-  if (!kv) {
-    kv = await (isTest() ? Deno.openKv(":memory:") : Deno.openKv());
-  }
-  return kv;
+let kvPromise: Promise<Deno.Kv> | undefined;
+
+export function getKv(): Promise<Deno.Kv> {
+  return kvPromise ??= Deno.openKv(isTest() ? ":memory:" : undefined)
+    .catch((error) => {
+      kvPromise = undefined;
+      throw error;
+    });
+}
+
+export async function closeKv(): Promise<void> {
+  const pending = kvPromise;
+  kvPromise = undefined;
+  (await pending)?.close();
 }
 ```
+
+The test environment uses an in-memory database. Await `closeKv()` in suite
+cleanup or shutdown after all callers have finished; do not close a shared
+handle while requests still use it. Configure durable storage when self-hosting
+and remember that local KV files are not shared between server instances.
 
 ### Basic Operations
 
@@ -113,21 +115,22 @@ Use atomic operations to ensure data consistency:
 ```typescript
 const kv = await getKv();
 
-// Atomic transaction with optimistic locking
-const existing = await kv.get(["users", "id", userId]);
+const existing = await kv.get<{ email: string }>(["users", "id", userId]);
 if (!existing.value) {
   throw new Error("User not found");
 }
 
-const result = await kv.atomic()
-  // Check that the value hasn't changed
+const transaction = kv.atomic()
   .check(existing)
-  // Update the primary entry
-  .set(["users", "id", userId], updatedUser)
-  // Update secondary indexes
+  .set(["users", "id", userId], updatedUser);
+
+if (existing.value.email !== updatedUser.email) {
+  transaction
+    .check({ key: ["users", "email", updatedUser.email], versionstamp: null })
+    .delete(["users", "email", existing.value.email]);
+}
+const result = await transaction
   .set(["users", "email", updatedUser.email], updatedUser)
-  // Delete old secondary index if email changed
-  .delete(["users", "email", existing.value.email])
   .commit();
 
 if (!result.ok) {
@@ -744,3 +747,12 @@ export async function action({ request }: RouteActionArgs) {
 
 - [Forms](forms.md) - Form handling with client and server actions
 - [Error Handling](error-handling.md) - Error boundaries and HttpError
+
+## Changelog
+
+- **2026-09-09** — Typed the transaction lookup and removed redundant comments
+  from the revised examples.
+
+- **2026-09-09** — Fixed the user-update transaction so unchanged emails retain
+  their index and changed emails preserve uniqueness under concurrent writes;
+  shared concurrent KV opens and documented handle cleanup.

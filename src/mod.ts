@@ -1,3 +1,11 @@
+/**
+ * Route contracts, serialization registration, and HTTP errors for Juniper.
+ *
+ * Components receive data through props. Server-only handlers belong in paired
+ * `.ts` files; `.tsx` modules must be safe to import in the browser.
+ *
+ * @module
+ */
 import type { ReactElement } from "react";
 import type { RouterContext } from "react-router";
 import {
@@ -16,13 +24,22 @@ import {
 export { HttpError, RouterContextProvider };
 
 /**
- * The request-scoped context as route handlers and components receive it.
+ * The router context passed to loaders, actions, middleware, and components.
  *
- * Read `context.get(someContext)` and write `context.set(someContext, value)`
- * through it exactly as before — the read-only wrapper only prevents replacing
- * the provider itself, which React Router owns for the lifetime of a request.
- * Reach for this over {@linkcode RouterContextProvider} whenever the value came
- * from a loader, action, middleware, or component prop.
+ * Use `get` and `set` with keys from React Router's `createContext`. Readonly
+ * prevents replacing provider members; stored values remain mutable. Server
+ * providers are request-scoped. The browser provider survives navigations, so
+ * context is not a substitute for reactive React state.
+ *
+ * @example
+ * ```ts
+ * import { createContext } from "react-router";
+ * import type { RequestContext } from "@udibo/juniper";
+ * const locale = createContext("en");
+ * export function readLocale(context: RequestContext): string {
+ *   return context.get(locale);
+ * }
+ * ```
  */
 export type RequestContext = Readonly<RouterContextProvider>;
 
@@ -41,6 +58,10 @@ export { redirect, redirectDocument };
  *
  * Use this interface with {@linkcode registerType} to register custom classes or objects
  * that should be serialized in loader/action data.
+ * Register types such as `Map`, `Set`, `RegExp`, and `URL` explicitly; the route
+ * data preprocessor does not preserve unregistered class instances. `Date` and
+ * errors have built-in handling. Bigints are accepted, but safe integer values
+ * can decode as numbers; use an explicit representation when that type matters.
  *
  * @template T - The type being serialized
  * @template S - The serialized representation type (defaults to `unknown`)
@@ -75,8 +96,10 @@ export interface TypeSerializer<T, S = unknown> {
 /**
  * A serializer for custom error types that need to be transferred between server and client.
  *
- * Use this interface with {@linkcode registerError} to register custom error classes
- * that should preserve their type when thrown in loaders/actions and caught on the client.
+ * Use with {@linkcode registerError} to preserve custom types in SSR hydration,
+ * explicitly returned error data, and deferred promise rejections. Immediate
+ * failures of server loader/action data requests are normalized to `HttpError`
+ * before serialization and do not preserve a custom error class.
  *
  * @template E - The error type being serialized (must extend Error)
  *
@@ -138,7 +161,7 @@ export interface ErrorSerializer<E extends Error> {
  *
  * const userContext = createContext<User | null>();
  *
- * registerContext<User | null>({
+ * registerContext<User | null, User | null>({
  *   name: "user",
  *   context: userContext,
  *   serialize: (user) => user,
@@ -158,36 +181,26 @@ export interface ContextSerializer<T, S = unknown> {
 }
 
 /**
- * Registers a custom type serializer for use in loader/action data.
+ * Registers a custom value's wire representation for loader and action data.
  *
- * When data containing instances of registered types is returned from loaders or actions,
- * it will be automatically serialized on the server and deserialized on the client,
- * preserving the original type.
+ * Call once at module scope in a shared module imported by both server and client.
+ * Registrations are process-wide. The first matching type guard wins; keep guards
+ * narrow and names stable. Both ends must agree on the name and representation.
  *
- * @template T - The type being registered
- * @template S - The serialized representation type
- * @param serializer - The type serializer configuration
- * @throws Error if a type with the same name is already registered
- *
+ * @param serializer - Synchronous type guard, encoder, and decoder.
+ * @throws {Error} If this type name is already registered.
  * @example
  * ```ts
  * import { registerType } from "@udibo/juniper";
- *
  * class Point {
  *   constructor(public x: number, public y: number) {}
  * }
- *
  * registerType<Point, { x: number; y: number }>({
  *   name: "Point",
  *   is: (value): value is Point => value instanceof Point,
- *   serialize: (point) => ({ x: point.x, y: point.y }),
- *   deserialize: (data) => new Point(data.x, data.y),
+ *   serialize: ({ x, y }) => ({ x, y }),
+ *   deserialize: ({ x, y }) => new Point(x, y),
  * });
- *
- * // Now Points can be returned from loaders and will be properly deserialized on the client
- * export function loader() {
- *   return { location: new Point(10, 20) };
- * }
  * ```
  */
 export function registerType<T, S = unknown>(
@@ -197,42 +210,26 @@ export function registerType<T, S = unknown>(
 }
 
 /**
- * Registers a custom error serializer for use in loaders and actions.
+ * Registers a custom error's browser-visible representation.
  *
- * When errors of registered types are thrown in loaders or actions,
- * they will be automatically serialized on the server and deserialized on the client,
- * preserving the error type and any custom properties.
+ * Import the registration on both server and client before routes run. Serialize
+ * only fields safe for the user to read: Juniper does not redact custom payloads.
+ * Built-in errors and `HttpError` already have serializers; give each custom
+ * error a distinct name.
  *
- * Built-in error types (Error, TypeError, RangeError, etc.) and HttpError are
- * already registered by default.
- *
- * @template E - The error type being registered (must extend Error)
- * @param serializer - The error serializer configuration
- * @throws Error if an error with the same name is already registered
- *
+ * @param serializer - Synchronous encoder and decoder for a specific error class.
+ * @throws {Error} If this error name is already registered.
  * @example
  * ```ts
  * import { registerError } from "@udibo/juniper";
- *
- * class NotFoundError extends Error {
- *   constructor(public resourceType: string, public resourceId: string) {
- *     super(`${resourceType} with id ${resourceId} not found`);
- *     this.name = "NotFoundError";
- *   }
+ * class InvalidField extends Error {
+ *   constructor(public field: string) { super("Invalid field"); }
  * }
- *
- * registerError<NotFoundError>({
- *   name: "NotFoundError",
- *   is: (error): error is NotFoundError => error instanceof NotFoundError,
- *   serialize: (error) => ({
- *     message: error.message,
- *     resourceType: error.resourceType,
- *     resourceId: error.resourceId,
- *   }),
- *   deserialize: (data) => new NotFoundError(
- *     data.resourceType as string,
- *     data.resourceId as string,
- *   ),
+ * registerError<InvalidField>({
+ *   name: "InvalidField",
+ *   is: (error): error is InvalidField => error instanceof InvalidField,
+ *   serialize: (error) => ({ field: error.field }),
+ *   deserialize: (data) => new InvalidField(String(data.field)),
  * });
  * ```
  */
@@ -243,52 +240,27 @@ export function registerError<E extends Error>(
 }
 
 /**
- * Registers a context serializer for transferring context values from server to client.
+ * Includes a context value in initial server-to-browser hydration data.
  *
- * When context values are set on the server (e.g., in middleware), they can be
- * serialized and sent to the client during hydration if a serializer is registered.
+ * Register once in a shared module imported on both sides. Treat `serialize` as an
+ * allowlist: its result is readable in the document, even when no component displays
+ * it. Never include credentials or private server state. Hydration seeds browser
+ * context; later server requests do not synchronize it. The decoder must handle
+ * `undefined` when no value was serialized.
  *
- * @template T - The context value type
- * @template S - The serialized representation type
- * @param serializer - The context serializer configuration
- * @throws Error if a context with the same name is already registered
- *
+ * @param serializer - Context key and synchronous wire conversions.
+ * @throws {Error} If this context name is already registered.
  * @example
  * ```ts
  * import { createContext } from "react-router";
  * import { registerContext } from "@udibo/juniper";
- *
- * interface Theme {
- *   mode: "light" | "dark";
- *   primaryColor: string;
- * }
- *
- * const themeContext = createContext<Theme>();
- *
- * registerContext<Theme>({
- *   name: "theme",
- *   context: themeContext,
- *   serialize: (theme) => theme,
- *   deserialize: (data) => data ?? { mode: "light", primaryColor: "#0066cc" },
+ * export const localeContext = createContext("en");
+ * registerContext<string, string>({
+ *   name: "locale",
+ *   context: localeContext,
+ *   serialize: (locale) => locale,
+ *   deserialize: (locale) => locale ?? "en",
  * });
- *
- * // In middleware, set the context
- * export const middleware = [
- *   async ({ context, request }, next) => {
- *     const theme = await getThemePreference(request);
- *     context.set(themeContext, theme);
- *     await next();
- *   },
- * ];
- *
- * export function loader({ context }: RouteLoaderArgs): Theme {
- *   return context.get(themeContext);
- * }
- *
- * // In components, access the context
- * export default function Page({ loaderData }: RouteProps<AnyParams, Theme>) {
- *   return <div style={{ color: loaderData.primaryColor }}>...</div>;
- * }
  * ```
  */
 export function registerContext<T, S = unknown>(
@@ -298,60 +270,35 @@ export function registerContext<T, S = unknown>(
 }
 
 /**
- * The default type of route params. Equivalent to `Record<string, string | undefined>`.
- * This is useful when you want to be able to set the LoaderData or ActionData type without having to
- * create a new type for the params.
+ * Default route parameters, whose values may be absent.
+ *
+ * Use this when specifying data types without a custom parameter shape. Validate
+ * optional and catch-all parameters before use.
  *
  * @example
- * ```ts
- * import type { AnyParams } from "@udibo/juniper";
- *
- * interface LoaderData {
- *   post: Post;
- * }
- *
- * export function PostsList({ loaderData }: RouteProps<AnyParams, LoaderData>) {
- *   const { posts } = loaderData;
- *   return <div>{posts.map(post => <div key={post.id}>{post.title}</div>)}</div>;
+ * ```tsx
+ * import type { AnyParams, RouteProps } from "@udibo/juniper";
+ * type Data = { title: string };
+ * export default function Page({ loaderData }: RouteProps<AnyParams, Data>) {
+ *   return <h1>{loaderData.title}</h1>;
  * }
  * ```
  */
 export type AnyParams = Record<string, string | undefined>;
 
 /**
- * The argument shape provided to route loaders.
+ * Arguments passed to a route's `loader` export.
  *
- * @template Params - The type of route params. Defaults to `AnyParams`.
- * @template LoaderData - The type of loader data. Defaults to `unknown`.
+ * A `.ts` loader runs on the server. A `.tsx` loader runs during browser navigation
+ * and also during SSR when no paired server loader exists. Only a browser loader
+ * with a paired server loader can call `serverLoader()`; on the server it throws.
+ * Forward `request.signal` to your own fetches to respect navigation cancellation.
  *
- * @example Basic loader accessing params
- * ```tsx
+ * @example
+ * ```ts
  * import type { RouteLoaderArgs } from "@udibo/juniper";
- *
- * interface LoaderData {
- *   post: Post;
- * }
- *
- * export async function loader({ params }: RouteLoaderArgs<{ id: string }, LoaderData>): Promise<LoaderData> {
- *   const post = await getPost(params.id);
- *   return { post };
- * }
- * ```
- *
- * @example Loader accessing request URL
- * ```tsx
- * import type { RouteLoaderArgs } from "@udibo/juniper";
- *
- * interface LoaderData {
- *   results: SearchResult[];
- *   query: string;
- * }
- *
- * export async function loader({ request }: RouteLoaderArgs<AnyParams, LoaderData>): Promise<LoaderData> {
- *   const url = new URL(request.url);
- *   const query = url.searchParams.get("q") || "";
- *   const results = await search(query);
- *   return { results, query };
+ * export function loader({ request }: RouteLoaderArgs): { query: string } {
+ *   return { query: new URL(request.url).searchParams.get("q") ?? "" };
  * }
  * ```
  */
@@ -368,55 +315,24 @@ export interface RouteLoaderArgs<
   /**
    * Calls the route's server loader from a client loader, resolving its data
    * (or a `Response`). Only meaningful in a client loader paired with a server
-   * loader; on the server it resolves the loader's own data.
+   * loader; on the server it throws.
    */
   serverLoader: () => LoaderData | Response | Promise<LoaderData | Response>;
 }
 
 /**
- * The argument shape provided to route actions.
+ * Arguments passed to a route's `action` export.
  *
- * @template Params - The type of route params. Defaults to `AnyParams`.
- * @template ActionData - The type of action data. Defaults to `unknown`.
+ * Read fields with `request.formData()` and validate their runtime types. A browser
+ * action can invoke its paired server action with `serverAction()`; the server-side
+ * argument rejects that call. Throw redirects to leave the normal data path.
  *
- * @example Action handling form submission
- * ```tsx
+ * @example
+ * ```ts
  * import type { RouteActionArgs } from "@udibo/juniper";
- *
- * interface ActionData {
- *   post: Post;
- * }
- *
- * export async function action({ request }: RouteActionArgs<AnyParams, ActionData>): Promise<ActionData> {
- *   const formData = await request.formData();
- *   const title = formData.get("title") as string;
- *   const content = formData.get("content") as string;
- *   const post = await createPost({ title, content });
- *   return { post };
- * }
- * ```
- *
- * @example Action with params and intent handling
- * ```tsx
- * import type { RouteActionArgs } from "@udibo/juniper";
- *
- * interface ActionData {
- *   deleted?: boolean;
- *   post?: Post;
- * }
- *
- * export async function action({ request, params }: RouteActionArgs<{ id: string }, ActionData>): Promise<ActionData> {
- *   const formData = await request.formData();
- *   const intent = formData.get("intent");
- *
- *   if (intent === "delete") {
- *     await deletePost(params.id);
- *     return { deleted: true };
- *   }
- *
- *   const title = formData.get("title") as string;
- *   const post = await updatePost(params.id, { title });
- *   return { post };
+ * export async function action({ request }: RouteActionArgs): Promise<{ error?: string }> {
+ *   const name = (await request.formData()).get("name");
+ *   return typeof name === "string" && name.trim() ? {} : { error: "Name is required" };
  * }
  * ```
  */
@@ -433,28 +349,17 @@ export interface RouteActionArgs<
   /**
    * Calls the route's server action from a client action, resolving its data
    * (or a `Response`). Only meaningful in a client action paired with a server
-   * action; on the server it resolves the action's own data.
+   * action; on the server it throws.
    */
   serverAction: () => ActionData | Response | Promise<ActionData | Response>;
 }
 
 /**
- * The argument shape provided to route middleware.
+ * Arguments supplied to browser route middleware.
  *
- * @template Params - The type of route params. Defaults to `AnyParams`.
- *
- * @example Middleware accessing context
- * ```tsx
- * import type { RouteMiddlewareArgs } from "@udibo/juniper";
- *
- * export const middleware = [
- *   async ({ context, request }: RouteMiddlewareArgs, next: () => Promise<void>) => {
- *     const session = await getSession(request);
- *     context.set(userContext, session.user);
- *     await next();
- *   },
- * ];
- * ```
+ * Context is shared with downstream loaders and actions. Server authorization
+ * belongs in Hono middleware in a `.ts` route. See {@linkcode MiddlewareFunction}
+ * for ordering, limitations, and an example.
  */
 export interface RouteMiddlewareArgs<
   Params extends AnyParams = AnyParams,
@@ -468,43 +373,23 @@ export interface RouteMiddlewareArgs<
 }
 
 /**
- * A middleware function exported by a route module.
- * Receives the same "data" arguments as a loader/action (request, params, context)
- * as the first parameter and a next function as the second parameter which will
- * call downstream handlers and then complete middlewares from the bottom-up.
+ * Browser middleware around a navigation's loaders and actions.
  *
- * @template Params - The type of route params. Defaults to `AnyParams`.
+ * Await `next()` to wrap downstream work, or omit it for a before-only check.
+ * Throw to stop processing. These functions do not run during SSR. Lazy route
+ * modules do not install middleware; put browser middleware in the eagerly loaded
+ * root `routes/main.tsx` and enforce authorization in server Hono middleware.
  *
- * @example Authentication middleware
- * ```tsx
- * import { redirect } from "react-router";
+ * @example
+ * ```ts
  * import type { MiddlewareFunction } from "@udibo/juniper";
- *
- * const authMiddleware: MiddlewareFunction = async ({ context, request }, next) => {
- *   const session = await getSession(request);
- *   if (!session.userId) {
- *     throw redirect("/login");
- *   }
- *   const user = await getUserById(session.userId);
- *   context.set(userContext, user);
- *   await next();
- * };
- *
- * export const middleware = [authMiddleware];
- * ```
- *
- * @example Logging middleware
- * ```tsx
- * import type { MiddlewareFunction } from "@udibo/juniper";
- *
- * const loggingMiddleware: MiddlewareFunction = async ({ request }, next) => {
- *   console.log(`[${new Date().toISOString()}] ${request.method} ${request.url}`);
- *   const start = performance.now();
- *   await next();
- *   console.log(`[${new Date().toISOString()}] Completed in ${performance.now() - start}ms`);
- * };
- *
- * export const middleware = [loggingMiddleware];
+ * export const middleware: MiddlewareFunction[] = [
+ *   async ({ request }, next) => {
+ *     const started = performance.now();
+ *     await next();
+ *     console.info(request.url, performance.now() - started);
+ *   },
+ * ];
  * ```
  */
 export type MiddlewareFunction<
@@ -515,87 +400,26 @@ export type MiddlewareFunction<
 ) => Promise<void> | void;
 
 /**
- * The props that are common to route components and error boundaries.
+ * Data supplied directly to a route component by Juniper.
  *
- * @template Params - The type of route params. Defaults to `AnyParams`.
- * @template LoaderData - The type of loader data. Defaults to `unknown`.
- * @template ActionData - The type of action data. Defaults to `unknown`.
+ * Use props instead of React Router's data hooks, which can expose the internal
+ * deferred-data wrapper. Action data is absent before a navigation submission
+ * completes; include `undefined` in its type. A fetcher publishes to `fetcher.data`
+ * instead of this prop.
  *
- * @example Basic route component without loader or params
+ * @example
  * ```tsx
- * import type { RouteProps } from "@udibo/juniper";
- *
- * export default function AboutPage({ params, loaderData, actionData }: RouteProps) {
- *   return <div>About</div>;
- * }
- * ```
- *
- * @example Route component with loader data
- * ```tsx
- * import type { RouteProps, AnyParams } from "@udibo/juniper";
- *
- * interface BlogIndexLoaderData {
- *   posts: Post[];
- *   cursor: string;
- * }
- *
- * export default function BlogIndex({ loaderData }: RouteProps<AnyParams, BlogIndexLoaderData>) {
- *   const { posts } = loaderData;
- *   return <div>{posts.map(post => <div key={post.id}>{post.title}</div>)}</div>;
- * }
- * ```
- *
- * @example Route component with params
- * ```tsx
- * import type { RouteProps } from "@udibo/juniper";
- *
- * export default function BlogPost({ params }: RouteProps<{ id: string }>) {
- *   return <div>Post {params.id}</div>;
- * }
- * ```
- *
- * @example Route component with loader data and params
- * ```tsx
- * import type { RouteProps } from "@udibo/juniper";
- *
- * interface BlogPostLoaderData {
- *   post: Post;
- * }
- *
- * export default function BlogPost(
- *   { params, loaderData }: RouteProps<{ id: string }, BlogPostLoaderData>
- * ) {
- *   const { post } = loaderData;
- *   return <div>{post.title}</div>;
- * }
- * ```
- *
- * @example Route component with action data
- * ```tsx
- * import type { RouteProps, AnyParams } from "@udibo/juniper";
- *
- * interface ActionResult {
- *   success: boolean;
- *   message: string;
- * }
- *
- * export default function ContactForm(
- *   { actionData }: RouteProps<AnyParams, unknown, ActionResult>
- * ) {
- *   if (actionData?.success) {
- *     return <div>Success: {actionData.message}</div>;
- *   }
- *   return <form><input type="text" /></form>;
- * }
- * ```
- *
- * @example Route component accessing context
- * ```tsx
- * import type { RouteProps } from "@udibo/juniper";
- *
- * export default function Dashboard({ context }: RouteProps) {
- *   const user = context.get(userContext);
- *   return <div>Welcome, {user.name}</div>;
+ * import { Form } from "react-router";
+ * import type { AnyParams, RouteProps } from "@udibo/juniper";
+ * type Data = { title: string };
+ * type Result = { error?: string } | undefined;
+ * export default function Page({ loaderData, actionData }: RouteProps<AnyParams, Data, Result>) {
+ *   return <Form method="post">
+ *     <h1>{loaderData.title}</h1>
+ *     <label>Name<input name="name" /></label>
+ *     {actionData?.error && <p role="alert">{actionData.error}</p>}
+ *     <button type="submit">Save</button>
+ *   </Form>;
  * }
  * ```
  */
@@ -608,65 +432,31 @@ export interface RouteProps<
   params: Params;
   /** The loader data of the route. */
   loaderData: LoaderData;
-  /** The action data of the route. */
+  /** Result of a navigation submission, or undefined before one completes. */
   actionData: ActionData;
   /** The router context shared by middleware, loaders, actions, and components. */
   context: RequestContext;
 }
 
 /**
- * The props for error boundary components.
+ * Props for the nearest route `ErrorBoundary` handling a failure.
  *
- * @template Params - The type of route params. Defaults to `AnyParams`.
- * @template LoaderData - The type of loader data. Defaults to `unknown`.
- * @template ActionData - The type of action data. Defaults to `unknown`.
+ * Loader and action data may be absent even when the normal component requires
+ * them. A middleware denial renders without executing loaders. Preserve useful
+ * navigation and display a safe message rather than an arbitrary exception.
+ * Outside development, unexpected built-in or unregistered server `Error`
+ * failures become generic 500 errors. `HttpError` uses its exposure policy;
+ * custom serializers and explicitly returned error data remain application-owned.
  *
- * @example Basic error boundary
+ * @example
  * ```tsx
- * import type { ErrorBoundaryProps } from "@udibo/juniper";
- *
+ * import { HttpError, type ErrorBoundaryProps } from "@udibo/juniper";
  * export function ErrorBoundary({ error, resetErrorBoundary }: ErrorBoundaryProps) {
- *   return (
- *     <div>
- *       <h1>Something went wrong</h1>
- *       <p>{error instanceof Error ? error.message : "Unknown error"}</p>
- *       <button onClick={resetErrorBoundary}>Try again</button>
- *     </div>
- *   );
- * }
- * ```
- *
- * @example Error boundary with params
- * ```tsx
- * import type { ErrorBoundaryProps } from "@udibo/juniper";
- *
- * export function ErrorBoundary({ error, params }: ErrorBoundaryProps<{ id: string }>) {
- *   return (
- *     <div>
- *       <h1>Post Not Found</h1>
- *       <p>Could not find post with ID: {params.id}</p>
- *     </div>
- *   );
- * }
- * ```
- *
- * @example Error boundary with loader data
- * ```tsx
- * import type { AnyParams, ErrorBoundaryProps } from "@udibo/juniper";
- *
- * interface BlogPostLoaderData {
- *   post: Post;
- * }
- *
- * export function ErrorBoundary(
- *   { error, loaderData }: ErrorBoundaryProps<AnyParams, BlogPostLoaderData>
- * ) {
- *   return (
- *     <div>
- *       <h1>Error loading post</h1>
- *       <p>{error instanceof Error ? error.message : "Unknown error"}</p>
- *     </div>
- *   );
+ *   const message = error instanceof HttpError ? error.exposedMessage : "Something went wrong";
+ *   return <div role="alert">
+ *     <p>{message}</p>
+ *     <button type="button" onClick={resetErrorBoundary}>Try again</button>
+ *   </div>;
  * }
  * ```
  */
@@ -675,9 +465,9 @@ export interface ErrorBoundaryProps<
   LoaderData = unknown,
   ActionData = unknown,
 > extends RouteProps<Params, LoaderData, ActionData> {
-  /** The error that was thrown. */
+  /** The failure, with server error details sanitized outside development. */
   error: unknown;
-  /** A function to reset the error boundary. */
+  /** Retries the current URL, including query and fragment; failed imports require document navigation. */
   resetErrorBoundary: () => void;
 }
 
@@ -690,8 +480,10 @@ export type BivariantComponent<Props> = {
 }["bivarianceHack"];
 
 /**
- * The props for HydrateFallback components.
- * Params are always available, but loaderData and actionData may not be loaded yet.
+ * Props available while a route waits for its loader result.
+ *
+ * Only params and context are supplied; loader and action data are absent. See
+ * {@linkcode HydrateFallbackComponent} for when the fallback renders.
  */
 export interface HydrateFallbackProps<
   Params extends AnyParams = AnyParams,
@@ -703,58 +495,38 @@ export interface HydrateFallbackProps<
 }
 
 /**
- * A React component type used for a route's HydrateFallback export.
- * This component is shown during hydration while the loader is pending.
- * It receives params but may not have loaderData or actionData yet.
+ * A route fallback for pending loader data.
+ *
+ * Juniper also uses this export during browser navigation when a loader returns a
+ * promise. It can replace route content during revalidation. It cannot display
+ * feedback while its own module downloads; use `useNavigation()` in a mounted
+ * layout for that interval. For one deferred section use `Suspense` and `Await`.
+ *
+ * Keep loaders that decide redirects blocking: a redirect thrown or returned by
+ * an async loader deferred through this fallback does not trigger router
+ * navigation. Omit this export on those loaders and use mounted navigation UI.
+ *
+ * @example
+ * ```tsx
+ * export function HydrateFallback() {
+ *   return <p role="status">Loading article…</p>;
+ * }
+ * ```
  */
 export type HydrateFallbackComponent<
   Params extends AnyParams = AnyParams,
 > = BivariantComponent<HydrateFallbackProps<Params>>;
 
 /**
- * A React component type used for a route's default export.
+ * Component type for a route module's default export.
  *
- * @template Params - The type of route params. Defaults to `AnyParams`.
- * @template LoaderData - The type of loader data. Defaults to `unknown`.
- * @template ActionData - The type of action data. Defaults to `unknown`.
+ * Type page data with {@linkcode RouteProps}. A `main.tsx` layout renders an
+ * `Outlet` where its child belongs.
  *
- * @example Simple route component
+ * @example
  * ```tsx
- * export default function HomePage() {
- *   return <h1>Welcome</h1>;
- * }
- * ```
- *
- * @example Route component with typed props
- * ```tsx
- * import type { RouteProps } from "@udibo/juniper";
- *
- * interface LoaderData {
- *   user: { name: string };
- * }
- *
- * export default function ProfilePage({ loaderData }: RouteProps<{ id: string }, LoaderData>) {
- *   return <h1>Hello, {loaderData.user.name}</h1>;
- * }
- * ```
- *
- * @example Layout component with Outlet for nested routes
- * ```tsx
- * import { Outlet, Link } from "react-router";
- *
- * export default function DashboardLayout() {
- *   return (
- *     <div>
- *       <nav>
- *         <Link to="/dashboard">Overview</Link>
- *         <Link to="/dashboard/settings">Settings</Link>
- *       </nav>
- *       <main>
- *         <Outlet />
- *       </main>
- *     </div>
- *   );
- * }
+ * import { Outlet } from "react-router";
+ * export default function Layout() { return <main><Outlet /></main>; }
  * ```
  */
 export type RouteComponent<
@@ -764,40 +536,10 @@ export type RouteComponent<
 > = BivariantComponent<RouteProps<Params, LoaderData, ActionData>>;
 
 /**
- * A React component type used for a route's error boundary export.
+ * Component type for a route's `ErrorBoundary` export.
  *
- * @template Params - The type of route params. Defaults to `AnyParams`.
- * @template LoaderData - The type of loader data. Defaults to `unknown`.
- * @template ActionData - The type of action data. Defaults to `unknown`.
- *
- * @example Error boundary component
- * ```tsx
- * import type { ErrorBoundaryProps } from "@udibo/juniper";
- *
- * export function ErrorBoundary({ error, resetErrorBoundary }: ErrorBoundaryProps) {
- *   return (
- *     <div>
- *       <h1>Error</h1>
- *       <p>{error instanceof Error ? error.message : "Unknown error"}</p>
- *       <button onClick={resetErrorBoundary}>Retry</button>
- *     </div>
- *   );
- * }
- * ```
- *
- * @example Error boundary with params
- * ```tsx
- * import type { ErrorBoundaryProps } from "@udibo/juniper";
- *
- * export function ErrorBoundary({ error, params }: ErrorBoundaryProps<{ slug: string }>) {
- *   return (
- *     <div>
- *       <h1>Article Not Found</h1>
- *       <p>Could not load article: {params.slug}</p>
- *     </div>
- *   );
- * }
- * ```
+ * Errors bubble to the nearest ancestor boundary. See {@linkcode ErrorBoundaryProps}
+ * for a safe example and data availability during recovery.
  */
 export type RouteErrorBoundary<
   Params extends AnyParams = AnyParams,
@@ -808,59 +550,20 @@ export type RouteErrorBoundary<
 >;
 
 /**
- * A loader function exported by a route module.
+ * Loader export accepted by a Juniper route module.
  *
- * @template Params - The type of route params. Defaults to `AnyParams`.
- * @template LoaderData - The loader return value type. Defaults to `unknown`.
+ * Return ready data or a promise for it. An object containing promises defers
+ * individual fields; consume them with `Suspense` and `Await`. Throw an `HttpError`
+ * or redirect to leave the data path. See {@linkcode RouteLoaderArgs} for execution
+ * and {@linkcode HydrateFallbackComponent} for pending UI.
  *
- * @example Simple loader
- * ```tsx
- * import type { RouteLoaderArgs } from "@udibo/juniper";
- *
- * interface LoaderData {
- *   user: User;
- * }
- *
- * export async function loader({ params }: RouteLoaderArgs<{ id: string }, LoaderData>): Promise<LoaderData> {
- *   const user = await getUser(params.id);
- *   return { user };
- * }
- * ```
- *
- * @example Loader with deferred data
- * ```tsx
- * import { delay } from "@std/async/delay";
- * import type { RouteLoaderArgs } from "@udibo/juniper";
- *
- * interface LoaderData {
- *   user: Promise<User>;
- *   recommendations: Promise<Recommendation[]>;
- * }
- *
- * export function loader({ params }: RouteLoaderArgs<{ id: string }, LoaderData>): LoaderData {
- *   return {
- *     user: getUser(params.id),
- *     recommendations: delay(1000).then(() => getRecommendations(params.id)),
- *   };
- * }
- * ```
- *
- * @example Loader that throws errors
- * ```tsx
- * import { HttpError } from "@udibo/juniper";
- * import type { RouteLoaderArgs } from "@udibo/juniper";
- *
- * interface LoaderData {
- *   post: Post;
- * }
- *
- * export async function loader({ params }: RouteLoaderArgs<{ id: string }, LoaderData>): Promise<LoaderData> {
- *   const post = await getPost(params.id);
- *   if (!post) {
- *     throw new HttpError(404, "Post not found");
- *   }
- *   return { post };
- * }
+ * @example
+ * ```ts
+ * import type { LoaderFunction } from "@udibo/juniper";
+ * export const loader: LoaderFunction = () => ({
+ *   title: "Activity",
+ *   items: Promise.resolve(["Created account"]),
+ * });
  * ```
  */
 export type LoaderFunction<
@@ -873,74 +576,15 @@ export type LoaderFunction<
 }["bivarianceHack"];
 
 /**
- * An action function exported by a route module.
+ * Action export accepted by a Juniper route module.
  *
- * @template Params - The type of route params. Defaults to `AnyParams`.
- * @template ActionData - The action return value type. Defaults to `unknown`.
+ * Return serializable data for the submitting form, or throw a redirect/error.
+ * See {@linkcode RouteActionArgs} for request parsing and the server-action bridge.
  *
- * @example Simple form action
- * ```tsx
- * import type { AnyParams, RouteActionArgs } from "@udibo/juniper";
- *
- * interface ActionData {
- *   success: boolean;
- * }
- *
- * export async function action({ request }: RouteActionArgs<AnyParams, ActionData>): Promise<ActionData> {
- *   const formData = await request.formData();
- *   const email = formData.get("email") as string;
- *   await subscribe(email);
- *   return { success: true };
- * }
- * ```
- *
- * @example Action with intent handling
- * ```tsx
- * import type { RouteActionArgs } from "@udibo/juniper";
- *
- * interface ActionData {
- *   post?: Post;
- *   deleted?: boolean;
- *   error?: string;
- * }
- *
- * export async function action({ request, params }: RouteActionArgs<{ id: string }, ActionData>): Promise<ActionData> {
- *   const formData = await request.formData();
- *   const intent = formData.get("intent");
- *
- *   switch (intent) {
- *     case "update":
- *       const title = formData.get("title") as string;
- *       return { post: await updatePost(params.id, { title }) };
- *     case "delete":
- *       await deletePost(params.id);
- *       return { deleted: true };
- *     default:
- *       return { error: "Unknown intent" };
- *   }
- * }
- * ```
- *
- * @example Action with validation
- * ```tsx
- * import type { AnyParams, RouteActionArgs } from "@udibo/juniper";
- *
- * interface ActionData {
- *   post?: Post;
- *   error?: string;
- * }
- *
- * export async function action({ request }: RouteActionArgs<AnyParams, ActionData>): Promise<ActionData> {
- *   const formData = await request.formData();
- *   const title = formData.get("title") as string;
- *
- *   if (!title || title.length < 3) {
- *     return { error: "Title must be at least 3 characters" };
- *   }
- *
- *   const post = await createPost({ title });
- *   return { post };
- * }
+ * @example
+ * ```ts
+ * import { redirect, type ActionFunction } from "@udibo/juniper";
+ * export const action: ActionFunction = () => { throw redirect("/complete"); };
  * ```
  */
 export type ActionFunction<
@@ -953,58 +597,22 @@ export type ActionFunction<
 }["bivarianceHack"];
 
 /**
- * The contract for a route module file.
+ * Exports supported by a `.tsx` page or layout module.
  *
- * @template Params - The type of route params.
- * @template LoaderData - The loader return value type.
- * @template ActionData - The action return value type.
+ * Juniper adapts components to receive props and connects paired `.ts` loaders and
+ * actions. This module can be bundled into the browser; keep server-only imports
+ * in its paired `.ts` file. Consult individual export contracts for pending data,
+ * errors, and middleware limitations.
  *
- * @example Complete route module
+ * @example
  * ```tsx
- * import type { ErrorBoundaryProps, RouteActionArgs, RouteLoaderArgs, RouteProps } from "@udibo/juniper";
- * import { Form } from "react-router";
- *
- * interface LoaderData {
- *   post: { id: string; title: string; content: string };
- * }
- *
- * interface ActionData {
- *   success?: boolean;
- *   error?: string;
- * }
- *
- * export async function loader({ params }: RouteLoaderArgs<{ id: string }, LoaderData>): Promise<LoaderData> {
- *   const post = await getPost(params.id);
- *   return { post };
- * }
- *
- * export async function action({ request, params }: RouteActionArgs<{ id: string }, ActionData>): Promise<ActionData> {
- *   const formData = await request.formData();
- *   const title = formData.get("title") as string;
- *   await updatePost(params.id, { title });
- *   return { success: true };
- * }
- *
- * export default function PostPage({ loaderData, actionData }: RouteProps<{ id: string }, LoaderData, ActionData>) {
- *   return (
- *     <div>
- *       <h1>{loaderData.post.title}</h1>
- *       {actionData?.success && <p>Updated!</p>}
- *       <Form method="post">
- *         <input name="title" defaultValue={loaderData.post.title} />
- *         <button type="submit">Update</button>
- *       </Form>
- *     </div>
- *   );
- * }
- *
- * export function ErrorBoundary({ error }: ErrorBoundaryProps) {
- *   return <div>Error: {error instanceof Error ? error.message : "Unknown"}</div>;
- * }
- *
- * export function HydrateFallback() {
- *   return <div>Loading...</div>;
- * }
+ * import type { RouteModule } from "@udibo/juniper";
+ * const page = {
+ *   default: () => <h1>About</h1>,
+ *   ErrorBoundary: () => <p role="alert">Unable to load this page</p>,
+ * } satisfies RouteModule;
+ * export default page.default;
+ * export const ErrorBoundary = page.ErrorBoundary;
  * ```
  */
 export interface RouteModule<
@@ -1016,7 +624,7 @@ export interface RouteModule<
   default?: RouteComponent<Params, LoaderData, ActionData>;
   /** The route's error boundary component. */
   ErrorBoundary?: RouteErrorBoundary<Params, LoaderData, ActionData>;
-  /** The route's hydration fallback component shown during hydration before loader completes. */
+  /** Pending loader UI; see HydrateFallbackComponent before using it on a layout. */
   HydrateFallback?: HydrateFallbackComponent<Params>;
   /** The loader function. */
   loader?: LoaderFunction<Params, LoaderData>;
@@ -1033,38 +641,22 @@ export interface RouteModule<
 export type HtmlProps = React.HTMLAttributes<HTMLHtmlElement>;
 
 /**
- * The module shape for the root route (`routes/main.tsx`).
+ * Exports for the eagerly loaded root `routes/main.tsx` layout.
  *
- * Extends {@linkcode RouteModule} with {@linkcode RootRouteModule.htmlProps} for
- * configuring the document's `<html>` element.
+ * Extends {@linkcode RouteModule} with document attributes and the browser-only
+ * `beforeHydrate` hook. Put navigation in both the layout and its error boundary.
  *
- * @template Params - The type of route params. Defaults to `AnyParams`.
- * @template LoaderData - The type of loader data. Defaults to `unknown`.
- * @template ActionData - The type of action data. Defaults to `unknown`.
- *
- * @example Root route module with ErrorBoundary
+ * @example
  * ```tsx
  * import { Outlet } from "react-router";
- * import type { ErrorBoundaryProps } from "@udibo/juniper";
- *
+ * import type { HtmlProps } from "@udibo/juniper";
+ * export const htmlProps: HtmlProps = { lang: "en" };
  * export default function Root() {
- *   return (
- *     <>
- *       <meta charSet="utf-8" />
- *       <meta name="viewport" content="width=device-width,initial-scale=1.0" />
- *       <Outlet />
- *     </>
- *   );
- * }
- *
- * export function ErrorBoundary({ error, resetErrorBoundary }: ErrorBoundaryProps) {
- *   return (
- *     <div>
- *       <h1>Application Error</h1>
- *       <p>{error instanceof Error ? error.message : "Unknown error"}</p>
- *       <button onClick={resetErrorBoundary}>Try again</button>
- *     </div>
- *   );
+ *   return <>
+ *     <meta charSet="utf-8" />
+ *     <meta name="viewport" content="width=device-width, initial-scale=1" />
+ *     <Outlet />
+ *   </>;
  * }
  * ```
  */
@@ -1099,8 +691,12 @@ export interface RootRouteModule<
    * @returns Optional cleanup for pending work.
    * @example
    * ```tsx
+   * export const initialValues = new Map<HTMLInputElement, string>();
    * export function beforeHydrate(document: Document): () => void {
-   *   return capturePendingFormEdits(document);
+   *   for (const input of document.querySelectorAll("input")) {
+   *     initialValues.set(input, input.value);
+   *   }
+   *   return () => initialValues.clear();
    * }
    * ```
    */
