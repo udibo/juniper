@@ -1,8 +1,3 @@
----
-title: Development Tools
-last_verified: 2026-09-09
----
-
 # Development Tools
 
 ## Development Server
@@ -332,8 +327,3 @@ JetBrains IDEs (WebStorm, IntelliJ IDEA) have built-in Deno support:
 
 - [Testing](testing.md) - Testing utilities and patterns
 - [Logging](logging.md) - Logging and OpenTelemetry
-
-## Changelog
-
-- **2026-09-09** — Clarified document reload behavior and kept debugger and task
-  examples on the template permission and environment profiles.

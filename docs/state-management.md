@@ -1,8 +1,3 @@
----
-title: State Management
-last_verified: 2026-09-09
----
-
 # State Management
 
 ## Overview
@@ -879,13 +874,3 @@ disagree with SSR.
 - [Middleware](middleware.md) - Server and client middleware
 - [Routing](routing.md) - File-based routing and data loading
 - [Database](database.md) - Deno KV and PostgreSQL
-
-## Changelog
-
-- **2026-09-09** — Documented verified serialization behavior and URL
-  registration; corrected React Context SSR behavior and moved browser storage
-  reads after hydration.
-
-- **2026-09-09** — Fixed async loader examples and explained context
-  registration timing, public serialization, and revalidation versus cached
-  query data.

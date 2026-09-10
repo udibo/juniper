@@ -1,8 +1,3 @@
----
-title: Configuration
-last_verified: 2026-09-09
----
-
 # Configuration
 
 ## Project Configuration (deno.json)
@@ -392,8 +387,3 @@ To exclude build output from formatting and type checking:
 
 - [Styling](styling.md) - CSS and TailwindCSS integration
 - [Deployment](deployment.md) - Deploy to Deno Deploy, Docker, and more
-
-## Changelog
-
-- **2026-09-09** — Aligned React Router versions with the template and clarified
-  explicit environment loading and the limits of the public-variable allowlist.

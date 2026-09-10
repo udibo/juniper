@@ -1,8 +1,3 @@
----
-title: Deployment
-last_verified: 2026-09-09
----
-
 # Deployment
 
 ## Overview
@@ -389,9 +384,3 @@ applications
 - [CI/CD](ci-cd.md) - GitHub Actions workflows
 - [Logging](logging.md) - Logging and OpenTelemetry
 - [Configuration](configuration.md) - Project and build configuration
-
-## Changelog
-
-- **2026-09-09** — Corrected production packaging and cache semantics, added
-  long-running server and deployment recovery guidance, and replaced unverified
-  adapter recipes with runtime requirements.

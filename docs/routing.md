@@ -1,8 +1,3 @@
----
-title: Routing
-last_verified: 2026-09-09
----
-
 # Routing
 
 ## File-Based Routing
@@ -943,15 +938,3 @@ function SearchFilters() {
 - [Forms](forms.md) - Form handling with client and server actions
 - [Error Handling](error-handling.md) - Error boundaries and HttpError
 - [State Management](state-management.md) - Sharing data across your app
-
-## Changelog
-
-- **2026-09-09** — Corrected default serialization claims and linked the
-  supported-value and custom-registration contract.
-
-- **2026-09-09** — Replaced the incorrect version-cookie refresh recipe with an
-  explicit document redirect; clarified blocking authentication and cleaned up
-  revised examples.
-
-- **2026-09-09** — Clarified universal loader execution, deferred redirect
-  limits, layout remounting, root pending feedback, and the beforeHydrate hook.

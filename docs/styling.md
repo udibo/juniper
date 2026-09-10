@@ -1,8 +1,3 @@
----
-title: Styling
-last_verified: 2026-09-09
----
-
 # Styling
 
 ## Overview
@@ -868,11 +863,3 @@ details on build artifact caching and how to customize it.
 
 - [Configuration](configuration.md) - Project and build configuration
 - [Metadata](metadata.md) - Page titles and meta tags
-
-## Changelog
-
-- **2026-09-09** — Removed redundant comments from revised stylesheet examples
-  while keeping resource paths explicit.
-
-- **2026-09-09** — Corrected React stylesheet precedence, documented generated
-  CSS-module mappings, and aligned the PostCSS plugin with the template.

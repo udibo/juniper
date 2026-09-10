@@ -1,8 +1,3 @@
----
-title: Middleware
-last_verified: 2026-09-09
----
-
 # Middleware
 
 ## Overview
@@ -464,12 +459,3 @@ for hydration must contain only data that client is allowed to receive.
 - [State Management](state-management.md) - Sharing data across your app
 - [Error Handling](error-handling.md) - Error boundaries and HttpError
 - [Logging](logging.md) - Logging and OpenTelemetry
-
-## Changelog
-
-- **2026-09-09** — Removed redundant comments from the revised authentication
-  and client middleware examples.
-
-- **2026-09-09** — Corrected the execution matrix and lazy middleware
-  limitation; made authorization checks explicit and separated client navigation
-  from server access control.

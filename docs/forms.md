@@ -1,8 +1,3 @@
----
-title: Forms
-last_verified: 2026-09-09
----
-
 # Forms
 
 ## Overview
@@ -662,15 +657,3 @@ content type. The browser-supplied filename and MIME type are untrusted.
 - [Error Handling](error-handling.md) - Error boundaries and HttpError
 - [Database](database.md) - Deno KV and PostgreSQL
 - [Testing](testing.md) - Testing utilities and patterns
-
-## Changelog
-
-- **2026-09-09** — Corrected action-data serialization claims, including bigint
-  normalization and custom classes.
-
-- **2026-09-09** — Removed explanatory comments from the revised submission and
-  validation examples.
-
-- **2026-09-09** — Corrected navigation pending state, fetcher action targets
-  and POST submission; validated untrusted fields and uploads and derived
-  ownership from server context.

@@ -1,8 +1,3 @@
----
-title: Tutorials
-last_verified: 2026-09-09
----
-
 # Tutorials
 
 This section provides hands-on tutorials for learning Juniper. Each tutorial
@@ -64,8 +59,3 @@ root; in the copied tutorial project, run `deno task test`. See
 - [Routing](../routing.md) - File-based routing and data loading
 - [Forms](../forms.md) - Form handling and actions
 - [Middleware](../middleware.md) - Adding authentication and other middleware
-
-## Changelog
-
-- **2026-09-09** — Clarified public mutation endpoints and the tutorial
-  validation scope, plus standalone versus repository test commands.
