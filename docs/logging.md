@@ -1,3 +1,8 @@
+---
+title: Logging
+last_verified: 2026-09-09
+---
+
 # Logging
 
 ## Overview
@@ -90,7 +95,7 @@ function debugLog(...args: unknown[]) {
   }
 }
 
-debugLog("Loader executed", { params });
+debugLog("Loader executed", { route: "blog/index" });
 ```
 
 ## OpenTelemetry Integration
@@ -102,11 +107,9 @@ Deno has built-in OpenTelemetry support that automatically instruments
 
 Enable OpenTelemetry with the `OTEL_DENO` environment variable:
 
-```bash
-# Run with OpenTelemetry enabled
-OTEL_DENO=true deno run --allow-net --allow-env server.ts
+Set these values in the environment loaded by your task:
 
-# Or use environment variables in your .env file
+```dotenv
 OTEL_DENO=true
 OTEL_SERVICE_NAME=my-juniper-app
 ```
@@ -132,7 +135,11 @@ With `OTEL_DENO=true`, Deno automatically exports:
 - **Traces** from `fetch()` calls
 - **Logs** from `console.log()` and other console methods
 
-By default, telemetry is exported to `localhost:4318` using OTLP over HTTP.
+By default, telemetry is exported to `localhost:4318` using OTLP over HTTP. The
+collector must be reachable from the application's environment; a container's
+`localhost` refers to that container. See Deno's
+[OpenTelemetry configuration](https://docs.deno.com/runtime/fundamentals/open_telemetry/)
+for exporter and runtime options.
 
 ### Custom Traces and Spans
 
@@ -146,41 +153,39 @@ const { startActiveSpan } = otelUtils();
 export { startActiveSpan };
 ```
 
-Wrap operations in spans:
+Wrap operations in spans. This service receives a reusable Deno KV handle from
+the application; the caller owns closing it:
 
 ```typescript
-// services/user.ts
+import { HttpError } from "@udibo/juniper";
 import { startActiveSpan } from "@/utils/otel.ts";
 
+interface User {
+  id: string;
+  name: string;
+}
+
 export class UserService {
-  async getUser(id: string) {
-    return startActiveSpan("user.get", async (span) => {
-      span.setAttribute("user.id", id);
+  constructor(private kv: Deno.Kv) {}
 
-      const user = await db.get(["users", id]);
-
-      if (!user) {
+  async getUser(id: string): Promise<User> {
+    return await startActiveSpan("user.get", async (span) => {
+      const entry = await this.kv.get<User>(["users", id]);
+      if (!entry.value) {
         span.setAttribute("user.found", false);
         throw new HttpError(404, "User not found");
       }
-
       span.setAttribute("user.found", true);
-      return user;
-    });
-  }
-
-  async createUser(data: NewUser) {
-    return startActiveSpan("user.create", async (span) => {
-      span.setAttribute("user.email", data.email);
-
-      const user = await db.create(data);
-      span.setAttribute("user.id", user.id);
-
-      return user;
+      return entry.value;
     });
   }
 }
 ```
+
+Juniper's wrapper ends the span when the callback finishes and records thrown
+errors before rethrowing them. Await all work that belongs to the operation
+inside the callback. Do not add passwords, tokens, or personal data to span
+attributes; exporters retain attributes just as they retain logs.
 
 Spans with options:
 
@@ -207,30 +212,37 @@ Use the OpenTelemetry API for custom metrics:
 
 ```typescript
 import { metrics } from "@opentelemetry/api";
+import { Hono } from "hono";
 
 const meter = metrics.getMeter("my-app");
+const app = new Hono();
 
-// Create a counter
 const requestCounter = meter.createCounter("app.requests", {
   description: "Number of requests processed",
 });
 
-// Create a histogram
 const requestDuration = meter.createHistogram("app.request.duration", {
   description: "Request duration in milliseconds",
   unit: "ms",
 });
 
-// Use in your code
 app.use("*", async (c, next) => {
   const start = performance.now();
   await next();
   const duration = performance.now() - start;
 
-  requestCounter.add(1, { path: c.req.path, status: c.res.status });
-  requestDuration.record(duration, { path: c.req.path });
+  const attributes = { method: c.req.method, status: c.res.status };
+  requestCounter.add(1, attributes);
+  requestDuration.record(duration, attributes);
 });
+
+export default app;
 ```
+
+Use bounded metric labels. A raw request path can include unbounded IDs or
+personal data; record a route template only when your application has a stable,
+known template for the request. Hono middleware duration ends when the response
+is returned and does not measure the time needed to consume a streamed body.
 
 ### Configuration Options
 
@@ -398,3 +410,11 @@ rm -rf docker/volumes/lgtm
 
 - [Error Handling](error-handling.md) - Error boundaries and HttpError
 - [Deployment](deployment.md) - Deploy to Deno Deploy, Docker, and more
+
+## Changelog
+
+- **2026-09-09** — Removed narrative comments from the revised metrics example.
+
+- **2026-09-09** — Made the KV tracing example concrete, corrected entry
+  handling, and removed personal data and unbounded request paths from telemetry
+  examples.

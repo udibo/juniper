@@ -1,3 +1,8 @@
+---
+title: Middleware
+last_verified: 2026-09-09
+---
+
 # Middleware
 
 ## Overview
@@ -7,7 +12,9 @@ Juniper supports two types of middleware:
 1. **Server Middleware (Hono)** - Runs on every HTTP request on the server
 2. **Client Middleware (React Router)** - Runs during client-side navigation
 
-Both can set values on the context object and transform requests/responses.
+Both can initialize route context. Hono middleware controls HTTP responses;
+client middleware surrounds client-router work and does not replace server
+authorization.
 
 ## Server Middleware (Hono)
 
@@ -133,6 +140,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  role: "user" | "admin";
 }
 
 export const userContext = createContext<User | null>();
@@ -174,7 +182,7 @@ app.use(async (c, next) => {
     throw new HttpError(401, "Authentication required");
   }
 
-  if (!user.isAdmin) {
+  if (user.role !== "admin") {
     throw new HttpError(403, "Admin access required");
   }
 
@@ -255,20 +263,21 @@ navigation.
 
 ### Creating Client Middleware
 
-Export a `middleware` array from your route file:
+Export a `middleware` array from an eagerly loaded route module. The generated
+application eagerly imports `routes/main.tsx`; its other routes are lazy. React
+Router cannot discover middleware from a lazy module in time, so Juniper strips
+lazy `middleware` exports. Put shared client middleware in the root module and
+use `request.url` to scope it when needed.
 
 ```typescript
-// routes/dashboard/index.tsx
+// routes/main.tsx
 import type { MiddlewareFunction } from "@udibo/juniper";
 
 export const middleware: MiddlewareFunction[] = [
   async ({ context, request }) => {
     console.log("Dashboard middleware running");
 
-    // Set context values
     context.set(dashboardContext, { loadedAt: new Date() });
-
-    // next() is called automatically after this middleware completes
   },
 ];
 
@@ -312,12 +321,10 @@ completes. You only need to call `next()` explicitly when you want to run code
 ```typescript
 export const middleware: MiddlewareFunction[] = [
   async ({ context }, next) => {
-    // Before downstream handlers
     const start = performance.now();
 
-    await next(); // Execute child middleware, loaders, actions, render
+    await next();
 
-    // After downstream handlers complete
     const duration = performance.now() - start;
     console.log(`Route took ${duration}ms`);
   },
@@ -420,12 +427,13 @@ export const middleware: MiddlewareFunction[] = [
 
 ## When Each Type Runs
 
-| Scenario                  | Server Middleware | Client Middleware |
-| ------------------------- | ----------------- | ----------------- |
-| Initial page load (SSR)   | Yes               | No                |
-| Client-side navigation    | No                | Yes               |
-| Form submission to server | Yes               | No                |
-| Direct URL access         | Yes               | No                |
+| Scenario                 | Server Middleware             | Client Middleware |
+| ------------------------ | ----------------------------- | ----------------- |
+| Initial page load (SSR)  | Yes                           | No                |
+| Client-side navigation   | When it fetches server data   | Yes               |
+| Enhanced form submission | When it calls a server action | Yes               |
+| Native form submission   | Yes                           | No                |
+| Direct URL access        | Yes                           | No                |
 
 Use server middleware for:
 
@@ -441,6 +449,12 @@ Use client middleware for:
 - Client-side feature flags
 - UI-related context setup
 
+Client middleware is a navigation convenience, not an authorization boundary.
+Validate authentication, authorization, and tenant scope in server middleware
+and services for document requests, data requests, and API requests. An attacker
+can call those endpoints without running your client code. Context registered
+for hydration must contain only data that client is allowed to receive.
+
 ## Next Steps
 
 **Next:** [Forms](forms.md) - Form handling with client and server actions
@@ -450,3 +464,12 @@ Use client middleware for:
 - [State Management](state-management.md) - Sharing data across your app
 - [Error Handling](error-handling.md) - Error boundaries and HttpError
 - [Logging](logging.md) - Logging and OpenTelemetry
+
+## Changelog
+
+- **2026-09-09** — Removed redundant comments from the revised authentication
+  and client middleware examples.
+
+- **2026-09-09** — Corrected the execution matrix and lazy middleware
+  limitation; made authorization checks explicit and separated client navigation
+  from server access control.

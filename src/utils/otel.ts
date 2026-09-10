@@ -11,28 +11,18 @@ import { HttpError } from "../mod.ts";
 import { getEnv } from "./env.ts";
 
 /**
- * Gets the current OpenTelemetry instance for error tracking and observability.
+ * Returns the active span's correlation path for an error's `instance` field.
  *
- * This function retrieves the active span and returns a formatted string containing
- * the trace ID and span ID, which can be used for correlating errors with traces.
+ * The path contains a trace id and span id; it is an identifier, not a built-in
+ * Juniper endpoint. No active span means no correlation value.
  *
- * @returns A formatted string with trace and span IDs, or undefined if no active span
- *
- * @example Using getInstance for error correlation
+ * @returns `/trace/<traceId>/span/<spanId>`, or `undefined` without an active span.
+ * @example
  * ```ts
- * import { getInstance } from "@udibo/juniper/utils/otel";
  * import { HttpError } from "@udibo/juniper";
- *
- * app.get("/api/users/:id", async (c) => {
- *   try {
- *     const user = await getUserById(c.req.param("id"));
- *     return c.json(user);
- *   } catch (cause) {
- *     const error = HttpError.from(cause);
- *     error.instance = getInstance(); // Add trace correlation
- *     throw error;
- *   }
- * });
+ * import { getInstance } from "@udibo/juniper/utils/otel";
+ * const error = new HttpError(503, "Service unavailable");
+ * error.instance = getInstance();
  * ```
  */
 export function getInstance(): string | undefined {
@@ -78,47 +68,28 @@ export interface OtelUtils {
 }
 
 /**
- * Creates OpenTelemetry utilities for tracing operations.
+ * Creates span helpers using a supplied tracer or the application's default tracer.
  *
- * This function provides a convenient wrapper around OpenTelemetry's tracing functionality
- * with automatic error handling, span lifecycle management, and HttpError integration.
+ * `startActiveSpan` preserves the callback's sync or Promise return type, ends the
+ * span when it settles, records thrown errors, and rethrows the original failure.
+ * An `HttpError` without an instance receives the active trace correlation path.
+ * Configure an OpenTelemetry provider/exporter separately; this helper does not
+ * install one or export telemetry by itself.
  *
- * @param tracer - Optional OpenTelemetry tracer instance. If not provided, creates one using the APP_NAME environment variable.
- * @returns An object containing utility functions for tracing operations
- *
- * @example Using otelUtils with default tracer
+ * @param tracer - Tracer to use; defaults to a tracer named by APP_NAME (or "unknown").
+ * @returns A `startActiveSpan` helper with name, options, and explicit-context overloads.
+ * @example
  * ```ts
  * import { otelUtils } from "@udibo/juniper/utils/otel";
- *
  * const { startActiveSpan } = otelUtils();
- *
- * app.get("/api/users", async (c) => {
- *   return startActiveSpan("get-users", async (span) => {
- *     span.setAttributes({ "user.count": 10 });
- *     const users = await getUsersFromDatabase();
- *     return c.json(users);
- *   });
+ * const total = startActiveSpan("calculate-total", {
+ *   attributes: { "items.count": 3 },
+ * }, (span) => {
+ *   const result = [10, 20, 30].reduce((sum, value) => sum + value, 0);
+ *   span.setAttribute("total", result);
+ *   return result;
  * });
- * ```
- *
- * @example Using with a custom tracer
- * ```ts
- * import { trace } from "@opentelemetry/api";
- * import { otelUtils } from "@udibo/juniper/utils/otel";
- *
- * const tracer = trace.getTracer("my-service");
- * const { startActiveSpan } = otelUtils(tracer);
- * ```
- *
- * @example Using with span options
- * ```ts
- * const result = startActiveSpan(
- *   "database-query",
- *   { attributes: { "db.operation": "select" } },
- *   async (span) => {
- *     return await queryDatabase();
- *   }
- * );
+ * console.info(total);
  * ```
  */
 export function otelUtils(tracer?: Tracer): OtelUtils {

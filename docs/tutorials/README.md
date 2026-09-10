@@ -1,3 +1,8 @@
+---
+title: Tutorials
+last_verified: 2026-09-09
+---
+
 # Tutorials
 
 This section provides hands-on tutorials for learning Juniper. Each tutorial
@@ -24,7 +29,10 @@ Learn core Juniper concepts by building a blog:
 
 **Difficulty:** Beginner to Intermediate
 
-**Not included:** Authentication, authorization, input sanitization
+**Scope:** The tutorial demonstrates validation of form fields. It does not
+implement authentication or authorization; its create, edit, delete, and API
+operations are public. Before using it with real data, enforce access in server
+middleware and services, then test rejected HTTP requests as well as the UI.
 
 ## Getting the Tutorial Code
 
@@ -43,6 +51,11 @@ deno task dev
 This gives you the finished result so you can explore the code or use it as a
 starting point for your own project.
 
+The finished code and prose should be read from the same revision when comparing
+them. In a repository checkout, run `deno task test:blog` from the repository
+root; in the copied tutorial project, run `deno task test`. See
+[testing](../testing.md) for loader and form interaction examples.
+
 ## Next Steps
 
 **Related topics:**
@@ -51,3 +64,8 @@ starting point for your own project.
 - [Routing](../routing.md) - File-based routing and data loading
 - [Forms](../forms.md) - Form handling and actions
 - [Middleware](../middleware.md) - Adding authentication and other middleware
+
+## Changelog
+
+- **2026-09-09** — Clarified public mutation endpoints and the tutorial
+  validation scope, plus standalone versus repository test commands.

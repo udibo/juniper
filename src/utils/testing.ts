@@ -48,56 +48,33 @@ function patchedGetEnv(key: string): string | undefined {
 }
 
 /**
- * Determines if the current process is running in snapshot mode.
- * This is useful for determining if tests that use snapshot assertion should be updating their snapshots.
- * This function makes it easy for you to choose where and how the snapshot is stored, making changes to the snapshot file easier to review.
- * Deno's `assertSnapshot` function stores the snapshots in the `__snapshots__` directory, with the snapshot stored as a string in a TypeScript file.
+ * Whether the task arguments request snapshot updates (`--update` or `-u`).
  *
- * @example Test with manual snapshot using `isSnapshotMode`
+ * This only detects the flag; callers own reading and writing their snapshots.
+ *
+ * @returns Whether custom snapshots should be replaced.
+ * @example
  * ```ts
  * import { isSnapshotMode } from "@udibo/juniper/utils/testing";
  * import { assertEquals } from "@std/assert";
- * import { resolve } from "@std/path";
- * import { describe, it } from "@std/testing/bdd";
- *
- * describe("API snapshot tests", () => {
- *   it("should match snapshot for /api/hello response", async () => {
- *     // Make request to the API endpoint
- *     const response = await fetch("http://localhost:8000/api/hello");
- *     const body = await response.text();
- *
- *     // Define snapshot file path relative to test file
- *     const snapshotPath = resolve(
- *       import.meta.dirname!,
- *       "./hello.json"
- *     );
- *
- *     if (isSnapshotMode()) {
- *       // Update snapshot file in snapshot mode
- *       await Deno.writeTextFile(snapshotPath, body);
- *       console.log(`Updated snapshot: ${snapshotPath}`);
- *     } else {
- *       // Verify response matches snapshot in normal test mode
- *       const snapshot = await Deno.readTextFile(snapshotPath);
- *       assertEquals(body, snapshot, "Response body should match snapshot");
- *     }
- *   });
- * });
+ * export async function checkSnapshot(file: URL, actual: string): Promise<void> {
+ *   if (isSnapshotMode()) await Deno.writeTextFile(file, actual);
+ *   else assertEquals(actual, await Deno.readTextFile(file));
+ * }
  * ```
- *
- * @returns `true` if the current process is running in snapshot mode, `false` otherwise.
  */
 export function isSnapshotMode(): boolean {
   return Deno.args.some((arg) => arg === "--update" || arg === "-u");
 }
 
 /**
- * Simulates environment variables for the duration of a callback.
- * The environment variables are automatically restored after the callback completes,
- * whether it returns normally, throws an error, or returns a rejected promise.
+ * Returns a callback that runs with scoped overrides for Juniper's `getEnv`.
  *
- * If an environment variable is set to `null`, it will be deleted from the environment.
- * Simulated environments can be nested within other simulated environments.
+ * It does not execute the callback immediately or mutate `Deno.env`. Overrides
+ * follow asynchronous work and can be nested without leaking into sibling tests.
+ * A `null` value makes `getEnv` return `undefined`; direct `Deno.env.get` calls
+ * and subprocess environments are unaffected. Use this with Juniper's server
+ * environment reader, not browser hydration data.
  *
  * @example Using with a test case
  * ```ts
@@ -163,7 +140,7 @@ export interface RouteStub extends RouteModule<AnyParams, unknown, unknown> {
   path?: string;
   /** Flags marking which server-side handlers the route simulates. */
   serverFlags?: ServerFlags;
-  /** Overrides the id used to match this route in the test router. */
+  /** Server data-request id sent in X-Juniper-Route-Id; does not set the memory router's id. */
   routeId?: string;
 }
 
@@ -173,7 +150,7 @@ export interface RouteStub extends RouteModule<AnyParams, unknown, unknown> {
 export interface RoutesStubProps {
   /** The initial history entries (URLs) the stubbed router starts at. */
   initialEntries?: string[];
-  /** Initial loader/action data used to hydrate the stubbed routes. */
+  /** Initial route data, keyed by the memory router's generated ids ("0", "1", …). */
   hydrationData?: HydrationState;
 }
 
@@ -186,12 +163,13 @@ export interface CreateRoutesStubOptions {
    * The context parameter is the RouterContextProvider that will be used for the routes.
    * Use this to set up context values that routes depend on (e.g., QueryClient for TanStack Query loaders).
    *
-   * @example Setting up a QueryClient for TanStack Query
-   * ```tsx
-   * const Stub = createRoutesStub([contactsRoute], {
-   *   getContext(context) {
-   *     context.set(queryClientContext, new QueryClient());
-   *   },
+   * @example
+   * ```ts
+   * import { createContext } from "react-router";
+   * import { createRoutesStub } from "@udibo/juniper/utils/testing";
+   * const locale = createContext("en");
+   * const Stub = createRoutesStub([{ path: "/" }], {
+   *   getContext(context) { context.set(locale, "fr"); },
    * });
    * ```
    */
@@ -199,107 +177,47 @@ export interface CreateRoutesStubOptions {
 }
 
 /**
- * Creates a stub component for testing Juniper route modules.
+ * Creates a memory-router component from Juniper route modules.
  *
- * Renders the route modules in a memory router through the same adaptation
- * layer the client uses, so components, loaders, actions, and error boundaries
- * behave as they do in the browser.
+ * Components receive Juniper props and loader/action results pass through the
+ * production client adapter. Stub a loader or action to test rendering in isolation;
+ * use `serverFlags`, `routeId`, and a controlled fetch to exercise a server bridge.
+ * This does not execute Hono or route middleware. Seed context with `getContext`.
  *
- * A route's `middleware` export is not run. Seed whatever middleware would have
- * put on the context with {@linkcode CreateRoutesStubOptions.getContext}.
+ * Each call creates sibling routes, not a nested route tree. `hydrationData` uses
+ * React Router's generated ids (`"0"`, `"1"`, …), not the server `routeId` values.
+ * Create the stub outside your component's render and unmount it with `cleanup`.
  *
- * @example Testing a route with a loader
+ * @param routes - Route modules with optional path and server-request metadata.
+ * @param options - Initial context setup.
+ * @returns A component; initial history defaults to the first route's path.
+ * @example
  * ```tsx
  * import "@udibo/juniper/utils/global-jsdom";
- * import { afterEach, describe, it } from "@std/testing/bdd";
- * import { cleanup, render, screen, waitFor } from "@testing-library/react";
+ * import { afterEach, it } from "@std/testing/bdd";
+ * import { cleanup, render, screen } from "@testing-library/react";
+ * import { userEvent } from "@testing-library/user-event";
+ * import { Form } from "react-router";
+ * import type { AnyParams, RouteProps } from "@udibo/juniper";
  * import { createRoutesStub } from "@udibo/juniper/utils/testing";
  *
- * import * as loaderRoute from "./loader.tsx";
- *
- * describe("LoaderDemo route", () => {
- *   afterEach(cleanup);
- *
- *   it("should render loaded data", async () => {
- *     const Stub = createRoutesStub([loaderRoute]);
- *     render(<Stub />);
- *
- *     await waitFor(() => {
- *       screen.getByText("Data loaded successfully!");
- *     });
- *   });
+ * afterEach(cleanup);
+ * it("renders the submitted result", async () => {
+ *   const Stub = createRoutesStub([{
+ *     path: "/",
+ *     action: async ({ request }) => ({ name: (await request.formData()).get("name") }),
+ *     default: ({ actionData }: RouteProps<AnyParams, unknown, { name: string } | undefined>) =>
+ *       <Form method="post">
+ *         <label>Name<input name="name" defaultValue="Ada" /></label>
+ *         <button type="submit">Save</button>
+ *         {actionData && <p>Saved {actionData.name}</p>}
+ *       </Form>,
+ *   }]);
+ *   render(<Stub />);
+ *   await userEvent.setup().click(screen.getByRole("button", { name: "Save" }));
+ *   await screen.findByText("Saved Ada");
  * });
  * ```
- *
- * @example Testing with a stubbed loader
- * ```tsx
- * import "@udibo/juniper/utils/global-jsdom";
- * import { afterEach, describe, it } from "@std/testing/bdd";
- * import { cleanup, render, screen, waitFor } from "@testing-library/react";
- * import { createRoutesStub } from "@udibo/juniper/utils/testing";
- *
- * import * as loaderRoute from "./loader.tsx";
- *
- * describe("LoaderDemo route", () => {
- *   afterEach(cleanup);
- *
- *   it("should render with stubbed loader data", async () => {
- *     const Stub = createRoutesStub([{
- *       ...loaderRoute,
- *       loader() {
- *         return {
- *           timestamp: "2025-01-01T00:00:00.000Z",
- *           randomNumber: 42,
- *           message: "Stubbed data!",
- *         };
- *       },
- *     }]);
- *     render(<Stub />);
- *
- *     await waitFor(() => {
- *       screen.getByText("Stubbed data!");
- *     });
- *   });
- * });
- * ```
- *
- * @example Testing with initial context (e.g., TanStack Query)
- * ```tsx
- * import "@udibo/juniper/utils/global-jsdom";
- * import { afterEach, describe, it } from "@std/testing/bdd";
- * import { cleanup, render, screen, waitFor } from "@testing-library/react";
- * import { QueryClient } from "@tanstack/react-query";
- * import { createRoutesStub } from "@udibo/juniper/utils/testing";
- *
- * import { queryClientContext } from "@/context/query.ts";
- * import * as contactsRoute from "./contacts/index.tsx";
- *
- * describe("Contacts route", () => {
- *   afterEach(cleanup);
- *
- *   it("should render with QueryClient context", async () => {
- *     const Stub = createRoutesStub([{
- *       ...contactsRoute,
- *       loader() {
- *         return [{ id: "1", firstName: "John", lastName: "Doe", email: "john@example.com" }];
- *       },
- *     }], {
- *       getContext(context) {
- *         context.set(queryClientContext, new QueryClient());
- *       },
- *     });
- *     render(<Stub />);
- *
- *     await waitFor(() => {
- *       screen.getByText("John Doe");
- *     });
- *   });
- * });
- * ```
- *
- * @param routes - Array of route modules to stub. Each can optionally include a `path`, `serverFlags`, and `routeId`.
- * @param options - Optional configuration for the stub.
- * @returns A React component that renders the stubbed routes in a memory router. The `initialEntries` prop defaults to the first route's path.
  */
 export function createRoutesStub(
   routes: RouteStub[],
@@ -359,70 +277,26 @@ export type FakeFetch = (
 ) => Response | Promise<Response>;
 
 /**
- * Stubs the global `fetch` function to return controlled responses.
- * Uses Deno's standard testing/mock library. The returned stub implements
- * `Disposable` for automatic cleanup with the `using` keyword.
+ * Replaces global `fetch` with controlled responses for a test.
  *
- * @example Stubbing fetch with automatic cleanup using `using`
+ * A supplied `Response` is cloned for every call. A function receives the actual
+ * input and init and must return a fresh usable response. Inspect `calls` for
+ * request assertions and dispose the stub with `using`. This changes a global:
+ * do not overlap independent fetch stubs in the same test worker.
+ *
+ * @param response - Reusable response template or request-dependent handler.
+ * @returns A standard testing stub with call history and automatic restoration.
+ * @example
  * ```ts
- * import { stubFetch } from "@udibo/juniper/utils/testing";
  * import { assertEquals } from "@std/assert";
- * import { describe, it } from "@std/testing/bdd";
- *
- * describe("API tests", () => {
- *   it("should handle successful response", async () => {
- *     using fetchStub = stubFetch(Response.json({ id: "123", name: "John" }));
- *
- *     const response = await fetch("/api/users/123");
- *     const data = await response.json();
- *     assertEquals(data.name, "John");
- *     assertEquals(fetchStub.calls.length, 1);
- *   });
- * });
- * ```
- *
- * @example Stubbing fetch with manual cleanup
- * ```ts
+ * import { it } from "@std/testing/bdd";
  * import { stubFetch } from "@udibo/juniper/utils/testing";
- * import { assertEquals } from "@std/assert";
- * import { describe, it } from "@std/testing/bdd";
- *
- * describe("API tests", () => {
- *   it("should handle successful response", async () => {
- *     const fetchStub = stubFetch(Response.json({ id: "123", name: "John" }));
- *
- *     try {
- *       const response = await fetch("/api/users/123");
- *       const data = await response.json();
- *       assertEquals(data.name, "John");
- *     } finally {
- *       fetchStub.restore();
- *     }
- *   });
+ * it("receives a response", async () => {
+ *   using fetchStub = stubFetch(Response.json({ name: "Ada" }));
+ *   assertEquals(await (await fetch("https://example.test/user")).json(), { name: "Ada" });
+ *   assertEquals(fetchStub.calls.length, 1);
  * });
  * ```
- *
- * @example Stubbing fetch with a dynamic response
- * ```ts
- * import { stubFetch } from "@udibo/juniper/utils/testing";
- * import { describe, it } from "@std/testing/bdd";
- *
- * describe("API tests", () => {
- *   it("should handle requests dynamically", async () => {
- *     using fetchStub = stubFetch((input) => {
- *       if (input.toString().includes("/users")) {
- *         return Response.json([{ id: "1", name: "Alice" }]);
- *       }
- *       return new Response("Not Found", { status: 404 });
- *     });
- *
- *     // Test code here
- *   });
- * });
- * ```
- *
- * @param response - A Response object to return for all requests, or a function that receives the request and returns a Response.
- * @returns A Deno `Stub` with `restore()` method, call monitoring via `calls`, and `Disposable` support.
  */
 export function stubFetch(
   response: Response | FakeFetch,
@@ -447,48 +321,28 @@ export function stubFetch(
 export type ResolveFetch = (response: Response) => void;
 
 /**
- * Creates a deferred fetch resolver for testing pending/loading states.
+ * Controls one outstanding fake fetch for a pending-state test.
  *
- * This utility returns a tuple of `[resolveFetch, fakeFetch]` where:
- * - `fakeFetch` is passed to `stubFetch` and will wait for resolution
- * - `resolveFetch` is called with a Response to resolve the pending fetch
+ * Call `fakeFetch` (normally through `stubFetch`) before `resolveFetch`. Resolving
+ * before a request exists does nothing. A second overlapping request replaces the
+ * resolver for the first, so create separate pairs for independent requests.
+ * It does not emulate aborts or network errors; use a custom fake for those cases.
  *
- * This is useful for testing loading states, where you need to verify
- * UI behavior while a request is in flight before resolving it.
- *
- * @example Testing a loading state
+ * @returns `[resolveFetch, fakeFetch]`; each resolver completes its current request once.
+ * @example
  * ```ts
+ * import { assertEquals } from "@std/assert";
+ * import { it } from "@std/testing/bdd";
  * import { fetchResolver, stubFetch } from "@udibo/juniper/utils/testing";
- * import { render, screen, waitFor } from "@testing-library/react";
- * import { userEvent } from "@testing-library/user-event";
- * import { describe, it } from "@std/testing/bdd";
- *
- * describe("Form tests", () => {
- *   it("should show loading state while submitting", async () => {
- *     const [resolveFetch, fakeFetch] = fetchResolver();
- *     using fetchStub = stubFetch(fakeFetch);
- *     const user = userEvent.setup();
- *
- *     render(<MyForm />);
- *     await user.click(screen.getByRole("button", { name: "Submit" }));
- *
- *     // Verify loading state is shown
- *     await waitFor(() => {
- *       screen.getByText("Loading...");
- *     });
- *
- *     // Resolve the fetch to complete the request
- *     resolveFetch(Response.json({ success: true }));
- *
- *     // Verify success state
- *     await waitFor(() => {
- *       screen.getByText("Success!");
- *     });
- *   });
+ * it("waits for a controlled response", async () => {
+ *   const [resolve, fake] = fetchResolver();
+ *   using fetchStub = stubFetch(fake);
+ *   const pending = fetch("https://example.test/data");
+ *   assertEquals(fetchStub.calls.length, 1);
+ *   resolve(Response.json({ ready: true }));
+ *   assertEquals(await (await pending).json(), { ready: true });
  * });
  * ```
- *
- * @returns A tuple of `[resolveFetch, fakeFetch]`.
  */
 export function fetchResolver(): [ResolveFetch, FakeFetch] {
   let resolve: ResolveFetch | null = null;
@@ -605,66 +459,30 @@ export interface FormDataStub extends Disposable {
 }
 
 /**
- * Stubs the global `FormData` constructor to work with JSDOM form elements.
- * Implements `Disposable` for automatic cleanup with the `using` keyword.
+ * Makes Deno's global `FormData` accept JSDOM form elements and submitters.
  *
- * This is necessary because Deno's native FormData constructor throws
- * "Illegal constructor" when passed a JSDOM HTMLFormElement. This stub
- * replaces FormData with a Deno-compatible implementation of successful form
- * controls, including the selected submitter and controls associated by `form`.
- * Create uploaded files with the global `File` constructor, not `window.File`,
- * so their bytes remain compatible with Deno's multipart request bodies.
+ * It collects successful controls, including controls associated by `form`, and
+ * preserves multipart compatibility. Construct uploaded files with global `File`,
+ * not `window.File`. Image submitters use coordinates `(0, 0)`.
  *
- * **Note:** If you are using `@udibo/juniper/utils/global-jsdom` to set up JSDOM,
- * this function is already called automatically and you do not need to call it yourself.
- * You only need to use this function directly when using `npm:global-jsdom` instead
- * (for example, if you need a URL other than localhost).
+ * Juniper's `utils/global-jsdom` already installs this adapter. Call it yourself
+ * only when setting up a custom JSDOM instance, then dispose it before that instance.
  *
- * @example Testing form submission with automatic cleanup using `using`
+ * @returns A disposable handle that restores the previous constructor.
+ * @example
  * ```ts
+ * import globalJsdom from "global-jsdom";
+ * import { assertEquals } from "@std/assert";
  * import { stubFormData } from "@udibo/juniper/utils/testing";
- * import { render, screen } from "@testing-library/react";
- * import { userEvent } from "@testing-library/user-event";
- * import { describe, it } from "@std/testing/bdd";
- *
- * describe("Form tests", () => {
- *   it("should submit form data", async () => {
- *     using formDataStub = stubFormData();
- *     const user = userEvent.setup();
- *
- *     render(<MyForm />);
- *     await user.type(screen.getByLabelText("Name"), "John");
- *     await user.click(screen.getByRole("button", { name: "Submit" }));
- *     // Assert form submission behavior
- *   });
+ * const cleanup = globalJsdom('<form><input name="name" value="Ada"></form>', {
+ *   url: "https://example.test/",
  * });
+ * try {
+ *   using formDataStub = stubFormData();
+ *   const form = document.querySelector("form")!;
+ *   assertEquals(new FormData(form).get("name"), "Ada");
+ * } finally { cleanup(); }
  * ```
- *
- * @example Testing form submission with manual cleanup
- * ```ts
- * import { stubFormData } from "@udibo/juniper/utils/testing";
- * import { render, screen } from "@testing-library/react";
- * import { userEvent } from "@testing-library/user-event";
- * import { describe, it } from "@std/testing/bdd";
- *
- * describe("Form tests", () => {
- *   it("should submit form data", async () => {
- *     const formDataStub = stubFormData();
- *     const user = userEvent.setup();
- *
- *     try {
- *       render(<MyForm />);
- *       await user.type(screen.getByLabelText("Name"), "John");
- *       await user.click(screen.getByRole("button", { name: "Submit" }));
- *       // Assert form submission behavior
- *     } finally {
- *       formDataStub.restore();
- *     }
- *   });
- * });
- * ```
- *
- * @returns A `FormDataStub` with `restore()` method and `Disposable` support.
  */
 export function stubFormData(): FormDataStub {
   const OriginalFormData = globalThis.FormData;
@@ -679,48 +497,31 @@ export function stubFormData(): FormDataStub {
 }
 
 /**
- * A drop-in replacement for `waitFor` from `@testing-library/react` that works
- * correctly when `FakeTime` from `@std/testing/time` is active.
+ * Retries a DOM assertion while a standard `FakeTime` clock is installed.
  *
- * `@testing-library/react` uses `setTimeout(resolve, 0)` internally to drain
- * microtasks after `waitFor` resolves. When `FakeTime` is active, that timer is
- * captured by the fake timer queue and never fires, causing `await waitFor()`
- * to hang and leaving an unresolved promise that triggers Deno's
- * "Promise resolution is still pending" error at process exit.
+ * Testing Library's normal `waitFor` can hang while its cleanup timers are frozen.
+ * This helper drains timers due at the current fake time; it does not advance time
+ * for you. Call `time.tick` for application delays. The normal waitFor timeout still
+ * applies, and rejection contains the last assertion failure.
  *
- * This wrapper uses `FakeTime.restoreFor` to create a real interval that
- * periodically flushes the fake timer queue, allowing the internal
- * `setTimeout(resolve, 0)` to fire.
- *
- * @example Using with FakeTime and createRoutesStub
+ * @param time - The active fake clock.
+ * @param callback - Assertion retried until it stops throwing.
+ * @param options - Testing Library wait options, including timeout and interval.
+ * @returns The successful callback result.
+ * @example
  * ```tsx
  * import "@udibo/juniper/utils/global-jsdom";
- * import { cleanup, render, screen } from "@testing-library/react";
- * import { afterEach, describe, it } from "@std/testing/bdd";
+ * import { afterEach, it } from "@std/testing/bdd";
  * import { FakeTime } from "@std/testing/time";
- * import { createRoutesStub, waitForFakeTime } from "@udibo/juniper/utils/testing";
- *
- * import * as myRoute from "./my-route.tsx";
- *
- * describe("My route", () => {
- *   afterEach(cleanup);
- *
- *   it("should render with fake time", async () => {
- *     using time = new FakeTime("2025-01-15T12:00:00.000Z");
- *     const Stub = createRoutesStub([myRoute]);
- *     render(<Stub />);
- *
- *     await waitForFakeTime(time, () => {
- *       screen.getByText("2025-01-15T12:00:00.000Z");
- *     });
- *   });
+ * import { cleanup, render, screen } from "@testing-library/react";
+ * import { waitForFakeTime } from "@udibo/juniper/utils/testing";
+ * afterEach(cleanup);
+ * it("renders a deterministic date", async () => {
+ *   using time = new FakeTime("2026-01-01T00:00:00Z");
+ *   render(<p>{new Date().toISOString()}</p>);
+ *   await waitForFakeTime(time, () => screen.getByText("2026-01-01T00:00:00.000Z"));
  * });
  * ```
- *
- * @param time The active FakeTime instance.
- * @param callback The callback to pass to `waitFor`.
- * @param options Optional `waitFor` options.
- * @returns The result of the `waitFor` callback.
  */
 export async function waitForFakeTime<T>(
   time: FakeTime,

@@ -1,3 +1,8 @@
+---
+title: CI/CD
+last_verified: 2026-09-09
+---
+
 # CI/CD
 
 ## Overview
@@ -57,6 +62,9 @@ jobs:
       - name: Lint source files
         run: deno lint
 
+      - name: Check types
+        run: deno check
+
   test:
     name: Run tests
     needs: [format-and-lint]
@@ -72,7 +80,7 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: deno install
+        run: deno install --frozen
 
       - name: Run tests
         run: deno task test
@@ -92,7 +100,7 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: deno install
+        run: deno install --frozen
 
       - name: Build for production
         run: deno task build:prod
@@ -121,7 +129,7 @@ test:
         cache: true
 
     - name: Install dependencies
-      run: deno install
+      run: deno install --frozen
 
     - name: Run tests with coverage (Ubuntu)
       if: matrix.os == 'ubuntu-latest'
@@ -139,6 +147,10 @@ Actions to avoid stale npm package data causing resolution failures.
 Add test coverage reporting with Codecov:
 
 ```yaml
+- name: Export LCOV
+  if: matrix.os == 'ubuntu-latest'
+  run: deno coverage --lcov --output=coverage/lcov.info coverage
+
 - name: Upload coverage
   if: matrix.os == 'ubuntu-latest'
   uses: codecov/codecov-action@v5
@@ -148,6 +160,12 @@ Add test coverage reporting with Codecov:
   env:
     CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 ```
+
+The report path must match the test task's working directory. In Juniper's
+repository, the root test task delegates to `src/`, so its coverage directory is
+`src/coverage/`; in a standalone template it is `coverage/`. Run the export and
+upload against the same directory. Commit the lockfile and use
+`deno install --frozen` in CI to reject dependency drift.
 
 ### Type Checking
 
@@ -168,7 +186,7 @@ type-check:
         cache: true
 
     - name: Install dependencies
-      run: deno install
+      run: deno install --frozen
 
     - name: Check types
       run: deno check
@@ -216,7 +234,7 @@ build:
         cache: true
 
     - name: Install dependencies
-      run: deno install
+      run: deno install --frozen
 
     - name: Build application
       run: deno task build:prod
@@ -232,8 +250,8 @@ build:
 
 ### Deploy to Deno Deploy
 
-Deno Deploy is the recommended platform for deploying Juniper applications. It
-handles building and deployment automatically through its dashboard.
+Deno Deploy can build and deploy a connected repository. Keep the CI build as a
+validation gate even when the platform performs a separate deployment build.
 
 See [Deployment](deployment.md#deno-deploy) for complete setup instructions.
 
@@ -281,6 +299,9 @@ deploy-docker:
   needs: [test]
   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
   runs-on: ubuntu-latest
+  permissions:
+    contents: read
+    packages: write
   steps:
     - name: Clone repository
       uses: actions/checkout@v4
@@ -305,9 +326,9 @@ deploy-docker:
 
 ## Example Complete Workflow
 
-Here's a complete CI/CD workflow. If you're using Deno Deploy (recommended), you
-can omit the `build` and `deploy` jobs since Deno Deploy handles building and
-deployment automatically when you push to your configured branch.
+Here's a complete CI/CD workflow. Keep its check, test, and build jobs for
+validation. Replace the deploy job with your platform's delivery step, and
+require the validation jobs before promoting a revision to production.
 
 This example includes the `build` and `deploy` jobs for Deno Deploy Classic:
 
@@ -332,6 +353,7 @@ jobs:
           cache: true
       - run: deno fmt --check
       - run: deno lint
+      - run: deno check
 
   test:
     name: Test
@@ -343,15 +365,15 @@ jobs:
         with:
           deno-version: v2.x
           cache: true
-      - run: deno install
+      - run: deno install --frozen
       - run: deno task test --coverage
+      - run: deno coverage --lcov --output=coverage/lcov.info coverage
       - uses: codecov/codecov-action@v5
         with:
           files: coverage/lcov.info
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-  # Omit build and deploy jobs if using Deno Deploy (not Classic)
   build:
     name: Build
     needs: [test]
@@ -362,7 +384,7 @@ jobs:
         with:
           deno-version: v2.x
           cache: true
-      - run: deno install
+      - run: deno install --frozen
       - run: deno task build:prod
       - uses: actions/upload-artifact@v4
         with:
@@ -383,7 +405,7 @@ jobs:
         with:
           deno-version: v2.x
           cache: true
-      - run: deno install
+      - run: deno install --frozen
       - run: deno task build:prod
       - uses: denoland/deployctl@v1
         with:
@@ -401,6 +423,9 @@ jobs:
 - [Configuration](configuration.md) - Project and build configuration
 
 ## Changelog
+
+- **2026-09-09** — Added explicit type and LCOV checks, frozen dependency
+  installation, registry permissions, and deployment validation guidance.
 
 - **2026-09-05** — Tailwind build and dev permission profiles allow only the
   `osRelease` system query needed by jiti's Windows terminal-color detection.

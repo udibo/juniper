@@ -1,6 +1,7 @@
 import {
   assertEquals,
   assertExists,
+  assertFalse,
   assertNotEquals,
   assertStringIncludes,
 } from "@std/assert";
@@ -22,11 +23,215 @@ import { HttpError } from "./mod.ts";
 import { Client } from "./client.tsx";
 import { createServer } from "./server.tsx";
 
-import { getBuildId, mergeServerRoutes } from "./_server.tsx";
+import {
+  createDevClientScript,
+  getBuildId,
+  mergeServerRoutes,
+} from "./_server.tsx";
 import { cborDecode, deserializeHydrationData } from "./_serialization.ts";
 import type { SerializedHydrationData } from "./_serialization.ts";
 
 describe("createServer", () => {
+  it("connects the browser reload client to the configured port", () => {
+    const urls: string[] = [];
+    class TestEventSource {
+      constructor(url: string) {
+        urls.push(url);
+      }
+      addEventListener(): void {}
+      close(): void {}
+    }
+    const execute = new Function(
+      "EventSource",
+      "document",
+      "globalThis",
+      createDevClientScript(3210),
+    );
+    execute(TestEventSource, { readyState: "complete" }, {
+      addEventListener() {},
+    });
+    assertEquals(urls, ["http://localhost:3210/sse"]);
+  });
+
+  it("renders a denial before an ancestor whose loader was not authorized to run", async () => {
+    let loaderRuns = 0;
+    const client = new Client({
+      path: "/",
+      main: {
+        default: () => <Outlet />,
+        ErrorBoundary: () => <div>Root denied page</div>,
+        HydrateFallback: () => <div>Waiting for root data</div>,
+      },
+      children: [{
+        path: "admin",
+        main: () =>
+          Promise.resolve({
+            default: () => <div>Private</div>,
+            ErrorBoundary: () => <div>Nested denied page</div>,
+          }),
+      }],
+    });
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        loader: () => {
+          loaderRuns++;
+          return { value: "private" };
+        },
+      },
+      children: [{
+        path: "admin",
+        main: {
+          default: new Hono().use(() => {
+            throw new HttpError(403);
+          }),
+        },
+      }],
+    });
+    const response = await server.request("http://localhost/admin");
+    const html = await response.text();
+    assertEquals(response.status, 403);
+    assertEquals(loaderRuns, 0);
+    assertStringIncludes(html, "Root denied page");
+    assertFalse(html.includes("Waiting for root data"));
+  });
+
+  for (const result of ["response", "redirect", "error", "stream"] as const) {
+    it(`preserves middleware headers on a ${result} data response`, async () => {
+      const client = new Client({
+        path: "/",
+        main: { default: () => <div>Home</div> },
+      });
+      const server = createServer(import.meta.url, client, {
+        path: "/",
+        main: {
+          default: new Hono().use(async (c, next) => {
+            c.header("Vary", "Origin");
+            c.header("X-Application", "preserved");
+            c.header("Set-Cookie", "session=renewed; HttpOnly");
+            await next();
+          }),
+          loader: () => {
+            if (result === "response") return new Response("raw response");
+            if (result === "redirect") throw redirectDocument("/next");
+            if (result === "error") throw new HttpError(503, "Unavailable");
+            return { deferred: Promise.resolve("ready") };
+          },
+        },
+      });
+      const response = await server.request("http://localhost/", {
+        headers: { "X-Juniper-Route-Id": "/" },
+      });
+      await response.arrayBuffer();
+      assertStringIncludes(response.headers.get("Vary") ?? "", "origin");
+      assertStringIncludes(
+        response.headers.get("Vary") ?? "",
+        "x-juniper-route-id",
+      );
+      assertEquals(response.headers.get("X-Application"), "preserved");
+      assertEquals(response.headers.getSetCookie(), [
+        "session=renewed; HttpOnly",
+      ]);
+    });
+  }
+
+  for (const method of ["GET", "POST"]) {
+    it(`does not execute protected loaders while rendering a denied ${method}`, async () => {
+      let loaderRuns = 0;
+      const client = new Client({
+        path: "/",
+        main: { default: () => <Outlet /> },
+        children: [{
+          path: "admin",
+          main: () =>
+            Promise.resolve({
+              default: () => <Outlet />,
+              ErrorBoundary: () => <div>Access denied</div>,
+            }),
+          children: [{
+            path: "secret",
+            main: () =>
+              Promise.resolve({ default: () => <div>Private page</div> }),
+          }],
+        }],
+      });
+      const server = createServer(import.meta.url, client, {
+        path: "/",
+        children: [{
+          path: "admin",
+          main: {
+            default: new Hono().use(() => {
+              throw new HttpError(403, "Forbidden");
+            }),
+          },
+          children: [{
+            path: "secret",
+            main: {
+              loader: () => {
+                loaderRuns++;
+                return { secret: "private-loader-data" };
+              },
+            },
+          }],
+        }],
+      });
+
+      const response = await server.request("http://localhost/admin/secret", {
+        method,
+      });
+      const html = await response.text();
+      assertEquals(response.status, 403);
+      assertStringIncludes(html, "Access denied");
+      assertEquals(loaderRuns, 0);
+      const payload = html.match(
+        /window\.__juniperHydrationData = (.*?); await client\.hydrate\(\);/,
+      )?.[1];
+      assertExists(payload);
+      const hydration = deserializeHydrationData(JSON.parse(payload));
+      assertFalse(Object.hasOwn(hydration.loaderData ?? {}, "/admin/secret"));
+    });
+  }
+
+  it("varies documents and route data without losing application cache keys", async () => {
+    const client = new Client({
+      path: "/",
+      main: { default: () => <Outlet /> },
+      children: [{
+        path: "child",
+        main: () => Promise.resolve({ default: () => <div>Child</div> }),
+      }],
+    });
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        default: new Hono().use(async (c, next) => {
+          c.header("Vary", "Origin, Accept-Language");
+          c.header("Cache-Control", "public, max-age=60");
+          await next();
+        }),
+        loader: () => "root data",
+      },
+      children: [{ path: "child", main: { loader: () => "child data" } }],
+    });
+
+    for (const routeId of [undefined, "/", "/child"]) {
+      const headers = new Headers({ Accept: "text/html" });
+      if (routeId) headers.set("X-Juniper-Route-Id", routeId);
+      const response = await server.request("http://localhost/child", {
+        headers,
+      });
+      await response.arrayBuffer();
+      const vary = response.headers.get("Vary")?.toLowerCase().split(/,\s*/)
+        .sort();
+      assertEquals(vary, [
+        "accept",
+        "accept-language",
+        "origin",
+        "x-juniper-route-id",
+      ]);
+    }
+  });
+
   it("should return 404 for a non-existent route", async () => {
     const client = new Client({
       path: "/",

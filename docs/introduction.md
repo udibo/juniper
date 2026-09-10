@@ -1,3 +1,8 @@
+---
+title: Introduction
+last_verified: 2026-09-09
+---
+
 # Introduction
 
 ## What is Juniper?
@@ -11,10 +16,10 @@ The framework uses file-based routing, making it easy to understand your
 application's structure at a glance. Routes are organized as a tree of files and
 directories, with each file representing a route in your application.
 
-Juniper is built on modern web standards and leverages Deno's built-in
-TypeScript support, security model, and tooling. It supports server-side
-rendering (SSR) out of the box, ensuring fast initial page loads and excellent
-SEO.
+Juniper uses Deno's TypeScript support, permission model, and tooling. It
+renders HTML on the server, then hydrates that HTML with React in the browser.
+Request latency still depends on your loaders, services, and deployment; the
+application supplies loading feedback for slow work.
 
 ## Key Features
 
@@ -88,14 +93,42 @@ client concerns:
 - Manages route transitions and loading states
 - Runs client loaders and actions when defined
 
-**Route Modules** Each route can export:
+**Route Modules** A React route module (`.tsx`) can export:
 
 - `default` - The React component to render
 - `loader` - A function to fetch data before rendering
 - `action` - A function to handle form submissions
 - `middleware` - Functions that run before loaders and actions
 - `ErrorBoundary` - A component to display when errors occur
-- `HydrateFallback` - A component to show during hydration
+- `HydrateFallback` - A fallback for unresolved route data, including streamed
+  server rendering and client loading
+
+The matching `.ts` module contains server loaders, actions, and an optional
+default Hono application. Pair filenames exactly: `blog/index.ts` supplies
+`blog/index.tsx`; `blog/main.ts` is the branch's server layout. `.tsx` modules
+also execute during SSR, so they must not import server-only services or read
+browser globals at module initialization.
+
+### From Request to Navigation
+
+1. A document request traverses Hono middleware. Juniper resolves route data,
+   renders the matching React components, and sends HTML with hydration data.
+2. The browser loads the root module, restores serialized data and registered
+   context, and hydrates the HTML. Normal event handlers are available after
+   hydration.
+3. A client navigation loads the destination's lazy module and data. Server
+   loaders run through HTTP requests, which still traverse Hono middleware. The
+   current screen can remain visible until the destination is ready.
+
+Keep a `useNavigation()` status in the root layout to acknowledge navigation
+immediately. A destination's `HydrateFallback` cannot render before that
+destination's module arrives. See
+[pending navigation](routing.md#pending-navigation).
+
+Use server middleware to enforce access to data. Client middleware can improve
+navigation behavior, but callers can bypass the browser and send HTTP requests
+directly. See [middleware](middleware.md) and
+[context sharing](state-management.md).
 
 ## When to Use Juniper
 
@@ -124,30 +157,6 @@ Juniper may not be the best fit for:
 - **Single-Page Applications Without SSR**: If you don't need server-side
   rendering, a simpler client-only setup may suffice.
 
-## Comparison with Other Frameworks
-
-| Feature        | Juniper      | Fresh      | Next.js    | React Router         |
-| -------------- | ------------ | ---------- | ---------- | -------------------- |
-| Runtime        | Deno         | Deno       | Node.js    | Node.js/Deno         |
-| Routing        | File-based   | File-based | File-based | File-based or config |
-| SSR            | Yes          | Yes        | Yes        | Yes (Framework Mode) |
-| Server Actions | Yes          | No         | Yes        | Yes                  |
-| Middleware     | Hono + Route | Fresh      | Next.js    | React Router         |
-| Islands        | No           | Yes        | Partial    | No                   |
-| TypeScript     | Native       | Native     | Configured | Configured           |
-
-**vs Fresh**: Fresh uses Preact and an "Islands" architecture where only
-interactive components ship JavaScript. Juniper uses React and hydrates the
-entire page, which is better for highly interactive applications.
-
-**vs Next.js**: Next.js runs on Node.js and has a larger ecosystem. Juniper runs
-on Deno, offering built-in TypeScript, a secure-by-default permissions model,
-and simpler dependency management.
-
-**vs React Router (Framework Mode)**: Juniper is built on React Router's data
-APIs but adds Hono for the server layer, file-based route generation, and
-Deno-specific tooling.
-
 ## Next Steps
 
 **Next:** [Getting Started](getting-started.md) - Set up your first project
@@ -157,3 +166,8 @@ Deno-specific tooling.
 - [Routing](routing.md) - File-based routing and data loading
 - [Tutorials](tutorials/README.md) - Step-by-step guides for building
   applications
+
+## Changelog
+
+- **2026-09-09** — Explained document requests, hydration, lazy navigation, and
+  the server trust boundary; removed an unmaintained framework comparison.

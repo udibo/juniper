@@ -2209,6 +2209,9 @@
   },
   "workspace": {
     "dependencies": [
+      "jsr:@std/assert@^1.0.19",
+      "jsr:@std/path@^1.1.5",
+      "jsr:@std/testing@^1.0.19",
       "npm:@types/react@^19.2.16",
       "npm:react-dom@^19.2.7",
       "npm:react@^19.2.7"

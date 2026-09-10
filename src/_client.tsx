@@ -8,6 +8,7 @@ import {
   useLocation,
   useNavigate,
   useParams,
+  useRevalidator,
   useRouteError,
 } from "react-router";
 import type {
@@ -255,12 +256,17 @@ export function registerRouter(router: NavigationalRouter | undefined): void {
   activeRouter = router;
 }
 
-function recoveryDestination(): string {
-  const target = activeRouter?.state.navigation.location ??
-    activeRouter?.state.location;
-  return target
-    ? `${target.pathname}${target.search}${target.hash}`
-    : globalThis.location.href;
+function recoveryDestination(
+  target: RouterLocation | undefined =
+    activeRouter?.state.navigation.location ??
+      activeRouter?.state.location,
+): string {
+  const currentUrl = new URL(globalThis.location.href);
+  if (!target) return currentUrl.href;
+  const destination = `${target.pathname}${target.search}${target.hash}`;
+  return new URL(destination, currentUrl).origin === currentUrl.origin
+    ? destination
+    : currentUrl.href;
 }
 
 /**
@@ -292,21 +298,66 @@ function holdForDocumentNavigation(): Promise<never> {
   return new Promise<never>(() => {});
 }
 
+interface DocumentNavigationCandidate {
+  navigate: () => void;
+  signal?: AbortSignal;
+}
+
+interface ScheduledDocumentNavigation {
+  candidates: DocumentNavigationCandidate[];
+  promise: Promise<never>;
+}
+
+const scheduledDocumentNavigations = new Map<
+  string,
+  ScheduledDocumentNavigation
+>();
+
+function scheduleDocumentNavigation(
+  key: string,
+  navigate: () => void,
+  signal?: AbortSignal,
+): Promise<never> {
+  const candidate = { navigate, signal };
+  const scheduled = scheduledDocumentNavigations.get(key);
+  if (scheduled) {
+    scheduled.candidates.push(candidate);
+    return scheduled.promise;
+  }
+  const { promise, reject } = Promise.withResolvers<never>();
+  const candidates = [candidate];
+  scheduledDocumentNavigations.set(key, { candidates, promise });
+  delay(0).then(() => {
+    scheduledDocumentNavigations.delete(key);
+    const latest = candidates.findLast((entry) => !entry.signal?.aborted);
+    if (!latest) return;
+    try {
+      recordReload(key);
+      latest.navigate();
+    } catch (error) {
+      reject(error);
+    }
+  });
+  return promise;
+}
+
 async function fetchServerData(
   request: Request,
   method: "GET" | "POST",
   routeId: string,
 ): Promise<unknown> {
+  request.signal.throwIfAborted();
   const headers: Record<string, string> = {
     "X-Juniper-Route-Id": routeId,
   };
 
-  const fetchOptions: RequestInit = { method, headers };
+  const fetchOptions: RequestInit = { method, headers, signal: request.signal };
   if (method === "POST") {
     fetchOptions.body = await request.formData();
   }
 
   const response = await fetch(request.url, fetchOptions);
+  request.signal.throwIfAborted();
 
   if (method === "GET") {
     const serverBuildId = response.headers.get("X-Juniper-Build");
@@ -314,12 +365,16 @@ async function fetchServerData(
       if (serverBuildId === clientBuildId) {
         clearReloadState(BUILD_SKEW_RELOAD_KEY);
       } else if (shouldReload(BUILD_SKEW_RELOAD_KEY)) {
-        recordReload(BUILD_SKEW_RELOAD_KEY);
         await response.body?.cancel();
-        delay(0).then(() => {
-          globalThis.location.assign(request.url);
-        });
-        return holdForDocumentNavigation();
+        request.signal.throwIfAborted();
+        if (!shouldReload(BUILD_SKEW_RELOAD_KEY)) {
+          return holdForDocumentNavigation();
+        }
+        return scheduleDocumentNavigation(
+          BUILD_SKEW_RELOAD_KEY,
+          () => globalThis.location.assign(request.url),
+          request.signal,
+        );
       }
     }
   }
@@ -349,25 +404,27 @@ async function fetchServerData(
   const responseType = response.headers.get("X-Juniper");
   if (responseType === "redirect") {
     const redirectData = await response.json();
+    request.signal.throwIfAborted();
     const location = redirectData.location;
     const currentUrl = new URL(globalThis.location.href);
     const redirectUrl = new URL(location, currentUrl);
 
-    // `redirectDocument()` needs a real browser navigation; a client-side transition would 404 on the server-only route.
     if (redirectData.reloadDocument) {
       delay(0).then(() => {
-        globalThis.location.assign(redirectUrl.href);
+        if (!request.signal.aborted) {
+          globalThis.location.assign(redirectUrl.href);
+        }
       });
       return holdForDocumentNavigation();
     }
 
     if (redirectUrl.href === currentUrl.href) {
       if (shouldReload(SAME_LOCATION_RELOAD_KEY)) {
-        recordReload(SAME_LOCATION_RELOAD_KEY);
-        delay(0).then(() => {
-          globalThis.location.reload();
-        });
-        return holdForDocumentNavigation();
+        return scheduleDocumentNavigation(
+          SAME_LOCATION_RELOAD_KEY,
+          () => globalThis.location.reload(),
+          request.signal,
+        );
       }
       return undefined;
     }
@@ -575,6 +632,7 @@ export function createRoute(
       const actionData = useActionData();
       const routeError = useRouteError();
       const navigate = useNavigate();
+      const revalidator = useRevalidator();
       const location = useLocation();
       const context = useJuniperContext();
 
@@ -588,12 +646,15 @@ export function createRoute(
 
       function resetErrorBoundary() {
         if (isModuleLoadError(routeError)) {
-          globalThis.location.assign(
-            location.pathname + location.search + location.hash,
-          );
+          globalThis.location.assign(recoveryDestination(location));
           return;
         }
-        navigate(location.pathname, { replace: true });
+        void navigate({
+          pathname: location.pathname,
+          search: location.search,
+          hash: location.hash,
+        }, { replace: true });
+        if (location.hash) void revalidator.revalidate();
       }
 
       return React.createElement(
@@ -668,16 +729,18 @@ export function createLazyRoute(
     let routeFile: RouteModule;
     try {
       routeFile = await lazyRouteFile();
-      clearReloadState(LAZY_LOAD_RELOAD_KEY);
     } catch (error) {
-      const recover = (): Promise<never> => {
+      const recover = (
+        { request }: { request?: Request } = {},
+      ): Promise<never> => {
+        request?.signal.throwIfAborted();
         if (!shouldReload(LAZY_LOAD_RELOAD_KEY)) throw error;
-        recordReload(LAZY_LOAD_RELOAD_KEY);
         const destination = recoveryDestination();
-        delay(0).then(() => {
-          globalThis.location.assign(destination);
-        });
-        return holdForDocumentNavigation();
+        return scheduleDocumentNavigation(
+          LAZY_LOAD_RELOAD_KEY,
+          () => globalThis.location.assign(destination),
+          request?.signal,
+        );
       };
       return activeRouter ? { loader: recover, action: recover } : recover();
     }

@@ -27,6 +27,7 @@ import { renderToReadableStream } from "react-dom/server";
 import { isbot } from "isbot";
 
 import type { ClientRoute } from "./client.tsx";
+import { getEnv } from "./utils/env.ts";
 import { getInstance } from "./utils/otel.ts";
 
 import { App, generateRouteId, JuniperContextProvider } from "./_client.tsx";
@@ -34,6 +35,8 @@ import {
   cborEncode,
   containsPromises,
   createStreamingLoaderData,
+  sanitizeServerData,
+  sanitizeServerError,
   serializeAllContext,
   serializeError,
   serializeHydrationData,
@@ -44,11 +47,9 @@ import { startActiveSpan } from "./utils/_otel.ts";
 import type { ActionFunction, LoaderFunction } from "./mod.ts";
 import { isHttpErrorLike } from "@udibo/http-error";
 
-/**
- * Inlined dev-client.js content for hot reload functionality.
- * This is served directly to avoid file system or network access at runtime.
- */
-const DEV_CLIENT_JS = `/**
+/** Builds the browser reload client for the application's dev-server port. */
+export function createDevClientScript(port: number = 9001): string {
+  return `/**
  * Client-side script for connecting to the Juniper dev server.
  * This script establishes an SSE connection to the dev server and
  * automatically reloads the page when the server indicates a rebuild.
@@ -57,7 +58,7 @@ const DEV_CLIENT_JS = `/**
 /**
  * Connects to the dev server SSE endpoint and handles automatic reloads
  */
-function connectToDevServer(devServerPort = 9001) {
+function connectToDevServer(devServerPort = ${port}) {
   const devServerUrl = \`http://localhost:\${devServerPort}/sse\`;
 
   console.log("🔗 Connecting to dev server at", devServerUrl);
@@ -103,9 +104,11 @@ if (document.readyState === "loading") {
   connectToDevServer();
 }
 `;
+}
 
 const args = parseArgs(Deno.args, {
   boolean: ["hot-reload"],
+  string: ["dev-server-port"],
 });
 
 interface RouteContext {
@@ -181,14 +184,25 @@ export function getBuildId(projectRoot: string): Promise<string | undefined> {
   return id;
 }
 
-interface ServerRouteModule {
+/**
+ * Exports from a server-only `.ts` route file.
+ *
+ * Pair it with a `.tsx` module for loaders/actions used by a page. Without a
+ * paired page, the default Hono app owns the endpoint and its response format.
+ */
+export interface ServerRouteModule {
+  /** Hono handlers or middleware mounted at this route's URL. */
   // deno-lint-ignore no-explicit-any -- Accepts any Hono app regardless of its type parameters
   default?: Hono<any, any, any>;
+  /** Server data loader; it must enforce any authorization not handled by middleware. */
   loader?: LoaderFunction;
+  /** Server action for page submissions; read and validate the request before mutating data. */
   action?: ActionFunction;
 }
 
-interface ServerMainRouteModule extends ServerRouteModule {
+/** A server layout module, with optional public environment selection at the root. */
+export interface ServerMainRouteModule extends ServerRouteModule {
+  /** Extra environment keys to embed in SSR HTML; read only from root routes/main.ts. Never list secrets. */
   publicEnvKeys?: string[];
 }
 
@@ -248,7 +262,7 @@ function HydrationScript(
 function getPublicEnv(allPublicEnvKeys: string[]): Record<string, string> {
   const publicEnv: Record<string, string> = {};
   for (const key of allPublicEnvKeys) {
-    const value = Deno.env.get(key);
+    const value = getEnv(key);
     if (value !== undefined) {
       publicEnv[key] = value;
     }
@@ -316,6 +330,16 @@ async function renderDocument(
   } = options;
   const { allPublicEnvKeys, htmlProps } = renderOptions;
 
+  if (context.errors) {
+    context.errors = Object.fromEntries(
+      Object.entries(context.errors).map(([id, error]) => [
+        id,
+        sanitizeServerError(error),
+      ]),
+    );
+  }
+  context.loaderData = sanitizeServerData(context.loaderData);
+  context.actionData = sanitizeServerData(context.actionData);
   const router = createStaticRouter(dataRoutes, context);
 
   // Set by Hono's `secureHeaders` when the app's CSP names NONCE. Read here
@@ -351,7 +375,7 @@ async function renderDocument(
           hydrationData,
         ).then((data: SerializedHydrationData) =>
           `import { client } from "/build/main.js"; window.__juniperHydrationData = ${
-            JSON.stringify(data)
+            JSON.stringify(data).replaceAll("<", "\\u003c")
           }; await client.hydrate();`
         );
 
@@ -415,7 +439,10 @@ async function renderDocument(
           context._deepestRenderedBoundaryId &&
           !(context._deepestRenderedBoundaryId in context.errors)
         ) {
-          context.errors[context._deepestRenderedBoundaryId] = error;
+          context.errors[context._deepestRenderedBoundaryId] =
+            sanitizeServerError(
+              error,
+            );
           retry = true;
         } else {
           throw error;
@@ -478,7 +505,6 @@ async function renderDocument(
   }
 
   c.header("Content-Type", "text/html; charset=utf-8");
-  c.header("Vary", "Accept");
 
   return stream(c, async (streamInstance) => {
     return await startActiveSpan("stream.pipe", async (streamSpan) => {
@@ -498,16 +524,6 @@ async function renderDocument(
   });
 }
 
-/**
- * The request the error document is rendered from.
- *
- * React Router's static handler dispatches the matched route's action for any
- * non-GET method, so querying the original request again would run the action a
- * second time — or, when the error came from middleware that refused the
- * request before the action ever ran, would run it for the first time *after*
- * the refusal. Rendering an error page only needs loader data, so a non-GET is
- * always rendered from an equivalent GET.
- */
 function errorDocumentRequest(request: Request): Request {
   if (request.method === "GET" || request.method === "HEAD") return request;
   return new Request(request.url, {
@@ -524,6 +540,7 @@ async function createErrorContext(
 ): Promise<StaticHandlerContext | Response> {
   const contextOrResponse = await query(errorDocumentRequest(request), {
     requestContext,
+    filterMatchesToLoad: () => false,
   });
 
   if (contextOrResponse instanceof Response) {
@@ -534,13 +551,25 @@ async function createErrorContext(
   if (!context.errors) context.errors = {};
 
   const routeContext = getRouteContext();
-  if (routeContext?.routeId) {
-    context.errors[routeContext.routeId] ??= error;
-
-    if (context.loaderData) {
-      delete context.loaderData[routeContext.routeId];
-    }
-  }
+  const failedIndex = context.matches.findIndex((match) =>
+    match.route.id === routeContext?.routeId
+  );
+  const failedAncestors = context.matches.slice(
+    0,
+    failedIndex < 0 ? 1 : failedIndex + 1,
+  );
+  const unloadedIndex = failedAncestors.findIndex((match) =>
+    match.route.loader
+  );
+  const ancestors = unloadedIndex < 0
+    ? failedAncestors
+    : failedAncestors.slice(0, unloadedIndex + 1);
+  const boundary =
+    ancestors.findLast((match) =>
+      match.route.ErrorBoundary || match.route.errorElement
+    ) ??
+      context.matches[0];
+  context.errors[boundary.route.id] = error;
 
   return context;
 }
@@ -765,7 +794,6 @@ export function toRedirectEnvelope(response: Response): Response {
     headers.append("Set-Cookie", cookie);
   }
   headers.set("Content-Type", "application/json; charset=UTF-8");
-  headers.set("Vary", "Accept");
   headers.set("X-Juniper", "redirect");
 
   return new Response(
@@ -816,7 +844,7 @@ export function createHandlers<
         );
 
         if (contextOrResponse instanceof Response) {
-          return contextOrResponse;
+          return c.newResponse(contextOrResponse.body, contextOrResponse);
         }
 
         Object.entries(contextOrResponse.errors ?? {}).forEach(
@@ -844,12 +872,11 @@ export function createHandlers<
           routeId,
         });
 
-        c.header("Vary", "Accept");
         if (dataOrResponse instanceof Response) {
-          if (isRedirectResponse(dataOrResponse)) {
-            return toRedirectEnvelope(dataOrResponse);
-          }
-          return dataOrResponse;
+          const response = isRedirectResponse(dataOrResponse)
+            ? toRedirectEnvelope(dataOrResponse)
+            : dataOrResponse;
+          return c.newResponse(response.body, response);
         }
 
         if (containsPromises(dataOrResponse)) {
@@ -862,11 +889,8 @@ export function createHandlers<
         }
 
         const cborData = await serializeLoaderData(dataOrResponse);
-        return new Response(cborData as unknown as BodyInit, {
-          headers: {
-            "Content-Type": "application/cbor",
-            "Vary": "Accept",
-          },
+        return c.newResponse(cborData as Uint8Array<ArrayBuffer>, 200, {
+          "Content-Type": "application/cbor",
         });
       });
     },
@@ -887,7 +911,6 @@ export function createHandlers<
       const cborData = cborEncode(serialized);
       const headers = new Headers({
         "Content-Type": "application/cbor",
-        "Vary": "Accept",
       });
       if (error.headers) {
         for (const [key, value] of error.headers.entries()) {
@@ -902,8 +925,8 @@ export function createHandlers<
           headers.append("Set-Cookie", cookie);
         }
       }
-      return new Response(cborData as unknown as BodyInit, {
-        status: error.status,
+      return c.newResponse(cborData as Uint8Array<ArrayBuffer>, {
+        status: error.status as StatusCode,
         headers,
       });
     }
@@ -1113,9 +1136,13 @@ export function buildApp<
 
     if (args["hot-reload"]) {
       app.get("/dev-client.js", (c) => {
-        return c.body(DEV_CLIENT_JS, 200, {
-          "Content-Type": "application/javascript",
-        });
+        return c.body(
+          createDevClientScript(Number(args["dev-server-port"] ?? 9001)),
+          200,
+          {
+            "Content-Type": "application/javascript",
+          },
+        );
       });
     }
 

@@ -1,10 +1,18 @@
+---
+title: Error Handling
+last_verified: 2026-09-09
+---
+
 # Error Handling
 
 ## Overview
 
 Juniper provides comprehensive error handling through the `HttpError` class and
 React Router's error boundary system. Errors thrown in loaders, actions, or
-middleware are automatically caught and rendered by the nearest error boundary.
+middleware are caught and rendered by a suitable route error boundary. If
+middleware rejects a request before loader data exists, Juniper can use an
+ancestor boundary without running the denied loaders. Write boundaries that can
+render without assuming loader data is available.
 
 ## HttpError Class
 
@@ -61,20 +69,26 @@ console.log(error.message); // "Database connection failed"
 console.log(error.exposedMessage); // Generic message based on status code
 ```
 
-The `exposedMessage` property returns a client-safe message that won't leak
-sensitive information. For 4xx client errors, the message is typically exposed;
-for 5xx server errors, a generic message is returned by default.
+`HttpError.exposedMessage` follows the error's exposure policy. Do not put
+secrets in a message intended for the client or in an explicit exposed-message
+override. Use `exposedMessage` in UI and log diagnostic details on the server.
+In production, unexpected plain errors thrown or rejected during SSR or streamed
+route work are presented as generic server errors. An `Error` returned as
+application data is a different contract: its message can be serialized as data.
+Custom serializers also control their own output. Return only values the browser
+may receive, including when returning errors as data.
 
 ### Custom Messages
 
 In error boundaries, use `exposedMessage` for client-facing display:
 
 ```tsx
+import { HttpError } from "@udibo/juniper";
+import type { ErrorBoundaryProps } from "@udibo/juniper";
+
 export function ErrorBoundary({ error }: ErrorBoundaryProps) {
   const message = error instanceof HttpError
     ? error.exposedMessage
-    : error instanceof Error
-    ? error.message
     : "An unexpected error occurred";
 
   return (
@@ -118,9 +132,7 @@ export function ErrorBoundary({
       <p className="text-gray-500 mb-8">
         {error instanceof HttpError
           ? error.exposedMessage
-          : error instanceof Error
-          ? error.message
-          : String(error)}
+          : "An unexpected error occurred"}
       </p>
       <Link to="/blog">← Back to Blog</Link>
     </div>
@@ -131,9 +143,10 @@ export function ErrorBoundary({
 ### Sharing Layouts with Error Boundaries
 
 If you want your error boundary to share the same layout as your route
-component, you can use the layout wrapper pattern. This keeps navigation and
-other shared UI mounted when transitioning to an error state, avoiding
-unnecessary re-renders. See
+component, use the layout wrapper pattern to keep the same visual structure. The
+error boundary replaces the failed route component, so sharing a wrapper does
+not guarantee preservation of its local state. Put state that must survive in an
+ancestor that remains mounted. See
 [Routing - Layout Wrapper Pattern](routing.md#layout-wrapper-pattern) for
 details.
 
@@ -166,6 +179,9 @@ interface ErrorBoundaryProps<
 Use typed params for better type safety:
 
 ```tsx
+import { HttpError } from "@udibo/juniper";
+import type { ErrorBoundaryProps } from "@udibo/juniper";
+
 export function ErrorBoundary({
   error,
   params,
@@ -173,7 +189,9 @@ export function ErrorBoundary({
   return (
     <div>
       <h1>Error loading item {params.id}</h1>
-      <p>{error instanceof Error ? error.message : "Unknown error"}</p>
+      <p>
+        {error instanceof HttpError ? error.exposedMessage : "Unknown error"}
+      </p>
     </div>
   );
 }
@@ -182,15 +200,21 @@ export function ErrorBoundary({
 ## Error Serialization
 
 Errors thrown on the server are serialized for the client. Juniper handles this
-automatically, but you can customize it for custom error types. Juniper's
-serialization (used for context, loader data, action data, and errors) supports
-all standard JSON types plus: `undefined`, `bigint`, `Date`, `RegExp`, `Set`,
-`Map`, `Error`, and `URL`.
+automatically, but you can customize the representation of registered error
+types. See [serializable values](state-management.md#serializable-values) for
+supported data types, numeric normalization, and custom type registration.
 
 ### Custom Error Serialization
 
 For custom error classes, use `registerError` to define how errors are
 serialized and deserialized. This registration works for both server and client.
+
+The error path matters. An immediate failure in a server loader or action's
+client data request is normalized to `HttpError` before serialization; do not
+rely on a custom class or its extra fields surviving that path. Registered
+custom errors can retain their representation in SSR, when explicitly returned
+as data, and in deferred rejections. Return expected validation results as
+ordinary action data when the client needs a stable structured result.
 
 **Define and register the custom error:**
 
@@ -208,7 +232,6 @@ export class CustomError extends Error {
   }
 }
 
-// Register the error serializer (call this early in your app initialization)
 registerError<CustomError>({
   name: "CustomError",
   is: (error): error is CustomError => error instanceof CustomError,
@@ -235,10 +258,12 @@ registerError<CustomError>({
 });
 ```
 
-Import this file in your root route to ensure registration happens:
+Import this shared module from the root **client** route so registration occurs
+on the server and in the browser before hydration data is deserialized. An
+import only from `routes/main.ts` never registers the browser-side decoder.
 
 ```typescript
-// routes/main.ts
+// routes/main.tsx
 import "@/errors/custom.ts";
 ```
 
@@ -247,7 +272,9 @@ import "@/errors/custom.ts";
 For standard `Error` and `HttpError` classes, Juniper automatically includes
 stack traces in development and excludes them in production. For custom errors,
 use `isDevelopment()` in your `serialize` function to control when stack traces
-are sent to the client, as shown in the example above.
+are sent to the client, as shown above. Excluding a stack does not redact an
+error's message or custom fields. Serialize only information intended for the
+browser; wrap private service failures in a suitable `HttpError`.
 
 ## Common Patterns
 
@@ -449,3 +476,15 @@ export function ErrorBoundary(
 - [Logging](logging.md) - Logging and OpenTelemetry
 - [Testing](testing.md) - Testing utilities and patterns
 - [Middleware](middleware.md) - Server and client middleware
+
+## Changelog
+
+- **2026-09-09** — Clarified custom error preservation by response path and
+  replaced unsupported rich-type claims with the serialization contract.
+
+- **2026-09-09** — Documented production error sanitization and
+  ancestor-boundary rendering without denied loader data; completed imports in
+  revised examples.
+
+- **2026-09-09** — Corrected shared-layout lifetime and client serializer
+  registration; distinguished exposed error messages from private details.

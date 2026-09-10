@@ -1,3 +1,8 @@
+---
+title: Styling
+last_verified: 2026-09-09
+---
+
 # Styling
 
 ## Overview
@@ -67,6 +72,8 @@ attribute for proper SSR handling:
 
 ```tsx
 // routes/main.tsx
+import { Outlet } from "react-router";
+
 function Layout({ children }: { children: React.ReactNode }) {
   return (
     <main>
@@ -87,8 +94,16 @@ export default function Main() {
 }
 ```
 
-The `precedence` attribute tells React how to order stylesheets during SSR,
-preventing flash of unstyled content (FOUC).
+The `precedence` attribute opts the stylesheet into React's resource handling
+and groups its ordering relative to other managed stylesheets. React discovers
+precedence groups in render order; names such as `default` and `high` are
+labels, not built-in priority levels. Keep the stylesheet link in SSR output so
+it can load before the styled content appears.
+
+See React's
+[stylesheet reference](https://react.dev/reference/react-dom/components/link)
+for precedence and resource handling. `onLoad`, `onError`, and `disabled` opt
+out of special stylesheet handling.
 
 ### Route-Specific Stylesheets
 
@@ -134,7 +149,7 @@ transformation are placed outside `public/` and added as build entrypoints.
 ```json
 {
   "imports": {
-    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.3"
+    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.4.0"
   }
 }
 ```
@@ -192,7 +207,7 @@ Or add TailwindCSS to an existing project:
   "imports": {
     "tailwindcss": "npm:tailwindcss@^4",
     "@tailwindcss/postcss": "npm:@tailwindcss/postcss@^4",
-    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.3"
+    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.4.0"
   }
 }
 ```
@@ -301,7 +316,7 @@ with the `modules` option:
 ```json
 {
   "imports": {
-    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.3"
+    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.4.0"
   }
 }
 ```
@@ -386,7 +401,9 @@ export function Button({ variant = "primary", children }: ButtonProps) {
 ```
 
 The plugin generates a JSON file with the mapping of original class names to
-scoped names.
+scoped names. Build before type-checking code that imports that generated file.
+Grant the builder write access to the generated mapping path as well as
+`public/build/`; the file is beside the source stylesheet in this example.
 
 ### Sass
 
@@ -397,8 +414,8 @@ Use Sass for variables, nesting, mixins, and other preprocessor features:
 ```json
 {
   "imports": {
-    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.3",
-    "@udibo/esbuild-plugin-postcss/sass": "jsr:@udibo/esbuild-plugin-postcss@^0.3/sass"
+    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.4.0",
+    "@udibo/esbuild-plugin-postcss/sass": "jsr:@udibo/esbuild-plugin-postcss@^0.4.0/sass"
   }
 }
 ```
@@ -478,8 +495,8 @@ Use Less for variables, nesting, and mixins:
 ```json
 {
   "imports": {
-    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.3",
-    "@udibo/esbuild-plugin-postcss/less": "jsr:@udibo/esbuild-plugin-postcss@^0.3/less"
+    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.4.0",
+    "@udibo/esbuild-plugin-postcss/less": "jsr:@udibo/esbuild-plugin-postcss@^0.4.0/less"
   }
 }
 ```
@@ -527,8 +544,8 @@ Use Stylus for expressive CSS:
 ```json
 {
   "imports": {
-    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.3",
-    "@udibo/esbuild-plugin-postcss/stylus": "jsr:@udibo/esbuild-plugin-postcss@^0.3/stylus"
+    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.4.0",
+    "@udibo/esbuild-plugin-postcss/stylus": "jsr:@udibo/esbuild-plugin-postcss@^0.4.0/stylus"
   }
 }
 ```
@@ -804,13 +821,10 @@ To prevent FOUC during SSR:
 3. Avoid dynamic style imports that depend on JavaScript
 
 ```tsx
-// Plain CSS in public/
 <link rel="stylesheet" href="/main.css" precedence="default" />
 
-// Transformed CSS (TailwindCSS) in public/build/
 <link rel="stylesheet" href="/build/main.css" precedence="default" />
 
-// For critical above-the-fold styles, use a high precedence
 <link rel="stylesheet" href="/critical.css" precedence="high" />
 ```
 
@@ -854,3 +868,11 @@ details on build artifact caching and how to customize it.
 
 - [Configuration](configuration.md) - Project and build configuration
 - [Metadata](metadata.md) - Page titles and meta tags
+
+## Changelog
+
+- **2026-09-09** — Removed redundant comments from revised stylesheet examples
+  while keeping resource paths explicit.
+
+- **2026-09-09** — Corrected React stylesheet precedence, documented generated
+  CSS-module mappings, and aligned the PostCSS plugin with the template.

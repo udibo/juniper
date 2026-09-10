@@ -292,6 +292,29 @@ describe("Builder", () => {
   });
 
   describe("build", () => {
+    it("builds a project that only has a deno.jsonc configuration", async () => {
+      const projectRoot = await Deno.makeTempDir({ prefix: "juniper jsonc " });
+      try {
+        await Deno.writeTextFile(
+          path.join(projectRoot, "deno.jsonc"),
+          "{\n// Project configuration\n}\n",
+        );
+        await Deno.writeTextFile(
+          path.join(projectRoot, "main.tsx"),
+          "export const answer = 42;",
+        );
+        await using builder = new Builder({ projectRoot, write: false });
+        const result = await builder.build();
+        assertEquals(result.errors, []);
+        assertEquals(
+          result.outputFiles?.some((file) => file.path.endsWith("main.js")),
+          true,
+        );
+      } finally {
+        await Deno.remove(projectRoot, { recursive: true });
+      }
+    });
+
     it("should build successfully", async () => {
       await using builder = new Builder({
         projectRoot: exampleDir,

@@ -4,8 +4,9 @@
  * It provides the {@linkcode Builder} class for configuring and executing builds,
  * including route generation, client bundling, and server entrypoint creation.
  *
- * It can be run directly with `deno run @udibo/juniper/build` to build the application
- * with the default configuration.
+ * Use the application's build task to supply its Deno permissions and environment.
+ * The CLI accepts `--project-root` and uses the default Builder configuration.
+ * Set `APP_ENV=production` in the task for production minification.
  *
  * @module
  */
@@ -39,7 +40,16 @@ function toPosixPath(value: string): string {
 }
 
 /**
- * Configuration options for building the application.
+ * Paths, plugins, and output settings for {@linkcode Builder}. The builder bundles
+ * browser code; deployment must also include the server's source imports.
+ *
+ * @example
+ * ```ts
+ * import { Builder, type BuildOptions } from "@udibo/juniper/build";
+ * const options: BuildOptions = { projectRoot: Deno.cwd(), ignorePaths: ["./docker"] };
+ * await using builder = new Builder(options);
+ * await builder.build();
+ * ```
  */
 export interface BuildOptions {
   /**
@@ -58,7 +68,7 @@ export interface BuildOptions {
 
   /**
    * Additional esbuild plugins to use when building your application.
-   * These plugins will be inserted after the deno resolver but before the deno loader plugin.
+   * They run after Juniper's React compiler plugin and before the Deno plugin.
    */
   plugins?: esbuild.Plugin[];
 
@@ -98,32 +108,31 @@ export interface BuildOptions {
    *
    * @example
    * ```ts
-   * ignorePaths: ["./docker", "./node_modules", "./.git"]
+   * import type { BuildOptions } from "@udibo/juniper/build";
+   * const options: BuildOptions = { ignorePaths: ["./docker", "./node_modules", "./.git"] };
    * ```
    */
   ignorePaths?: string[];
   /**
-   * Whether to write the esbuild results to the public directory's build subdirectory.
-   * This is used for testing purposes.
+   * Whether to generate entrypoints and write esbuild output to `public/build`.
+   * When false, existing entrypoints are required and output is returned in memory.
+   * This is not a filesystem dry run: the output directory is still created, and
+   * explicitly calling an entrypoint generation method still writes its file.
    *
    * Defaults to true.
    */
   write?: boolean;
 }
 
-/**
- * A set of active builders.
- *
- * This is used to track the active builders and to stop esbuild when all builders are disposed.
- */
 const activeBuilders = new Set<Builder>();
 
 /**
  * A builder for a Juniper application.
  *
- * This class is used to build a Juniper application with custom build options.
- * It is responsible for generating the main server file and building the application.
- * It also provides a way for the dev server to rebuild the application.
+ * Generates `main.ts` and `main.tsx`, then bundles browser assets. Both generated
+ * entrypoints are overwritten, so put application code in routes and imports.
+ * Call `build` once, `rebuild` for later changes, and `dispose` when finished.
+ * A disposed builder must not be reused.
  *
  * @example Building an application
  * ```ts
@@ -134,8 +143,11 @@ const activeBuilders = new Set<Builder>();
  * export const builder = new Builder({ projectRoot });
  *
  * if (import.meta.main) {
- *   await builder.build();
- *   await builder.dispose();
+ *   try {
+ *     await builder.build();
+ *   } finally {
+ *     await builder.dispose();
+ *   }
  * }
  * ```
  */
@@ -146,7 +158,7 @@ export class Builder implements AsyncDisposable {
   readonly routesPath: string;
   /** Absolute path to the public directory served as static assets. */
   readonly publicPath: string;
-  /** Absolute path to the resolved `deno.json`/`deno.jsonc` config file. */
+  /** Requested absolute config path; build falls back to a sibling `deno.jsonc` if absent. */
   readonly configPath: string;
   /** Absolute path to the generated server entrypoint (`main.ts`). */
   readonly serverPath: string;
@@ -167,7 +179,7 @@ export class Builder implements AsyncDisposable {
   readonly entryPoints: string[];
   /** Whether build output is written to disk; `false` is used in tests. */
   protected write: boolean;
-  /** Extra esbuild plugins inserted between the Deno resolver and loader. */
+  /** Extra esbuild plugins run after the React compiler and before the Deno plugin. */
   protected plugins: esbuild.Plugin[];
   /** The active esbuild incremental build context, once a build has started. */
   protected context?: esbuild.BuildContext;
@@ -263,7 +275,7 @@ export class Builder implements AsyncDisposable {
         }
       }
     } catch {
-      // skip
+      return;
     }
   }
 
@@ -309,6 +321,7 @@ export class Builder implements AsyncDisposable {
    *
    * @example
    * ```ts
+   * import { Builder } from "@udibo/juniper/build";
    * await using builder = new Builder();
    * await builder.buildMainServerEntrypoint();
    * ```
@@ -384,6 +397,13 @@ if (import.meta.main) {
    * {@linkcode Builder.clientPath}, overwriting any existing `main.tsx`.
    *
    * @throws Error if `deno fmt` rejects the generated file.
+   *
+   * @example
+   * ```ts
+   * import { Builder } from "@udibo/juniper/build";
+   * await using builder = new Builder();
+   * await builder.buildMainClientEntrypoint();
+   * ```
    */
   buildMainClientEntrypoint(): Promise<void> {
     return startActiveSpan("buildMainClientEntrypoint", async () => {
@@ -477,7 +497,7 @@ export const client = new Client(${routesConfigString});
       try {
         let configPath = this.configPath;
         if (!await exists(configPath)) {
-          configPath = path.resolve(configPath, "deno.jsonc");
+          configPath = path.resolve(path.dirname(configPath), "deno.jsonc");
           if (!await exists(configPath)) {
             throw new Error("Could not find deno config file");
           }

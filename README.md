@@ -1,3 +1,8 @@
+---
+title: Juniper
+last_verified: 2026-09-09
+---
+
 # Juniper
 
 [![JSR](https://jsr.io/badges/@udibo/juniper)](https://jsr.io/@udibo/juniper)
@@ -83,12 +88,27 @@ export default function Home() {
 ```
 
 ```typescript
-// routes/blog/[id].ts
+// routes/blog/[id]/index.ts
 import { HttpError } from "@udibo/juniper";
 import type { RouteLoaderArgs } from "@udibo/juniper";
 
-export async function loader({ params }: RouteLoaderArgs<{ id: string }>) {
-  const post = await getPost(params.id);
+export interface Post {
+  title: string;
+  content: string;
+}
+
+export interface LoaderData {
+  post: Post;
+}
+
+const posts: Record<string, Post> = {
+  welcome: { title: "Welcome", content: "A post rendered by Juniper." },
+};
+
+export function loader(
+  { params }: RouteLoaderArgs<{ id: string }>,
+): LoaderData {
+  const post = posts[params.id];
   if (!post) {
     throw new HttpError(404, "Post not found");
   }
@@ -99,8 +119,11 @@ export async function loader({ params }: RouteLoaderArgs<{ id: string }>) {
 ```tsx
 // routes/blog/[id]/index.tsx
 import type { RouteProps } from "@udibo/juniper";
+import type { LoaderData } from "./index.ts";
 
-export default function BlogPost({ loaderData }: RouteProps) {
+export default function BlogPost(
+  { loaderData }: RouteProps<{ id: string }, LoaderData>,
+): React.JSX.Element {
   return (
     <>
       <title>{loaderData.post.title}</title>
@@ -113,9 +136,14 @@ export default function BlogPost({ loaderData }: RouteProps) {
 }
 ```
 
+Visit `/blog/welcome`. The `.ts` and `.tsx` filenames match so the server loader
+supplies this page's data. The type-only import is erased from the browser
+bundle; runtime database imports belong in the server module.
+
 ## Documentation
 
-Comprehensive guides for using the framework:
+Start with the [guide index](docs/README.md) for a learning path and a complete
+topic map. The guides below cover the framework's main APIs and workflows.
 
 ### Getting Started
 
@@ -167,3 +195,8 @@ before submitting a pull request.
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
+
+## Changelog
+
+- **2026-09-09** — Corrected matching server/client route filenames and made the
+  introductory loader example self-contained and typed; added guide navigation.

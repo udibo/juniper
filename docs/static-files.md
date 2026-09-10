@@ -1,3 +1,8 @@
+---
+title: Static Files
+last_verified: 2026-09-09
+---
+
 # Static Files
 
 ## Public Directory
@@ -66,8 +71,12 @@ public/
 │   └── chunk-[hash].js   # Code-split chunks
 ```
 
-These files are automatically included in the HTML during SSR. You don't need to
-manually reference them.
+Juniper includes the JavaScript entry in the SSR document; its imports load the
+required chunks. Link stylesheet entry points explicitly from a layout:
+
+```tsx
+<link rel="stylesheet" href="/build/main.css" precedence="default" />;
+```
 
 **Don't edit files in `public/build/`** - they're regenerated on each build.
 
@@ -156,10 +165,10 @@ ls -la public/build/
 
 Juniper automatically applies cache headers to build artifacts in `/build/`:
 
-| File             | Cache-Control                                   | Reason                                             |
-| ---------------- | ----------------------------------------------- | -------------------------------------------------- |
-| `/build/main.js` | `private, no-cache, must-revalidate, max-age=0` | Main entry point changes on each build, uses ETag  |
-| Other `/build/*` | `public, max-age=14400` (4 hours)               | Chunk files have content hashes in their filenames |
+| File             | Cache-Control                                   | Reason                                                    |
+| ---------------- | ----------------------------------------------- | --------------------------------------------------------- |
+| `/build/main.js` | `private, no-cache, must-revalidate, max-age=0` | Main entry point changes on each build, uses ETag         |
+| Other `/build/*` | `public, max-age=14400` (4 hours)               | Default for the build directory; not every file is hashed |
 
 The `main.js` bundle uses `no-cache` with ETag validation because:
 
@@ -170,6 +179,10 @@ The `main.js` bundle uses `no-cache` with ETag validation because:
 
 Other build files like `chunk-[hash].js` can be cached longer because the hash
 in the filename changes when content changes.
+
+CSS and other explicitly named entry points may keep a stable filename. Give
+those files a revalidation policy instead of treating the whole build directory
+as immutable.
 
 ### Overriding Default Cache Headers
 
@@ -183,10 +196,9 @@ import { Hono } from "hono";
 
 const app = new Hono();
 
-// Extend caching for chunked files (skip main.js which needs revalidation)
 app.use("/build/*", async (c, next) => {
   const pathname = new URL(c.req.url).pathname;
-  if (pathname !== "/build/main.js") {
+  if (/\/[^/]+-[A-Z0-9]{8}\.js$/.test(pathname)) {
     c.header("Cache-Control", "public, max-age=31536000");
   }
   await next();
@@ -269,3 +281,8 @@ export default app;
 - [Styling](styling.md) - CSS and TailwindCSS integration
 - [Configuration](configuration.md) - Project and build configuration
 - [Deployment](deployment.md) - Deploy to Deno Deploy, Docker, and more
+
+## Changelog
+
+- **2026-09-09** — Corrected automatic CSS inclusion and distinguished hashed
+  chunks from stable build entries when configuring long-lived caches.

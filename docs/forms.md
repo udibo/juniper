@@ -1,3 +1,8 @@
+---
+title: Forms
+last_verified: 2026-09-09
+---
+
 # Forms
 
 ## Overview
@@ -22,25 +27,42 @@ submissions:
 ```typescript
 // routes/blog/create.ts
 import { redirect } from "react-router";
+import { HttpError } from "@udibo/juniper";
 import type { RouteActionArgs } from "@udibo/juniper";
+import { userContext } from "@/context/user.ts";
 import { postService } from "@/services/post.ts";
 
-export async function action({ request }: RouteActionArgs): Promise<void> {
-  const formData = await request.formData();
+export async function action(
+  { request, context }: RouteActionArgs,
+): Promise<void> {
+  const user = context.get(userContext);
+  if (!user) throw new HttpError(401, "Sign in to create a post");
 
-  const title = formData.get("title") as string;
-  const content = formData.get("content") as string;
-  const authorId = formData.get("authorId") as string;
+  const formData = await request.formData();
+  const title = formData.get("title");
+  const content = formData.get("content");
+  if (
+    typeof title !== "string" || !title.trim() ||
+    typeof content !== "string" || !content.trim()
+  ) {
+    throw new HttpError(400, "Title and content are required");
+  }
 
   const post = await postService.create({
     title,
     content,
-    authorId,
+    authorId: user.id,
   });
 
   throw redirect(`/blog/${post.id}`);
 }
 ```
+
+This example assumes application-owned `postService` and `userContext` modules.
+Initialize the user context in authenticated server middleware. Derive ownership
+from that trusted context, not a submitted `authorId`; validate form values
+because `FormData.get()` can return a string, a file, or `null`. Match this
+server module with `routes/blog/create.tsx` for router submissions.
 
 ### Action Arguments
 
@@ -83,9 +105,12 @@ export async function action({
 ### Returning Data
 
 Actions can return data, redirects, or throw redirects. Action data is
-automatically serialized when sent to the client, supporting all standard JSON
-types plus: `undefined`, `bigint`, `Date`, `RegExp`, `Set`, `Map`, `Error`,
-`URL`, and `Promise`.
+automatically serialized when sent to the client. JSON-shaped data, `undefined`,
+`Date`, and `Error` have built-in handling; `bigint` values are accepted with
+the numeric normalization described in
+[serializable values](state-management.md#serializable-values). Promise values
+can defer data. Register other classes with `registerType` or convert them to
+plain data before returning them.
 
 ```typescript
 // Return data (available in component via actionData)
@@ -108,32 +133,28 @@ export async function action(
 }
 ```
 
-Redirect after success by returning or throwing. Throwing a redirect allows you
-to exclude `Response` from the return type:
+Throw a redirect after success to leave the action immediately. Keep the return
+type for data the component actually receives:
 
 ```typescript
 import { redirect } from "react-router";
 
-// Return a redirect (return type includes Response)
-export async function action(
-  { request }: RouteActionArgs,
-): Promise<ActionData | Response> {
-  // ... process form
-  return redirect("/success");
-}
-
-// Throw a redirect (return type excludes Response)
 export async function action(
   { request }: RouteActionArgs,
 ): Promise<ActionData> {
-  // ... process form
   throw redirect("/success");
 }
 ```
 
+Returned redirects are also supported by server actions, but throwing uses the
+same control flow in loaders, actions, and middleware. Do not catch and convert
+the thrown response into ordinary action data. See
+[redirects](routing.md#redirects).
+
 Access action data in components:
 
 ```tsx
+import { Form } from "react-router";
 import type { AnyParams, RouteProps } from "@udibo/juniper";
 
 interface ActionData {
@@ -151,7 +172,6 @@ export default function CreateForm(
           {actionData.errors.map((error) => <li key={error}>{error}</li>)}
         </ul>
       )}
-      {/* form fields */}
     </Form>
   );
 }
@@ -161,9 +181,11 @@ export default function CreateForm(
 
 ### Creating Client Actions
 
-Client actions run in the browser and are defined by exporting an `action`
-function from your `.tsx` route files (the file extension determines whether
-it's a server or client action):
+Export an `action` from `.tsx` to handle client-router submissions. With no
+matching `.ts` action, that same function also handles document form submissions
+on the server. Guard browser-only APIs in universal actions. The example below
+assumes a matching `routes/settings/index.ts` action so the browser can persist
+the change with `serverAction()`:
 
 ```tsx
 // routes/settings/index.tsx
@@ -207,9 +229,9 @@ export default function Settings(
 }
 ```
 
-**Important:** Define your action data types in the client route file (`.tsx`)
-rather than importing them from the server route file (`.ts`). This maintains
-proper separation between server and client code.
+Share action data types with type-only imports, or define them in a shared
+module. A type-only import is erased from the browser bundle; a runtime import
+of a server service is not. Both sides must agree on the action data shape.
 
 ### When Client Actions Run
 
@@ -348,7 +370,7 @@ The `Form` component:
 
 - Submits to the current route's action by default
 - Prevents full page reload
-- Handles pending states automatically
+- Exposes pending state through `useNavigation`; your UI renders feedback
 - Revalidates loader data after submission
 
 ### Form Methods
@@ -356,18 +378,15 @@ The `Form` component:
 Specify the HTTP method with the `method` prop:
 
 ```tsx
-// POST (default) - Create new resource
 <Form method="post">
   <button type="submit">Create</button>
 </Form>
 
-// POST with intent - Different actions in same form
 <Form method="post">
   <button type="submit" name="intent" value="save">Save</button>
   <button type="submit" name="intent" value="publish">Publish</button>
 </Form>
 
-// DELETE - Delete resource
 <Form method="post">
   <button type="submit" name="intent" value="delete">Delete</button>
 </Form>
@@ -410,7 +429,9 @@ export async function action({
 ### Multiple Forms
 
 Use `useFetcher` for forms that shouldn't navigate or for multiple independent
-forms:
+forms. A fetcher targets an action in the client router's route tree; it is not
+an arbitrary HTTP client for a server-only Hono endpoint. Use a matching `.tsx`
+route for the action, or call a server-only API with `fetch`.
 
 ```tsx
 import { useFetcher } from "react-router";
@@ -420,7 +441,7 @@ function LikeButton({ postId }: { postId: string }) {
   const isLiking = fetcher.state === "submitting";
 
   return (
-    <fetcher.Form method="post" action={`/api/posts/${postId}/like`}>
+    <fetcher.Form method="post" action={`/posts/${postId}/like`}>
       <button type="submit" disabled={isLiking}>
         {isLiking ? "Liking..." : "Like"}
       </button>
@@ -428,6 +449,10 @@ function LikeButton({ postId }: { postId: string }) {
   );
 }
 ```
+
+The example assumes matching `routes/posts/[postId]/like.tsx` and `.ts` files.
+Read the result from `fetcher.data`; a fetcher submission does not populate the
+page's `actionData` prop. Use a separate fetcher per independently pending form.
 
 ### Optimistic UI
 
@@ -439,7 +464,6 @@ import { useFetcher } from "react-router";
 function TodoItem({ todo }: { todo: Todo }) {
   const fetcher = useFetcher();
 
-  // Use optimistic value if submitting, otherwise use server value
   const isComplete = fetcher.formData
     ? fetcher.formData.get("complete") === "true"
     : todo.complete;
@@ -451,7 +475,8 @@ function TodoItem({ todo }: { todo: Todo }) {
         name="complete"
         value="true"
         checked={isComplete}
-        onChange={(e) => fetcher.submit(e.currentTarget.form)}
+        onChange={(e) =>
+          fetcher.submit(e.currentTarget.form, { method: "post" })}
       />
       <span className={isComplete ? "line-through" : ""}>
         {todo.title}
@@ -485,8 +510,10 @@ export async function action(
   { request }: RouteActionArgs,
 ): Promise<RegisterActionData> {
   const formData = await request.formData();
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
+  const emailValue = formData.get("email");
+  const passwordValue = formData.get("password");
+  const email = typeof emailValue === "string" ? emailValue.trim() : "";
+  const password = typeof passwordValue === "string" ? passwordValue : "";
 
   const errors: ValidationErrors = {};
 
@@ -598,30 +625,33 @@ export async function action(
   { request }: RouteActionArgs,
 ): Promise<AvatarActionData> {
   const formData = await request.formData();
-  const file = formData.get("avatar") as File;
+  const file = formData.get("avatar");
 
-  if (!file || file.size === 0) {
+  if (!(file instanceof File) || file.size === 0) {
     return { success: false, error: "No file uploaded" };
   }
 
-  // Validate file type
   if (!file.type.startsWith("image/")) {
     return { success: false, error: "File must be an image" };
   }
 
-  // Validate file size (e.g., 5MB limit)
   if (file.size > 5 * 1024 * 1024) {
     return { success: false, error: "File must be less than 5MB" };
   }
 
-  // Save the file
   const buffer = await file.arrayBuffer();
-  const filename = `${crypto.randomUUID()}-${file.name}`;
+  const filename = crypto.randomUUID();
+  await Deno.mkdir("./uploads", { recursive: true });
   await Deno.writeFile(`./uploads/${filename}`, new Uint8Array(buffer));
 
   return { success: true, filename };
 }
 ```
+
+The upload example checks reported metadata and writes outside `public/` using a
+server-generated name. In a real upload service, limit request size before
+parsing, inspect file contents, and serve accepted files with an appropriate
+content type. The browser-supplied filename and MIME type are untrusted.
 
 ## Next Steps
 
@@ -632,3 +662,15 @@ export async function action(
 - [Error Handling](error-handling.md) - Error boundaries and HttpError
 - [Database](database.md) - Deno KV and PostgreSQL
 - [Testing](testing.md) - Testing utilities and patterns
+
+## Changelog
+
+- **2026-09-09** — Corrected action-data serialization claims, including bigint
+  normalization and custom classes.
+
+- **2026-09-09** — Removed explanatory comments from the revised submission and
+  validation examples.
+
+- **2026-09-09** — Corrected navigation pending state, fetcher action targets
+  and POST submission; validated untrusted fields and uploads and derived
+  ownership from server context.

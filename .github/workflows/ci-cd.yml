@@ -24,6 +24,10 @@ jobs:
         run: deno fmt --check
       - name: Lint source files
         run: deno lint
+      - name: Test documentation gate
+        run: deno task test:doc-lint
+      - name: Check public API documentation
+        run: deno task doc-lint
   test:
     name: Test on ${{ matrix.os }}
     needs: [format-and-lint]
@@ -64,6 +68,10 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         working-directory: src
         run: deno coverage --detailed
+      - name: Export coverage report (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: src
+        run: deno coverage --lcov --output=coverage/lcov.info
       - name: Upload coverage (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5

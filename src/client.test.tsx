@@ -15,6 +15,7 @@ import {
 } from "@std/testing/bdd";
 import { assertSpyCalls, stub } from "@std/testing/mock";
 import { delay } from "@std/async/delay";
+import { deadline } from "@std/async/deadline";
 import { HttpError } from "./mod.ts";
 import { createMemoryRouter, Outlet } from "react-router";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
@@ -470,7 +471,7 @@ describe("getHydrationData", () => {
 
   describe("deserializes errors", () => {
     it(
-      "with default deserializeError function (CustomError falls back to Error)",
+      "with default deserialization and generic server errors",
       simulateBrowser(errorHydrationData, () => {
         const client = new Client(routes);
         const data = client.getHydrationData();
@@ -478,14 +479,26 @@ describe("getHydrationData", () => {
           loaderData: {},
         });
         assertExists(data.errors);
-        assertIsError(data.errors["/"], Error, "Oops");
-        assertIsError(data.errors["/about"], TypeError, "Wrong type");
+        assertIsError(
+          data.errors["/"],
+          HttpError,
+          new HttpError(500).exposedMessage,
+        );
+        assertIsError(
+          data.errors["/about"],
+          HttpError,
+          new HttpError(500).exposedMessage,
+        );
 
         assertIsError(data.errors["/blog"], HttpError, "Bad request");
         assertEquals(data.errors["/blog"].name, "Bad Request");
         assertEquals(data.errors["/blog"].status, 400);
 
-        assertIsError(data.errors["/blog/create"], Error, "Custom error");
+        assertIsError(
+          data.errors["/blog/create"],
+          HttpError,
+          new HttpError(500).exposedMessage,
+        );
         assertEquals(data.errors["/blog/create"] instanceof CustomError, false);
       }),
     );
@@ -502,8 +515,16 @@ describe("getHydrationData", () => {
               loaderData: {},
             });
             assertExists(data.errors);
-            assertIsError(data.errors["/"], Error, "Oops");
-            assertIsError(data.errors["/about"], TypeError, "Wrong type");
+            assertIsError(
+              data.errors["/"],
+              HttpError,
+              new HttpError(500).exposedMessage,
+            );
+            assertIsError(
+              data.errors["/about"],
+              HttpError,
+              new HttpError(500).exposedMessage,
+            );
 
             assertIsError(data.errors["/blog"], HttpError, "Bad request");
             assertEquals(data.errors["/blog"].name, "Bad Request");
@@ -595,17 +616,20 @@ describe("getHydrationData", () => {
         const client = new Client(routes);
         const data = client.getHydrationData();
 
-        await assertRejects(
-          () => (data.loaderData!["/blog"] as { error: Promise<never> }).error,
-          Error,
-          "Loader failed",
-        );
-
-        const error = await assertRejects(
-          () => (data.actionData!["/about"] as { error: Promise<never> }).error,
-          HttpError,
-          "Validation failed",
-        );
+        const [, error] = await Promise.all([
+          assertRejects(
+            () =>
+              (data.loaderData!["/blog"] as { error: Promise<never> }).error,
+            HttpError,
+            new HttpError(500).exposedMessage,
+          ),
+          assertRejects(
+            () =>
+              (data.actionData!["/about"] as { error: Promise<never> }).error,
+            HttpError,
+            "Validation failed",
+          ),
+        ]);
         assertEquals(error.status, 422);
       })();
     });
@@ -818,6 +842,14 @@ describe("HydrationData serialization and deserialization", () => {
     deserializedHydrationData = deserializeHydrationData(
       serializedHydrationData,
     );
+    await Promise.allSettled([
+      deserializedHydrationData.loaderData,
+      deserializedHydrationData.actionData,
+    ].flatMap((data) =>
+      Object.values(data ?? {}).flatMap((value) =>
+        Object.values(value as Record<string, unknown>)
+      )
+    ));
   });
 
   it("hydrationData keys are the same", () => {
@@ -850,12 +882,16 @@ describe("HydrationData serialization and deserialization", () => {
     );
   });
 
-  it("errors are the same", () => {
-    assertIsError(deserializedHydrationData.errors!["/"], Error, "Oops");
+  it("unexpected errors are private and exposed errors retain their details", () => {
+    assertIsError(
+      deserializedHydrationData.errors!["/"],
+      HttpError,
+      new HttpError(500).exposedMessage,
+    );
     assertIsError(
       deserializedHydrationData.errors!["/blog"],
-      TypeError,
-      "Wrong type",
+      HttpError,
+      new HttpError(500).exposedMessage,
     );
 
     assertIsError(
@@ -883,14 +919,14 @@ describe("HydrationData serialization and deserialization", () => {
 
     await assertRejects(
       () => blogData.error,
-      Error,
-      `${messagePrefix} failed`,
+      HttpError,
+      new HttpError(500).exposedMessage,
     );
 
     await assertRejects(
       () => blogData.typeError,
-      TypeError,
-      `${messagePrefix} wrong type`,
+      HttpError,
+      new HttpError(500).exposedMessage,
     );
 
     const httpError = await assertRejects(
@@ -910,11 +946,11 @@ describe("HydrationData serialization and deserialization", () => {
     assertEquals(customError.detail, `${messagePrefix} custom detail`);
   }
 
-  it("loaderData is the same", async () => {
+  it("loader data errors follow their exposure policy", async () => {
     await assertRouteDataErrors("Loader", deserializedHydrationData.loaderData);
   });
 
-  it("actionData is the same", async () => {
+  it("action data errors follow their exposure policy", async () => {
     await assertRouteDataErrors("Action", deserializedHydrationData.actionData);
   });
 });
@@ -1035,7 +1071,7 @@ describe("createLazyRoute failure recovery", () => {
       ]);
       assertEquals(router.state.errors, null);
       await router.navigate("/current");
-      await router.navigate("/destination?q=3");
+      await deadline(router.navigate("/destination?q=3"), 250);
       assertEquals(assigned.length, 2);
       assertEquals(Object.values(router.state.errors ?? {}).length, 1);
       assertEquals(router.state.navigation.state, "idle");
@@ -1105,7 +1141,11 @@ describe("createLazyRoute failure recovery", () => {
     for (let attempt = 0; attempt < 2; attempt++) {
       await assertPendingRecovery(failingLazyRoute()());
     }
-    await assertRejects(() => failingLazyRoute()(), Error, "chunk missing");
+    await assertRejects(
+      () => deadline(failingLazyRoute()(), 250),
+      Error,
+      "chunk missing",
+    );
     await delay(1);
 
     assertEquals(assigned.length, 2);

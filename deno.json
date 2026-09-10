@@ -170,7 +170,15 @@
     },
     "check": {
       "description": "Checks the code for errors, formatting, and runs the linter.",
-      "command": "deno check && deno lint && deno fmt --check"
+      "command": "deno check && deno lint && deno fmt --check && deno task test:doc-lint && deno task doc-lint"
+    },
+    "doc-lint": {
+      "description": "Checks public JSDoc coverage and type-checks every exported entrypoint's examples.",
+      "command": "deno run --allow-read --allow-run scripts/doc-lint.ts --examples"
+    },
+    "test:doc-lint": {
+      "description": "Verifies the documentation gate rejects missing documentation and invalid entrypoints.",
+      "command": "deno test --allow-read --allow-write --allow-run scripts/doc-lint.test.ts"
     },
     "lgtm:start": {
       "description": "Starts the LGTM service.",
@@ -182,6 +190,9 @@
     }
   },
   "imports": {
+    "@std/assert": "jsr:@std/assert@^1.0.19",
+    "@std/path": "jsr:@std/path@^1.1.5",
+    "@std/testing": "jsr:@std/testing@^1.0.19",
     "react": "npm:react@^19.2.7",
     "react-dom": "npm:react-dom@^19.2.7",
     "@types/react": "npm:@types/react@^19.2.16"

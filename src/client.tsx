@@ -82,28 +82,19 @@ export interface RootClientRoute extends ClientRoute {
 }
 
 /**
- * The client for a Juniper application.
+ * Client route registry and browser hydration entrypoint.
  *
- * @example Creating a client
- * ```ts
+ * The build generates its configuration in `main.tsx`; application routes usually
+ * never construct this class. Importing it during SSR creates route definitions
+ * without touching the DOM. Only call `hydrate` in a browser with matching SSR data.
+ *
+ * @example
+ * ```tsx
  * import { Client } from "@udibo/juniper/client";
- * import { isBrowser } from "@udibo/juniper/utils/env";
- *
  * export const client = new Client({
  *   path: "/",
- *   main: await import("./routes/main.tsx"),
- *   index: () => import("./routes/index.tsx"),
- *   children: [
- *     {
- *       path: "about",
- *       main: () => import("./routes/about.tsx"),
- *     },
- *   ],
+ *   main: { default: () => <h1>Hello</h1> },
  * });
- *
- * if (isBrowser()) {
- *   await client.hydrate();
- * }
  * ```
  */
 export class Client {
@@ -298,15 +289,21 @@ export class Client {
   }
 
   /**
-   * Hydrates the application.
-   * This function sets up the browser router and renders the application.
+   * Starts browser hydration using the data embedded in the SSR document.
    *
-   * A route module that fails to load here does not abort hydration: the
-   * failure is logged and the router is still created, so React Router
-   * re-attempts the load and surfaces the error in the nearest ErrorBoundary
-   * rather than leaving a server-rendered page with no interactivity.
+   * Load matched modules, restore registered context, then schedule React
+   * hydration for an idle callback. Resolving this promise means hydration was
+   * scheduled, not that React has committed or the page is interactive.
+   *
+   * Missing modules can initiate a guarded document navigation. That recovery
+   * stays pending to preserve SSR markup. Once the retry budget is exhausted,
+   * failures are logged and handed to the router's error boundary. Call once
+   * per document; generated entrypoints already do so.
+   *
+   * @returns A promise for scheduling hydration; it stays pending during recovery.
+   * @throws {Error} If the document has no Juniper hydration data.
    */
-  async hydrate() {
+  async hydrate(): Promise<void> {
     const { matches, serializedContext, buildId, ...hydrationData } = this
       .getHydrationData();
     setClientBuildId(buildId);

@@ -1,3 +1,8 @@
+---
+title: Configuration
+last_verified: 2026-09-09
+---
+
 # Configuration
 
 ## Project Configuration (deno.json)
@@ -21,7 +26,7 @@ Juniper application.
     "@udibo/juniper": "jsr:@udibo/juniper",
     "react": "npm:react@^19",
     "@types/react": "npm:@types/react@^19",
-    "react-router": "npm:react-router@^7",
+    "react-router": "npm:react-router@^8.3.0",
     "hono": "npm:hono@^4"
   },
   "compilerOptions": {
@@ -40,6 +45,16 @@ Juniper application.
 - `@udibo/juniper` - The Juniper framework package
 - `react` and `react-router` - Core React dependencies
 - `hono` - The Hono web framework for server-side routing
+
+Keep React, React DOM, and React Router compatible with the Juniper release you
+use. Start from that release's template import map rather than mixing a recent
+Juniper package with an older major of React Router. See the
+[minimal template](../templates/minimal/deno.json) for the versions tested with
+this source tree.
+
+The compact example above uses `-A`. For a new application, prefer the
+template's named permission profiles shown in
+[getting started](getting-started.md) and keep its complete dependency map.
 
 ## Build Configuration
 
@@ -254,8 +269,10 @@ const apiUrl = getEnv("API_URL");
 
 ### Server-Only Variables
 
-Environment variables not listed in `publicEnvKeys` are only available on the
-server. Use these for sensitive values like API keys and database credentials:
+Environment variables not listed in `publicEnvKeys` are not copied into
+Juniper's client environment. Keep credentials in server-only code as well: this
+list does not prevent an application from leaking a value through a loader,
+registered context, custom serializer, or literal bundled into `.tsx`.
 
 ```typescript
 // This only works on the server
@@ -269,7 +286,8 @@ if (isServer()) {
 
 ### Environment Files
 
-Juniper supports `.env` files for different environments:
+Deno loads the environment files named by your tasks; Juniper does not load them
+implicitly. The templates use:
 
 - `.env` - Default environment variables (development)
 - `.env.production` - Production-specific variables
@@ -279,13 +297,13 @@ Load environment files using the `--env-file` flag:
 
 ```bash
 # Development (loads .env)
-deno run -A --env-file ./main.ts
+deno task serve
 
 # Production (loads .env and .env.production)
-deno run -A --env-file --env-file=.env.production ./main.ts
+deno task serve:prod
 
 # Testing (loads .env and .env.test)
-deno test -A --env-file --env-file=.env.test
+deno task test
 ```
 
 **Environment detection utilities:**
@@ -374,3 +392,8 @@ To exclude build output from formatting and type checking:
 
 - [Styling](styling.md) - CSS and TailwindCSS integration
 - [Deployment](deployment.md) - Deploy to Deno Deploy, Docker, and more
+
+## Changelog
+
+- **2026-09-09** — Aligned React Router versions with the template and clarified
+  explicit environment loading and the limits of the public-variable allowlist.

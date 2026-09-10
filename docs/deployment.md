@@ -1,3 +1,8 @@
+---
+title: Deployment
+last_verified: 2026-09-09
+---
+
 # Deployment
 
 ## Overview
@@ -15,25 +20,27 @@ Before deploying, create a production build:
 deno task build:prod
 ```
 
-This runs the build process with `APP_ENV=production`, which:
+The template's `.env.production` sets `APP_ENV=production` and
+`NODE_ENV=production`. With those values the default build:
 
 - Minifies JavaScript bundles
 - Removes source maps
 - Enables tree shaking
 - Optimizes for smaller bundle sizes
 
-The production task should be defined in your `deno.json`:
+Keep the template's build and serve permission profiles and production tasks in
+`deno.json`:
 
 ```json
 {
   "tasks": {
     "build:prod": {
       "description": "Builds the application for production.",
-      "command": "deno run -P=prod --env-file --env-file=.env.production build.ts"
+      "command": "deno run -P=build --env-file --env-file=.env.production build.ts"
     },
     "serve:prod": {
       "description": "Starts the production server.",
-      "command": "deno run -P=prod --env-file --env-file=.env.production main.ts"
+      "command": "deno run -P=serve --env-file --env-file=.env.production main.ts"
     }
   }
 }
@@ -41,29 +48,31 @@ The production task should be defined in your `deno.json`:
 
 ## Deno Deploy
 
-Deno Deploy is the recommended platform for deploying Juniper applications. It
-provides:
-
-- Global edge deployment
-- Automatic builds and deployment
-- Automatic HTTPS
-- Built-in KV database
+Deno Deploy can build and run a Juniper application from a linked repository.
+Configure a dynamic application rather than a static `public/` deployment:
+Juniper needs its server entrypoint for SSR and server loaders/actions.
 
 ### Deployment Steps
 
-1. **Create a Deno Deploy project** at [dash.deno.com](https://dash.deno.com)
+1. **Create an application** using the current
+   [Deno Deploy build configuration](https://docs.deno.com/deploy/reference/builds/).
 
 2. **Connect your GitHub repository**
 
 3. **Configure the build settings:**
-   - **Install command:** `deno install`
+   - **Install command:** `deno install --frozen`
    - **Build command:** `deno task build:prod`
    - **Entrypoint:** `./main.ts`
 
-4. **Configure environment variables** in the Deno Deploy dashboard
+4. **Configure environment variables** for both the build and runtime contexts.
+   Set `APP_ENV=production` and `NODE_ENV=production` in each production
+   context.
 
-Deno Deploy will automatically build and deploy when you push to your configured
-branch.
+Deno Deploy supports automatic builds from connected GitHub repositories. Its
+[runtime is serverless](https://docs.deno.com/deploy/reference/runtime/), so an
+idle application may stop and a later request may need to start it. Use
+[pending navigation feedback](routing.md#pending-navigation) independently of
+the hosting platform.
 
 ### Environment Variables
 
@@ -117,34 +126,40 @@ CMD ["deno", "task", "serve:prod"]
 
 ### Multi-Stage Build
 
-For smaller images, use a multi-stage build:
+To separate building from serving, use a multi-stage build. The runtime needs
+both generated entrypoints, the complete SSR import graph, assets, and runtime
+dependencies. Copying only `main.ts`, `routes/`, and `public/` omits `main.tsx`
+and application imports such as `components/` and `services/`.
 
 ```dockerfile
-# Build stage
 FROM denoland/deno:latest AS builder
 
 WORKDIR /app
 COPY . .
+RUN deno install --frozen
 RUN deno task build:prod
 
-# Production stage
 FROM denoland/deno:latest
 
 WORKDIR /app
 
-# Copy only necessary files
-COPY --from=builder /app/deno.json /app/deno.lock ./
-COPY --from=builder /app/main.ts ./
-COPY --from=builder /app/routes ./routes
-COPY --from=builder /app/public ./public
+COPY --from=builder /app/ ./
+RUN deno install --frozen
 
-# Cache dependencies
-RUN deno cache main.ts
+ENV APP_ENV=production
+ENV NODE_ENV=production
 
 EXPOSE 8000
 
 CMD ["deno", "task", "serve:prod"]
 ```
+
+Pin the same tested Deno image version or digest in both stages. Exclude local
+secrets, databases, and host `node_modules/` from the build context with
+`.dockerignore`; provide secrets at runtime. A copied subdirectory from a Deno
+workspace also needs the workspace configuration and referenced members, or a
+standalone configuration. Build the final image in CI and smoke-test it before
+shipping it; a successful browser bundle build alone does not verify SSR.
 
 ### Docker Compose
 
@@ -174,80 +189,32 @@ Run with:
 docker compose up -d
 ```
 
-## Other Platforms
+## Long-Running Servers and Other Platforms
 
-### Cloudflare Workers
+A VM or container host can run `deno task serve:prod` continuously. Configure
+process supervision, HTTPS termination, health checks, restart policy, and
+durable storage with that host's tools. The generated entrypoint uses
+`Deno.serve`; publishing a container port does not change the port on which the
+process listens.
 
-Juniper can be adapted for Cloudflare Workers, though some features may require
-adjustment due to the Workers runtime constraints.
+For a host that requires a specific listener, create your own entrypoint
+alongside generated `main.ts`:
 
-**Considerations:**
+```ts
+import { server } from "./main.ts";
 
-- Use `@hono/adapter-cloudflare` for Hono compatibility
-- Deno KV is not available; use Cloudflare KV or D1
-- File system operations are not supported
-
-### AWS Lambda
-
-Deploy to AWS Lambda using a Deno layer:
-
-1. Create a Lambda layer with the Deno runtime
-2. Package your application
-3. Configure the handler
-
-Or use a container-based Lambda deployment:
-
-```dockerfile
-FROM public.ecr.aws/awsguru/aws-lambda-adapter:0.7.0 AS lambda-adapter
-
-FROM denoland/deno:latest
-
-COPY --from=lambda-adapter /lambda-adapter /opt/extensions/lambda-adapter
-
-WORKDIR /app
-COPY . .
-RUN deno task build:prod
-
-ENV PORT=8080
-EXPOSE 8080
-
-CMD ["deno", "task", "serve:prod"]
+Deno.serve({ hostname: "0.0.0.0", port: 8080 }, server.fetch);
 ```
 
-### Fly.io
+Run this file with the same permissions and production environment as
+`serve:prod`. Importing `main.ts` does not start its listener because its
+`import.meta.main` guard is false. Keep this custom entrypoint separate from
+generated files, which the builder replaces.
 
-Deploy to Fly.io with their CLI:
-
-```bash
-# Install flyctl
-curl -L https://fly.io/install.sh | sh
-
-# Initialize the app
-fly launch
-
-# Deploy
-fly deploy
-```
-
-Create a `fly.toml`:
-
-```toml
-app = "my-juniper-app"
-primary_region = "iad"
-
-[build]
-  dockerfile = "Dockerfile"
-
-[http_service]
-  internal_port = 8000
-  force_https = true
-  auto_stop_machines = true
-  auto_start_machines = true
-  min_machines_running = 0
-
-[env]
-  APP_ENV = "production"
-```
+Juniper's generated server targets Deno. A platform with another runtime or a
+function-specific request interface needs a verified adapter and a way to serve
+the build assets; a Hono adapter alone does not establish compatibility with
+Juniper's SSR, filesystem, or streaming requirements.
 
 ## Environment Configuration
 
@@ -257,13 +224,18 @@ Configure these environment variables for your production deployment. How you
 set them depends on your deployment platform (Deno Deploy dashboard, Docker
 environment, CI/CD secrets, etc.).
 
-#### Required Variables
+#### Application Variables
 
 | Variable   | Description                                                    |
 | ---------- | -------------------------------------------------------------- |
 | `APP_NAME` | Your application name, used in logging and error messages      |
 | `APP_ENV`  | Environment name: `development`, `test`, or `production`       |
 | `NODE_ENV` | Set to `production` for production builds (used by some tools) |
+
+`APP_NAME` is optional; set it to give your application a useful identity. Keep
+build-time and server runtime production settings consistent. Only allowlisted
+environment values are included in browser hydration data; see
+[environment configuration](configuration.md#environment-variables).
 
 #### OpenTelemetry Variables
 
@@ -315,14 +287,31 @@ const cacheMaxAge = isProduction() ? 3600 : 0;
 
 Juniper automatically applies cache headers to build artifacts:
 
-- **`/build/main.js`**: Uses `no-cache` with ETag validation (prevents CDN
-  caching, allows browser validation)
-- **Other `/build/*` files**: Cached for 4 hours (content hashes in filenames
-  allow safe caching)
+- **`/build/main.js`**: Uses `no-cache` with ETag validation. Caches may store
+  it but must validate it before reuse.
+- **Other `/build/*` files**: Cached for 4 hours. Lazy JavaScript chunks have
+  content hashes; explicit entries such as `main.css` can have stable names.
 
 You can override these defaults in your route handlers. See
 [Static Files - Cache Headers](static-files.md#cache-headers) for details on
 customizing cache behavior.
+
+### Deploying New Bundles
+
+Publish server code and assets from the same build together. Retain older hashed
+chunks when your infrastructure allows it so open tabs can finish loading their
+original build. Avoid immutable caching for stable filenames.
+
+An open tab can still request a removed lazy chunk after a deployment. Juniper
+can recover with a full document navigation to the intended destination. This
+recovery is bounded so persistent failures reach an error boundary instead of
+causing a reload loop. It does not replace atomic deployment or error
+monitoring. See
+[pending navigation and recovery](routing.md#pending-navigation).
+
+If a reverse proxy buffers streamed HTML or loader responses, users will not see
+incremental results until the proxy releases the body. Test fallback timing
+through the production proxy, including a slow loader and a removed old chunk.
 
 ### Compression
 
@@ -352,18 +341,11 @@ For production workloads:
 
 ### Database Connections
 
-Use connection pooling for database connections:
-
-```typescript
-// For external databases
-const pool = new Pool({
-  max: 20, // Adjust based on your workload
-  idleTimeout: 30000,
-});
-
-// For Deno KV (managed by Deno)
-const kv = await Deno.openKv();
-```
+Reuse database connections within a process and close them during shutdown.
+Choose pool limits using the database's connection budget and the maximum number
+of application instances. Local files and in-memory caches are not shared
+between instances; use durable storage for data that must survive restarts. See
+[database integration](database.md).
 
 ## Health Checks
 
@@ -383,13 +365,12 @@ app.get("/", (c) => {
 });
 
 app.get("/ready", async (c) => {
-  // Check dependencies
   try {
-    const kv = await Deno.openKv();
+    using kv = await Deno.openKv();
     await kv.get(["health-check"]);
     return c.json({ status: "ready" });
-  } catch (error) {
-    return c.json({ status: "not ready", error: String(error) }, 503);
+  } catch {
+    return c.json({ status: "not ready" }, 503);
   }
 });
 
@@ -408,3 +389,9 @@ applications
 - [CI/CD](ci-cd.md) - GitHub Actions workflows
 - [Logging](logging.md) - Logging and OpenTelemetry
 - [Configuration](configuration.md) - Project and build configuration
+
+## Changelog
+
+- **2026-09-09** — Corrected production packaging and cache semantics, added
+  long-running server and deployment recovery guidance, and replaced unverified
+  adapter recipes with runtime requirements.

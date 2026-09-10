@@ -1,3 +1,8 @@
+---
+title: State Management
+last_verified: 2026-09-09
+---
+
 # State Management
 
 ## Overview
@@ -5,11 +10,11 @@
 Juniper offers three distinct approaches for managing state, each serving
 different purposes:
 
-| Approach                 | Scope               | Serialization  | Use Case                          |
-| ------------------------ | ------------------- | -------------- | --------------------------------- |
-| **Hono Variables**       | Server request only | Not serialized | Request-scoped server data        |
-| **React Router Context** | Server to client    | Serialized     | Shared app state (user, settings) |
-| **React Context**        | Client only         | Not applicable | UI state, client-side data        |
+| Approach                 | Scope                                         | Transfer to browser                       | Use case                         |
+| ------------------------ | --------------------------------------------- | ----------------------------------------- | -------------------------------- |
+| **Hono Variables**       | One server request                            | None                                      | Server-only request data         |
+| **React Router Context** | One server request or browser router lifetime | Registered values in initial hydration    | Loader/action/middleware context |
+| **React Context**        | Mounted component subtree, including SSR      | Supply matching initial values explicitly | Shared component state           |
 
 ## Hono Variables (Server)
 
@@ -175,7 +180,7 @@ import { HttpError } from "@udibo/juniper";
 import type { RouteLoaderArgs } from "@udibo/juniper";
 import { userContext } from "@/context/user.ts";
 
-export function loader({ context }: RouteLoaderArgs) {
+export async function loader({ context }: RouteLoaderArgs) {
   const user = context.get(userContext);
 
   if (!user) {
@@ -189,8 +194,16 @@ export function loader({ context }: RouteLoaderArgs) {
 ### Sharing Server Context with the Client
 
 For context values to be available on the client after hydration, register them
-using `registerContext`. This automatically handles serialization and
-deserialization.
+using `registerContext`. This handles serialization and deserialization for the
+initial document; it is not an automatic synchronization channel for every later
+server-side context change. Register only values the browser may receive. Use a
+serializer that selects public fields rather than sending a complete database
+user record, tokens, or credentials.
+
+Import the registration module from the root `.tsx` route before hydration, as
+well as wherever server middleware needs its context key. Importing it only from
+a lazy child can leave its decoder unavailable when the document's context is
+deserialized.
 
 **Define and register context:**
 
@@ -244,7 +257,7 @@ import { HttpError } from "@udibo/juniper";
 import type { RouteLoaderArgs } from "@udibo/juniper";
 import { userContext } from "@/context/user.ts";
 
-export function loader({ context }: RouteLoaderArgs) {
+export async function loader({ context }: RouteLoaderArgs) {
   const user = context.get(userContext);
 
   if (!user) {
@@ -290,15 +303,60 @@ The `registerContext` function accepts:
 | `serialize`   | Converts the value to a serializable format               |
 | `deserialize` | Reconstructs the value on the client                      |
 
-**Supported types:** Juniper's serialization (used for context, loader data,
-action data, and errors) supports all standard JSON types plus: `undefined`,
-`bigint`, `Date`, `RegExp`, `Set`, `Map`, `Error`, and `URL`. Loaders and
-actions can also return `Promise` values.
+### Serializable Values
+
+Use plain objects, arrays, and JSON primitives for transferred data. Juniper
+also handles `undefined`, `Date`, and `Error`, and accepts promise values in
+loader/action data. See [error handling](error-handling.md#error-serialization)
+for the distinction between thrown errors, returned error data, and custom error
+serializers.
+
+`bigint` values are accepted, but the underlying numeric encoding can change
+their JavaScript type: `123n` decodes as the number `123`, while integers beyond
+the safe-number range remain `bigint`. Send a decimal string or register a
+wrapper type if the consumer requires an exact `bigint` contract.
+
+`Map`, `Set`, `RegExp`, and `URL` are **not** built-in round-trip types. Without
+registration, objects are reduced to their enumerable own properties; typical
+instances of these classes become empty objects. Convert them to plain data or
+register a representation before returning them. Do the same for other classes
+whose identity or non-enumerable state matters.
+
+For example, register a URL as its complete string representation:
+
+```typescript
+// serialization/url.ts
+import { registerType } from "@udibo/juniper";
+
+registerType<URL, string>({
+  name: "URL",
+  is: (value): value is URL => value instanceof URL,
+  serialize: (url) => url.href,
+  deserialize: (href) => new URL(href),
+});
+```
+
+Import the registration from the root client module so it executes on both
+server and browser before hydration data is decoded:
+
+```tsx
+// routes/main.tsx
+import "@/serialization/url.ts";
+```
+
+The route can then return a URL instance in loader data. Give each registration
+a unique name and import the module wherever standalone server code needs it.
+Use synchronous serializers that return simple, browser-safe values; do not
+assume nested promises or other custom instances in their output will be
+processed recursively.
 
 ## React Context
 
-Standard React Context is for client-side state that doesn't need to be shared
-with the server.
+React Context provides values to a component subtree during both SSR and browser
+rendering. It is separate from Juniper's request context and is not
+automatically serialized. Pass shared initial values from loader data or a
+registered request context, and keep the server render and the browser's first
+render consistent.
 
 ### When to Use React Context
 
@@ -308,7 +366,7 @@ Use React Context for:
 - Client-side caching
 - Form state across components
 - Animation state
-- Any state that only matters on the client
+- Shared component state, with matching initial values when it affects SSR
 
 ### Creating React Context
 
@@ -387,12 +445,12 @@ function ThemeToggle() {
 
 ## Caching
 
-React Router's loaders fetch fresh data on every route navigation. This means
-navigating from Contact 1 to Contact 2 and back to Contact 1 causes two separate
-server requests for Contact 1, even though the data was just fetched. For many
-applications, this behavior is fine. However, if you need caching, background
-refetching, or stale-while-revalidate patterns, you can integrate a caching
-library with Juniper.
+React Router loads newly matched routes and revalidates data when navigation or
+a mutation requires it. Unchanged parent layouts are not necessarily reloaded.
+Returning to a previously visited detail route can run its loader again; Juniper
+does not provide a persistent result cache for those visits. Add an application
+cache when you need reuse or background refresh, and invalidate it after
+mutations and changes of user or tenant.
 
 Popular caching solutions that work well with Juniper include:
 
@@ -721,14 +779,14 @@ sufficient.
 
 ### Hono Variables vs Router Context vs React Context
 
-| Feature                      | Hono Variables               | Router Context            | React Context                  |
-| ---------------------------- | ---------------------------- | ------------------------- | ------------------------------ |
-| **Available on server**      | Yes                          | Yes                       | No (SSR renders initial state) |
-| **Available on client**      | No                           | Yes (if serialized)       | Yes                            |
-| **Persists across requests** | No                           | No                        | Yes (client session)           |
-| **Type-safe**                | Yes (with generics)          | Yes (with createContext)  | Yes (with createContext)       |
-| **Serialization needed**     | N/A                          | Yes                       | N/A                            |
-| **Good for**                 | Request data, DB connections | User sessions, app config | UI state, client features      |
+| Feature                      | Hono Variables               | Router Context                | React Context                            |
+| ---------------------------- | ---------------------------- | ----------------------------- | ---------------------------------------- |
+| **Available on server**      | Yes                          | Yes                           | Yes, within the rendered provider        |
+| **Available on client**      | No                           | Yes (if serialized)           | Yes                                      |
+| **Persists across requests** | No                           | No                            | While its browser provider stays mounted |
+| **Type-safe**                | Yes (with generics)          | Yes (with createContext)      | Yes (with createContext)                 |
+| **Serialization needed**     | N/A                          | For server-to-client transfer | Pass matching initial values explicitly  |
+| **Good for**                 | Request data, DB connections | User sessions, app config     | UI state, client features                |
 
 ### Best Practices
 
@@ -771,18 +829,46 @@ app.use(async (c, next) => {
 - Modal state
 - Client-side caches
 
+For a browser-stored preference, initialize state consistently and read storage
+in an effect after hydration. A provider can use this hook in place of
+`useState`:
+
 ```tsx
-// Good: Theme in React Context (client-only)
-const [theme, setTheme] = useState(
-  localStorage.getItem("theme") || "light",
-);
+// hooks/useStoredTheme.ts
+import { useEffect, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
+
+type Theme = "light" | "dark";
+
+export function useStoredTheme(
+  initialTheme: Theme = "light",
+): [Theme, Dispatch<SetStateAction<Theme>>] {
+  const state = useState<Theme>(initialTheme);
+  const [, setTheme] = state;
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("theme");
+      if (stored === "light" || stored === "dark") setTheme(stored);
+    } catch {
+      return;
+    }
+  }, []);
+
+  return state;
+}
 ```
+
+If the preference must affect the first paint, read a cookie on the server and
+pass that value as `initialTheme` through loader data. Reading `localStorage`
+during render either fails on the server or makes the first browser render
+disagree with SSR.
 
 **Avoid:**
 
-- Storing sensitive data in Router Context (it's serialized to HTML)
+- Registering sensitive request context for transfer to the browser
 - Using Hono Variables for data needed in components (won't be available)
-- Using React Context for data that affects SSR (causes hydration mismatches)
+- Initializing a React provider differently on the server and during hydration
 
 ## Next Steps
 
@@ -793,3 +879,13 @@ const [theme, setTheme] = useState(
 - [Middleware](middleware.md) - Server and client middleware
 - [Routing](routing.md) - File-based routing and data loading
 - [Database](database.md) - Deno KV and PostgreSQL
+
+## Changelog
+
+- **2026-09-09** — Documented verified serialization behavior and URL
+  registration; corrected React Context SSR behavior and moved browser storage
+  reads after hydration.
+
+- **2026-09-09** — Fixed async loader examples and explained context
+  registration timing, public serialization, and revalidation versus cached
+  query data.

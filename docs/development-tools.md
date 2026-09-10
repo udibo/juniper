@@ -1,3 +1,8 @@
+---
+title: Development Tools
+last_verified: 2026-09-09
+---
+
 # Development Tools
 
 ## Development Server
@@ -21,12 +26,15 @@ The development server:
 When you save a file, the development server automatically:
 
 1. Detects the file change
-2. Rebuilds only the necessary parts (server, client, or both)
+2. Rebuilds the application outputs affected by the change
 3. Restarts the application server
 4. Sends a reload signal to connected browsers via Server-Sent Events (SSE)
 
 The browser receives the reload signal through a development client script
-that's automatically injected in development mode.
+that's automatically injected in development mode. This reloads the document; it
+does not preserve React component state as a Fast Refresh implementation would.
+Reproduce deployment and lazy-bundle recovery using a production build, where
+this development reload mechanism is absent.
 
 ### File Watching
 
@@ -104,17 +112,18 @@ Juniper projects use Deno tasks for common operations. These are defined in your
 | `deno task test`       | Run tests                                       |
 | `deno task check`      | Run type checking, linting, and format checking |
 
-**Example task configuration:**
+Use the template's named permission profiles. This task excerpt assumes the
+`dev`, `build`, `serve`, and `test` profiles from its `deno.json`:
 
 ```json
 {
   "tasks": {
-    "dev": "deno run -A @udibo/juniper/dev --project-root .",
-    "build": "deno run -A ./build.ts",
-    "build:prod": "export APP_ENV=production && deno run -A ./build.ts",
-    "serve": "deno run -A --env-file ./main.ts",
-    "serve:prod": "deno run -A --env-file --env-file=.env.production ./main.ts",
-    "test": "deno test -A --env-file --env-file=.env.test",
+    "dev": "deno run -P=dev --env-file @udibo/juniper/dev --project-root .",
+    "build": "deno run -P=build --env-file ./build.ts",
+    "build:prod": "deno run -P=build --env-file --env-file=.env.production ./build.ts",
+    "serve": "deno run -P=serve --env-file ./main.ts",
+    "serve:prod": "deno run -P=serve --env-file --env-file=.env.production ./main.ts",
+    "test": "deno test -P=test --env-file --env-file=.env.test",
     "check": "deno check && deno lint && deno fmt --check"
   }
 }
@@ -128,10 +137,10 @@ Use Deno's built-in debugger with the `--inspect` or `--inspect-brk` flags:
 
 ```bash
 # Start with debugger (doesn't wait)
-deno run --inspect -A ./main.ts
+deno run --inspect -P=serve --env-file ./main.ts
 
 # Start and wait for debugger to connect
-deno run --inspect-brk -A ./main.ts
+deno run --inspect-brk -P=serve --env-file ./main.ts
 ```
 
 Connect using Chrome DevTools:
@@ -242,7 +251,13 @@ Create `.vscode/launch.json`:
       "request": "launch",
       "cwd": "${workspaceFolder}",
       "runtimeExecutable": "deno",
-      "runtimeArgs": ["run", "-A", "--inspect-brk", "./main.ts"],
+      "runtimeArgs": [
+        "run",
+        "-P=serve",
+        "--env-file",
+        "--inspect-brk",
+        "./main.ts"
+      ],
       "attachSimplePort": 9229
     },
     {
@@ -251,7 +266,7 @@ Create `.vscode/launch.json`:
       "request": "launch",
       "cwd": "${workspaceFolder}",
       "runtimeExecutable": "deno",
-      "runtimeArgs": ["test", "-A", "--inspect-brk"],
+      "runtimeArgs": ["task", "test", "--inspect-brk"],
       "attachSimplePort": 9229
     }
   ]
@@ -300,7 +315,7 @@ JetBrains IDEs (WebStorm, IntelliJ IDEA) have built-in Deno support:
 1. Go to **Run > Edit Configurations**
 2. Add a new **Deno** configuration
 3. Set the script to `main.ts`
-4. Add arguments: `-A --env-file`
+4. Add arguments: `-P=serve --env-file`
 
 **Debugging:**
 
@@ -317,3 +332,8 @@ JetBrains IDEs (WebStorm, IntelliJ IDEA) have built-in Deno support:
 
 - [Testing](testing.md) - Testing utilities and patterns
 - [Logging](logging.md) - Logging and OpenTelemetry
+
+## Changelog
+
+- **2026-09-09** — Clarified document reload behavior and kept debugger and task
+  examples on the template permission and environment profiles.

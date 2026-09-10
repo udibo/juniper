@@ -1,9 +1,20 @@
+---
+title: Getting Started
+last_verified: 2026-09-09
+---
+
 # Getting Started
 
 ## Prerequisites
 
 Before you begin, ensure you have [Deno](https://deno.com/) installed on your
-system. Juniper requires Deno 2.0 or later.
+system. Use a current stable Deno 2 release, as the templates use named
+permission sets and current runtime APIs. Do not assume an early Deno 2 release
+supports every template task.
+
+[Named permission sets](https://docs.deno.com/runtime/reference/deno_json/#permissions)
+require Deno 2.5 or later. Use the versions in the selected template together
+and commit the generated lockfile.
 
 To install Deno, follow the instructions at [deno.com](https://deno.com/).
 
@@ -118,7 +129,7 @@ cd my-app
     "@std/assert": "jsr:@std/assert@^1",
     "react": "npm:react@^19",
     "@types/react": "npm:@types/react@^19",
-    "react-router": "npm:react-router@^7",
+    "react-router": "npm:react-router@^8.3.0",
     "hono": "npm:hono@^4",
     "@testing-library/react": "npm:@testing-library/react@^16"
   },
@@ -360,3 +371,8 @@ deno task check
 - [Routing](routing.md) - File-based routing and data loading
 - [Middleware](middleware.md) - Server and client middleware
 - [Styling](styling.md) - CSS and TailwindCSS integration
+
+## Changelog
+
+- **2026-09-09** — Documented the Deno requirement for named permission sets and
+  aligned React Router with the tested template.
