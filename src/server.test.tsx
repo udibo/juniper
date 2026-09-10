@@ -1346,6 +1346,32 @@ describe("build artifact cache control", () => {
     }
   });
 
+  it("should revalidate a hyphenated name that is not an esbuild hash", async () => {
+    const { dir, server } = await makeBuild({
+      "theme-dark.css": ".dark { color: white; }",
+      "main-ABC123.css": ".short { color: gray; }",
+      "main-abcd2345.css": ".lower { color: black; }",
+      "vendor-ABCD2345EF.js": "export const vendor = 1;",
+    });
+    try {
+      for (
+        const pathname of [
+          "/build/theme-dark.css",
+          "/build/main-ABC123.css",
+          "/build/main-abcd2345.css",
+          "/build/vendor-ABCD2345EF.js",
+        ]
+      ) {
+        const res = await headersFor(server, pathname);
+        assertEquals(res.status, 200, pathname);
+        assertEquals(res.cacheControl, revalidate, pathname);
+        assertExists(res.etag, pathname);
+      }
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  });
+
   it("should set long cache headers for fingerprinted /build/* files", async () => {
     const { dir, server } = await makeBuild({
       "chunk-ABC123XY.js": "export const x = 1;",
@@ -1395,6 +1421,16 @@ describe("build artifact cache control", () => {
       });
       assertEquals(changed.status, 200);
       assertEquals(await changed.text(), "body { color: red; }");
+
+      await Deno.writeTextFile(
+        path.join(dir, "public", "build", "main.css"),
+        "body { color: blue; }",
+      );
+      const rebuilt = await server.request("http://localhost/build/main.css", {
+        headers: { "If-None-Match": etag },
+      });
+      assertEquals(rebuilt.status, 200);
+      assertEquals(await rebuilt.text(), "body { color: blue; }");
     } finally {
       await Deno.remove(dir, { recursive: true });
     }

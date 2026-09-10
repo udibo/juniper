@@ -288,6 +288,10 @@ Juniper automatically applies cache headers to build artifacts:
   Uses `no-cache` with ETag validation. Caches may store it but must validate it
   before reuse, so HTML, JavaScript, and styles stay consistent across deploys.
 
+`private` also means a shared cache may not store those files at all, so entry
+points such as `main.css` are served from the origin rather than a CDN edge.
+Each request is a conditional one that usually answers `304 Not Modified`.
+
 CDNs can override these headers. Verify them on the public custom domain, not
 only on a preview hostname.
 

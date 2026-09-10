@@ -172,6 +172,12 @@ Everything else is treated as a stable URL: `main.js`, every entry point you
 pass to the `Builder` (such as `main.css` or `styles/theme.css`), and their
 source maps.
 
+The rule is the filename, so do not name an entry point or a file you place in
+`public/build` `<stem>-XXXXXXXX.<ext>` where the suffix is eight uppercase
+letters or digits — `sw-REGISTER.js` and `Inter-VARIABLE.woff2` both read as
+fingerprinted and would be cached for four hours under a URL that never changes.
+Any other shape, `theme-dark.css` included, revalidates.
+
 Stable URLs use `no-cache` with ETag validation because:
 
 - Their filenames do not change between builds, so a long lifetime would let a
@@ -196,7 +202,7 @@ const app = new Hono();
 
 app.use("/build/*", async (c, next) => {
   const pathname = new URL(c.req.url).pathname;
-  if (/-[A-Z0-9]{8}\.[a-z0-9]+$/.test(pathname)) {
+  if (/-[A-Z0-9]{8}\.[A-Za-z0-9]+(?:\.map)?$/.test(pathname)) {
     c.header("Cache-Control", "public, max-age=31536000, immutable");
   }
   await next();
