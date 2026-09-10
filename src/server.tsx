@@ -34,6 +34,12 @@ export type {
   ServerRouteModule,
 } from "./_server.tsx";
 
+const FINGERPRINTED_BUILD_ASSET = /-[A-Z0-9]{8}\.[A-Za-z0-9]+(?:\.map)?$/;
+
+function isFingerprintedBuildAsset(pathname: string): boolean {
+  return FINGERPRINTED_BUILD_ASSET.test(pathname);
+}
+
 function varyByRoute(headers: Headers): void {
   const names = new Set(
     (headers.get("Vary") ?? "").split(",").map((name) =>
@@ -115,16 +121,15 @@ export function createServer<
 
   appWrapper.use(trimTrailingSlash());
 
-  appWrapper.use("/build/main.js", etag(), async (c, next) => {
-    c.header("Cache-Control", "private, no-cache, must-revalidate, max-age=0");
-    await next();
-  });
-  appWrapper.use("/build/*", async (c, next) => {
+  const revalidate = etag();
+  appWrapper.use("/build/*", (c, next) => {
     const pathname = new URL(c.req.url).pathname;
-    if (pathname !== "/build/main.js") {
+    if (isFingerprintedBuildAsset(pathname)) {
       c.header("Cache-Control", "public, max-age=14400");
+      return next();
     }
-    await next();
+    c.header("Cache-Control", "private, no-cache, must-revalidate, max-age=0");
+    return revalidate(c, next);
   });
 
   appWrapper.onError((cause) => {

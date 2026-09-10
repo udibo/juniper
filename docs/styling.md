@@ -825,35 +825,16 @@ To prevent FOUC during SSR:
 
 ## Caching Considerations
 
-When using CSS entry points like `main.css` (from TailwindCSS, Sass, or other
-preprocessors), the built file at `/build/main.css` doesn't include a content
-hash in its filename. This means CDNs and browsers may serve stale styles after
-deployments.
+The built file at `/build/main.css` keeps a stable filename, so Juniper serves
+it with `private, no-cache, must-revalidate, max-age=0` and an ETag. Browsers
+revalidate it on every page load and get `304 Not Modified` when nothing
+changed, so styles update immediately after a deployment without repeated
+downloads. Custom CSS entry points get the same treatment.
 
-To ensure users always get the latest styles while still benefiting from browser
-caching, consider adding ETag validation for your CSS entry points:
-
-```typescript
-// routes/main.ts
-import { Hono } from "hono";
-import { etag } from "hono/etag";
-
-const app = new Hono();
-
-// Require revalidation for main.css (same strategy as main.js)
-app.use("/build/main.css", etag(), async (c, next) => {
-  c.header("Cache-Control", "private, no-cache, must-revalidate, max-age=0");
-  await next();
-});
-
-export default app;
-```
-
-This prevents CDNs from caching your stylesheet while allowing browsers to use
-ETags for efficient cache validation.
-
-See [Static Files - Cache Headers](static-files.md#cache-headers) for more
-details on build artifact caching and how to customize it.
+If an earlier release served the stylesheet with a long lifetime, visitors keep
+their cached copy until it expires. See
+[Migrating Previously Cached Stable URLs](static-files.md#migrating-previously-cached-stable-urls)
+for the one-time URL change that clears it.
 
 ## Next Steps
 
