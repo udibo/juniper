@@ -41,6 +41,7 @@ import {
   serializeError,
   serializeHydrationData,
   serializeLoaderData,
+  toInlineScriptJson,
 } from "./_serialization.ts";
 import type { SerializedHydrationData } from "./_serialization.ts";
 import { startActiveSpan } from "./utils/_otel.ts";
@@ -375,7 +376,7 @@ async function renderDocument(
           hydrationData,
         ).then((data: SerializedHydrationData) =>
           `import { client } from "/build/main.js"; window.__juniperHydrationData = ${
-            JSON.stringify(data).replaceAll("<", "\\u003c")
+            toInlineScriptJson(data)
           }; await client.hydrate();`
         );
 

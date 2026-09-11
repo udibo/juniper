@@ -1,9 +1,11 @@
 /**
- * Internal serialization module using cbor2.
+ * Internal serialization module.
  *
- * This module provides internal implementation for serializing/deserializing
- * custom types, errors, and context between server and client.
- * Public interfaces and registration functions are exported from mod.ts.
+ * Data requests travel as CBOR (cbor2). The document's hydration payload
+ * travels as tagged JSON text (version 3) so the page stays readable to the
+ * compressor; version 2 (base64 of CBOR) is still decoded for documents cached
+ * before an upgrade. Public interfaces and registration functions are exported
+ * from mod.ts.
  *
  * @internal
  * @module
@@ -745,7 +747,8 @@ export async function deserializeStreamingLoaderData<T = unknown>(
 }
 
 /**
- * Encode data to a base64 string (for embedding in HTML).
+ * Encode data as base64 of CBOR, the version 2 hydration payload format.
+ * Only tests produce it now; documents rendered before version 3 still carry it.
  *
  * @param data - The data to encode
  * @returns The base64 encoded string
@@ -820,9 +823,143 @@ export function deserializeAllContext(
 }
 
 /**
- * Serialized hydration data structure using CBOR.
+ * A JSON value as it appears in the version 3 hydration payload: plain JSON,
+ * with values JSON cannot carry replaced by `{"$t": tag, "v": value}` objects.
  */
-export interface SerializedHydrationData {
+export type TaggedJson =
+  | null
+  | boolean
+  | number
+  | string
+  | TaggedJson[]
+  | { [key: string]: TaggedJson };
+
+const JSON_TAG_KEY = "$t";
+const JSON_VALUE_KEY = "v";
+
+function tagged(tag: string | number, value?: TaggedJson): TaggedJson {
+  return value === undefined
+    ? { [JSON_TAG_KEY]: tag }
+    : { [JSON_TAG_KEY]: tag, [JSON_VALUE_KEY]: value };
+}
+
+function collapseBigIntLikeCbor(value: bigint): number | bigint {
+  return cborDecode<number | bigint>(cborEncode(value));
+}
+
+function numberToTaggedJson(value: number): TaggedJson {
+  if (Number.isNaN(value)) return tagged("number", "NaN");
+  if (value === Infinity) return tagged("number", "Infinity");
+  if (value === -Infinity) return tagged("number", "-Infinity");
+  if (Object.is(value, -0)) return tagged("number", "-0");
+  return value;
+}
+
+function mustEscapeObjectKeys(keys: string[]): boolean {
+  return keys.includes(JSON_TAG_KEY) || keys.includes("__proto__");
+}
+
+/**
+ * Converts a processed value (the output of `processValue`) into JSON-safe
+ * tagged form. Decodes back through `fromTaggedJson` into exactly what CBOR
+ * decoding of the same value produces, so `restoreValue` treats both alike.
+ *
+ * @throws {TypeError} For functions and symbols, which CBOR also refuses.
+ */
+export function toTaggedJson(value: unknown): TaggedJson {
+  if (value === undefined) return tagged("undefined");
+  if (value === null || typeof value === "boolean") return value;
+  if (typeof value === "string") return value.toWellFormed();
+  if (typeof value === "number") return numberToTaggedJson(value);
+  if (typeof value === "bigint") {
+    const collapsed = collapseBigIntLikeCbor(value);
+    return typeof collapsed === "number"
+      ? collapsed
+      : tagged("bigint", collapsed.toString());
+  }
+  if (typeof value === "function" || typeof value === "symbol") {
+    throw new TypeError(`Cannot serialize a ${typeof value} value`);
+  }
+  if (value instanceof Tag) {
+    return tagged(Number(value.tag), toTaggedJson(value.contents));
+  }
+  if (value instanceof Date) {
+    return tagged("Date", numberToTaggedJson(value.getTime()));
+  }
+  if (Array.isArray(value)) return Array.from(value, toTaggedJson);
+
+  const entries = Object.entries(value as Record<string, unknown>).map((
+    [key, entry],
+  ): [string, TaggedJson] => [key.toWellFormed(), toTaggedJson(entry)]);
+  if (mustEscapeObjectKeys(entries.map(([key]) => key))) {
+    return tagged("object", entries);
+  }
+  return Object.fromEntries(entries);
+}
+
+function objectFromEntries(
+  entries: [string, unknown][],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, entry] of entries) {
+    Object.defineProperty(result, key, {
+      value: fromTaggedJson(entry),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+  return result;
+}
+
+function fromTag(tag: unknown, value: unknown): unknown {
+  if (typeof tag === "number") return new Tag(tag, fromTaggedJson(value));
+  switch (tag) {
+    case "undefined":
+      return undefined;
+    case "number":
+      return Number(value);
+    case "bigint":
+      return BigInt(value as string);
+    case "Date":
+      return new Date(fromTaggedJson(value) as number);
+    case "object":
+      return objectFromEntries(value as [string, unknown][]);
+  }
+  throw new Error(`Unknown hydration data tag: ${String(tag)}`);
+}
+
+/**
+ * Converts the tagged JSON of a version 3 payload back into the value CBOR
+ * decoding would have produced, ready for `restoreValue`.
+ *
+ * @throws {Error} On a tag this version of Juniper does not know.
+ */
+export function fromTaggedJson(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(fromTaggedJson);
+  const record = value as Record<string, unknown>;
+  if (Object.hasOwn(record, JSON_TAG_KEY)) {
+    return fromTag(record[JSON_TAG_KEY], record[JSON_VALUE_KEY]);
+  }
+  return objectFromEntries(Object.entries(record));
+}
+
+/**
+ * Serializes a value as JSON text that is safe to place inside an inline
+ * `<script>` element: `<` and the U+2028/U+2029 line terminators are written
+ * as escapes, so no string in the value can close the element, open a comment,
+ * or end a line in an older JavaScript parser.
+ */
+export function toInlineScriptJson(value: unknown): string {
+  return JSON.stringify(value)
+    .replaceAll("<", "\\u003c")
+    .replaceAll("\u2028", "\\u2028")
+    .replaceAll("\u2029", "\\u2029");
+}
+
+/** Version 2 hydration payload: loader data as base64 of CBOR. */
+export interface SerializedHydrationDataV2 {
   /** Version identifier for compatibility checking */
   version: 2;
   /** Base64 encoded CBOR data */
@@ -830,6 +967,25 @@ export interface SerializedHydrationData {
   /** Public environment variables */
   publicEnv?: Record<string, string>;
 }
+
+/** Version 3 hydration payload: loader data as tagged JSON. */
+export interface SerializedHydrationDataV3 {
+  /** Version identifier for compatibility checking */
+  version: 3;
+  /** Tagged JSON data */
+  data: TaggedJson;
+  /** Public environment variables */
+  publicEnv?: Record<string, string>;
+}
+
+/**
+ * Hydration data as embedded in the document. The server writes version 3;
+ * the client also reads version 2, which documents cached before the upgrade
+ * still carry.
+ */
+export type SerializedHydrationData =
+  | SerializedHydrationDataV2
+  | SerializedHydrationDataV3;
 
 /**
  * Hydration data structure.
@@ -856,17 +1012,15 @@ export interface HydrationData {
 }
 
 /**
- * Serialize hydration data for embedding in HTML.
- *
- * @param hydrationData - The hydration data to serialize
- * @returns The serialized hydration data
+ * Applies server error privacy and resolves promises in hydration data,
+ * producing the value every payload version encodes. Exported so tests can
+ * build a version 2 payload from the same input.
  */
-export async function serializeHydrationData(
+export async function processHydrationData(
   hydrationData: HydrationData,
-): Promise<SerializedHydrationData> {
-  const { publicEnv, errors, ...rest } = hydrationData;
-
-  const processedData = await processValue({
+): Promise<unknown> {
+  const { publicEnv: _publicEnv, errors, ...rest } = hydrationData;
+  return await processValue({
     ...rest,
     errors: errors && Object.fromEntries(
       Object.entries(errors).map((
@@ -874,12 +1028,34 @@ export async function serializeHydrationData(
       ) => [id, sanitizeServerError(error)]),
     ),
   });
+}
 
+/**
+ * Serialize hydration data for embedding in HTML.
+ *
+ * @param hydrationData - The hydration data to serialize
+ * @returns The serialized hydration data
+ */
+export async function serializeHydrationData(
+  hydrationData: HydrationData,
+): Promise<SerializedHydrationDataV3> {
   return {
-    version: 2,
-    data: encodeToBase64(processedData),
-    publicEnv,
+    version: 3,
+    data: toTaggedJson(await processHydrationData(hydrationData)),
+    publicEnv: hydrationData.publicEnv,
   };
+}
+
+function decodeHydrationPayload(
+  serialized: SerializedHydrationData,
+): unknown {
+  if (serialized.version === 3) return fromTaggedJson(serialized.data);
+  if (serialized.version === 2) return decodeFromBase64(serialized.data);
+  throw new Error(
+    `Unsupported hydration data version: ${
+      String((serialized as { version: unknown }).version)
+    }`,
+  );
 }
 
 /**
@@ -887,13 +1063,12 @@ export async function serializeHydrationData(
  *
  * @param serialized - The serialized hydration data
  * @returns The deserialized hydration data
+ * @throws {Error} If the payload version is neither 2 nor 3.
  */
 export function deserializeHydrationData(
   serialized: SerializedHydrationData,
 ): HydrationData {
-  const decoded = decodeFromBase64<Record<string, unknown>>(serialized.data);
-
-  const restored = restoreValue(decoded) as {
+  const restored = restoreValue(decodeHydrationPayload(serialized)) as {
     serializedContext?: unknown;
     matches: { id: string }[];
     errors?: Record<string, unknown> | null;
