@@ -341,9 +341,33 @@ import "@/serialization/url.ts";
 
 The route can then return a URL instance in loader data. Give each registration
 a unique name and import the module wherever standalone server code needs it.
-Use synchronous serializers that return simple, browser-safe values; do not
-assume nested promises or other custom instances in their output will be
-processed recursively.
+Use synchronous serializers that return plain data: JSON values plus
+`undefined`, `Date`, `bigint`, and non-finite numbers. Do not return promises or
+other instances (`Map`, `Set`, `URL`, class instances) from a serializer; its
+output is not processed recursively, and the first document load reduces such
+instances to their enumerable own properties.
+
+#### How Values Travel
+
+The first document load embeds the page's data in an inline script as JSON text
+(hydration payload version 3). Values JSON cannot express are written as tagged
+objects of the form `{"$t": tag, "v": value}`: `Date`, `undefined`, `NaN`,
+`Infinity`, `-Infinity`, `-0`, `bigint` values outside the safe-number range,
+errors, settled promises, and registered types. A plain object that has its own
+`$t` or `__proto__` key is written in an escaped form, so data can never be
+mistaken for a tag. Every `<`, U+2028, and U+2029 in the payload is written as a
+`\u` escape, so no string in loader data can close the script element or start
+an HTML comment.
+
+Client navigations and fetchers request data as CBOR (`application/cbor`, or
+`application/cbor-stream` when deferred promises are still pending). Both paths
+decode to the same values, including the `bigint` normalization described above,
+so a loader's data has the same types whether it arrived with the document or on
+a later navigation.
+
+A document rendered by an earlier Juniper release carries hydration payload
+version 2 (base64-encoded CBOR). The browser client still decodes it, so a page
+restored from cache after an upgrade hydrates with the new client bundle.
 
 ## React Context
 
