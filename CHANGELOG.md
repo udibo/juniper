@@ -1,3 +1,11 @@
+## [0.11.5](https://github.com/udibo/juniper/compare/0.11.4...0.11.5) (2026-09-11)
+
+### Bug Fixes
+
+- revalidate stable-named build assets
+  ([#126](https://github.com/udibo/juniper/issues/126))
+  ([89a3466](https://github.com/udibo/juniper/commit/89a34661f07e2297cdd12423d4d4cb4e568bfd2d))
+
 ## [0.11.4](https://github.com/udibo/juniper/compare/0.11.3...0.11.4) (2026-09-11)
 
 ## [0.11.3](https://github.com/udibo/juniper/compare/0.11.2...0.11.3) (2026-09-10)
