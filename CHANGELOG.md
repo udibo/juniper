@@ -1,3 +1,5 @@
+## [0.11.4](https://github.com/udibo/juniper/compare/0.11.3...0.11.4) (2026-09-11)
+
 ## [0.11.3](https://github.com/udibo/juniper/compare/0.11.2...0.11.3) (2026-09-10)
 
 ### Bug Fixes
