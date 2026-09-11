@@ -302,6 +302,19 @@ async function processValue(value: unknown): Promise<unknown> {
   return value;
 }
 
+function defineOwnValue(
+  target: Record<string, unknown>,
+  key: string,
+  value: unknown,
+): void {
+  Object.defineProperty(target, key, {
+    value,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+}
+
 function restoreValue(value: unknown): unknown {
   if (value === null || value === undefined) {
     return value;
@@ -351,7 +364,7 @@ function restoreValue(value: unknown): unknown {
   if (typeof value === "object") {
     const result: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(value)) {
-      result[key] = restoreValue(val);
+      defineOwnValue(result, key, restoreValue(val));
     }
     return result;
   }
@@ -627,7 +640,11 @@ function restoreValueWithPendingPromises(
   if (typeof value === "object") {
     const result: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(value)) {
-      result[key] = restoreValueWithPendingPromises(val, promiseResolvers);
+      defineOwnValue(
+        result,
+        key,
+        restoreValueWithPendingPromises(val, promiseResolvers),
+      );
     }
     return result;
   }

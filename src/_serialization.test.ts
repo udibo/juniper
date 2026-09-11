@@ -820,3 +820,101 @@ describe("Serialization Module", () => {
     });
   });
 });
+
+describe("decoding an own __proto__ key where assignment sets the prototype", () => {
+  const browserDecodeScript = `
+const {
+  createStreamingLoaderData,
+  deserializeHydrationData,
+  deserializeLoaderData,
+  deserializeStreamingLoaderData,
+  serializeHydrationData,
+  serializeLoaderData,
+} = await import(${
+    JSON.stringify(new URL("./_serialization.ts", import.meta.url).href)
+  });
+
+const untrusted = () =>
+  JSON.parse('{"__proto__":{"isAdmin":true},"name":"guest"}');
+
+const hydration = await serializeHydrationData({
+  matches: [{ id: "route" }],
+  loaderData: { route: untrusted() },
+});
+const loaderBytes = await serializeLoaderData(untrusted());
+const streamBytes = new Uint8Array(
+  await new Response(
+    createStreamingLoaderData({
+      prefs: untrusted(),
+      later: Promise.resolve(untrusted()),
+    }),
+  ).arrayBuffer(),
+);
+
+Object.defineProperty(Object.prototype, "__proto__", {
+  get() {
+    return Object.getPrototypeOf(this);
+  },
+  set(prototype) {
+    Object.setPrototypeOf(this, prototype);
+  },
+  configurable: true,
+});
+const probe = {};
+probe["__proto__"] = { viaAccessor: true };
+
+const report = (value) => ({
+  ownKeys: Object.keys(value),
+  hasOwnProto: Object.hasOwn(value, "__proto__"),
+  ownProtoValue: Object.getOwnPropertyDescriptor(value, "__proto__")?.value,
+  protoIsObjectPrototype: Object.getPrototypeOf(value) === Object.prototype,
+  isAdmin: "isAdmin" in value,
+});
+
+const streamed = await deserializeStreamingLoaderData(new Response(streamBytes));
+console.log(JSON.stringify({
+  accessorSetsPrototype: probe.viaAccessor === true &&
+    !Object.hasOwn(probe, "__proto__"),
+  "page load": report(deserializeHydrationData(hydration).loaderData.route),
+  "data request": report(deserializeLoaderData(loaderBytes)),
+  "streamed data": report(streamed.prefs),
+  "deferred data": report(await streamed.later),
+}));
+`;
+
+  async function decodeInBrowserLikeRuntime(): Promise<
+    Record<string, unknown>
+  > {
+    const { code, stdout, stderr } = await new Deno.Command(Deno.execPath(), {
+      args: ["eval", browserDecodeScript],
+      cwd: new URL(".", import.meta.url),
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    const decoder = new TextDecoder();
+    assertEquals(code, 0, decoder.decode(stderr));
+    return JSON.parse(decoder.decode(stdout));
+  }
+
+  it("keeps the key as an own property on every decode path", async () => {
+    const { accessorSetsPrototype, ...paths } =
+      await decodeInBrowserLikeRuntime();
+    assert(
+      accessorSetsPrototype,
+      "the child must assign __proto__ through the accessor, as browsers do",
+    );
+    const ownProtoKept = {
+      ownKeys: ["__proto__", "name"],
+      hasOwnProto: true,
+      ownProtoValue: { isAdmin: true },
+      protoIsObjectPrototype: true,
+      isAdmin: false,
+    };
+    assertEquals(paths, {
+      "page load": ownProtoKept,
+      "data request": ownProtoKept,
+      "streamed data": ownProtoKept,
+      "deferred data": ownProtoKept,
+    });
+  });
+});
