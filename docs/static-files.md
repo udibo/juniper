@@ -158,32 +158,41 @@ ls -la public/build/
 
 ### Default Build Artifact Caching
 
-Juniper automatically applies cache headers to build artifacts in `/build/`:
+Juniper automatically applies cache headers to build artifacts in `/build/`
+based on whether the filename carries a content hash:
 
-| File             | Cache-Control                                   | Reason                                                    |
-| ---------------- | ----------------------------------------------- | --------------------------------------------------------- |
-| `/build/main.js` | `private, no-cache, must-revalidate, max-age=0` | Main entry point changes on each build, uses ETag         |
-| Other `/build/*` | `public, max-age=14400` (4 hours)               | Default for the build directory; not every file is hashed |
+| File                                          | Cache-Control                                   | Reason                                                             |
+| --------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------ |
+| Fingerprinted (`name-XXXXXXXX.ext`)           | `public, max-age=14400` (4 hours)               | The hash in the filename changes whenever the content changes      |
+| Everything else (`main.js`, `main.css`, etc.) | `private, no-cache, must-revalidate, max-age=0` | Stable URL, so every request revalidates against the current build |
 
-The `main.js` bundle uses `no-cache` with ETag validation because:
+Fingerprinted files are the lazy chunks and any esbuild output whose name ends
+in a dash followed by an eight-character hash, including their source maps.
+Everything else is treated as a stable URL: `main.js`, every entry point you
+pass to the `Builder` (such as `main.css` or `styles/theme.css`), and their
+source maps.
 
-- It doesn't have a content hash in its filename
-- CDNs and proxies should not cache it (hence `private`)
-- Browsers can still use their cache if the ETag matches, avoiding re-downloads
-  when unchanged
+The rule is the filename, so do not name an entry point or a file you place in
+`public/build` `<stem>-XXXXXXXX.<ext>` where the suffix is eight uppercase
+letters or digits — `sw-REGISTER.js` and `Inter-VARIABLE.woff2` both read as
+fingerprinted and would be cached for four hours under a URL that never changes.
+Any other shape, `theme-dark.css` included, revalidates.
 
-Other build files like `chunk-[hash].js` can be cached longer because the hash
-in the filename changes when content changes.
+Stable URLs use `no-cache` with ETag validation because:
 
-CSS and other explicitly named entry points may keep a stable filename. Give
-those files a revalidation policy instead of treating the whole build directory
-as immutable.
+- Their filenames do not change between builds, so a long lifetime would let a
+  browser pair new HTML and JavaScript with a stylesheet from a previous
+  deployment
+- CDNs and proxies should not cache them (hence `private`)
+- Browsers still reuse their cached copy when the ETag matches, so revalidation
+  costs a conditional request that returns `304 Not Modified` rather than a
+  re-download
 
 ### Overriding Default Cache Headers
 
 The framework sets cache headers _before_ your route handlers run, so you can
 override them with your own middleware. For example, to extend caching for
-chunked build files (which have content hashes in their filenames):
+fingerprinted build files:
 
 ```typescript
 // routes/main.ts
@@ -193,8 +202,8 @@ const app = new Hono();
 
 app.use("/build/*", async (c, next) => {
   const pathname = new URL(c.req.url).pathname;
-  if (/\/[^/]+-[A-Z0-9]{8}\.js$/.test(pathname)) {
-    c.header("Cache-Control", "public, max-age=31536000");
+  if (/-[A-Z0-9]{8}\.[A-Za-z0-9]+(?:\.map)?$/.test(pathname)) {
+    c.header("Cache-Control", "public, max-age=31536000, immutable");
   }
   await next();
 });
@@ -207,33 +216,28 @@ export default app;
 headers after `next()`, your middleware has the final say and routes cannot
 customize the caching behavior for specific responses.
 
-### Adding ETag Validation for CSS Entry Points
+### Migrating Previously Cached Stable URLs
 
-If you have a CSS entry point (like `main.css` from TailwindCSS or Sass), you
-may want to apply the same caching strategy as `main.js` - preventing CDN
-caching while allowing efficient browser cache validation with ETags:
+Changing response headers does not invalidate a copy a browser has already
+stored as fresh. A visitor who cached `/build/main.css` under an earlier
+four-hour policy keeps using it until that lifetime runs out, no matter what the
+origin sends now. To force the switch once, change the URL the layout links to
+so the stale entry is never looked up again:
 
-```typescript
-// routes/main.ts
-import { Hono } from "hono";
-import { etag } from "hono/etag";
-
-const app = new Hono();
-
-// Apply no-cache with ETag for main.css (same strategy as main.js)
-app.use("/build/main.css", etag(), async (c, next) => {
-  c.header("Cache-Control", "private, no-cache, must-revalidate, max-age=0");
-  await next();
-});
-
-export default app;
+```tsx
+// routes/main.tsx
+<link rel="stylesheet" href="/build/main.css?v=2" precedence="default" />;
 ```
 
-This is useful for CSS entry points because:
+Any change works: a query string, a renamed entry point, or a versioned path.
+The new URL is served with the revalidation policy, so you can drop the suffix
+in a later release once the old lifetime has expired.
 
-- The filename doesn't include a content hash
-- Users get the latest styles immediately after deployment
-- ETags prevent unnecessary re-downloads when the file hasn't changed
+CDNs can override origin headers. Cloudflare's
+[Browser Cache TTL](https://developers.cloudflare.com/cache/how-to/edge-browser-cache-ttl/set-browser-ttl/)
+setting, for example, can replace `Cache-Control` before the response reaches
+the browser. Verify the headers on the public custom domain rather than only on
+localhost or a preview hostname.
 
 ### Custom Static Asset Caching
 
@@ -258,14 +262,14 @@ export default app;
 
 **Cache strategies:**
 
-| Asset Type                | Cache-Control                               | Reason                          |
-| ------------------------- | ------------------------------------------- | ------------------------------- |
-| `main.js` (framework)     | `private, no-cache, must-revalidate` + ETag | No hash, needs revalidation     |
-| Chunked JS (`chunk-*.js`) | `public, max-age=14400`                     | Content hash in filename        |
-| CSS entry points          | Consider `no-cache` + ETag (see above)      | No hash, may want revalidation  |
-| Images/fonts              | `max-age=86400`                             | May change, cache for 1 day     |
-| HTML                      | `no-cache`                                  | Always fetch latest             |
-| API responses             | Varies                                      | Depends on data freshness needs |
+| Asset Type                          | Cache-Control                               | Reason                          |
+| ----------------------------------- | ------------------------------------------- | ------------------------------- |
+| `main.js` (framework)               | `private, no-cache, must-revalidate` + ETag | No hash, needs revalidation     |
+| CSS and other stable entry points   | `private, no-cache, must-revalidate` + ETag | No hash, needs revalidation     |
+| Fingerprinted output (`*-XXXXXXXX`) | `public, max-age=14400`                     | Content hash in filename        |
+| Images/fonts                        | `max-age=86400`                             | May change, cache for 1 day     |
+| HTML                                | `no-cache`                                  | Always fetch latest             |
+| API responses                       | Varies                                      | Depends on data freshness needs |
 
 ## Next Steps
 

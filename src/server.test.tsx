@@ -1257,63 +1257,182 @@ describe("redirect header preservation", () => {
 });
 
 describe("build artifact cache control", () => {
+  const revalidate = "private, no-cache, must-revalidate, max-age=0";
+  const longLived = "public, max-age=14400";
+
+  async function makeBuild(
+    files: Record<string, string>,
+  ): Promise<{ dir: string; server: ReturnType<typeof createServer> }> {
+    const dir = await Deno.makeTempDir();
+    for (const [name, contents] of Object.entries(files)) {
+      const file = path.join(dir, "public", "build", name);
+      await Deno.mkdir(path.dirname(file), { recursive: true });
+      await Deno.writeTextFile(file, contents);
+    }
+    const client = new Client({
+      path: "/",
+      main: { default: () => <div>Home</div> },
+    });
+    const server = createServer(`file://${dir}/server.ts`, client, {
+      path: "/",
+    });
+    return { dir, server };
+  }
+
+  async function headersFor(
+    server: ReturnType<typeof createServer>,
+    pathname: string,
+  ): Promise<
+    { status: number; cacheControl: string | null; etag: string | null }
+  > {
+    const res = await server.request(`http://localhost${pathname}`);
+    await res.body?.cancel();
+    return {
+      status: res.status,
+      cacheControl: res.headers.get("Cache-Control"),
+      etag: res.headers.get("ETag"),
+    };
+  }
+
   it("should set no-cache headers with etag for /build/main.js", async () => {
-    const tempDir = await Deno.makeTempDir();
+    const { dir, server } = await makeBuild({
+      "main.js": "console.log('test');",
+    });
     try {
-      const buildDir = `${tempDir}/public/build`;
-      await Deno.mkdir(buildDir, { recursive: true });
-      await Deno.writeTextFile(`${buildDir}/main.js`, "console.log('test');");
-
-      const client = new Client({
-        path: "/",
-        main: { default: () => <div>Home</div> },
-      });
-
-      const server = createServer(`file://${tempDir}/server.ts`, client, {
-        path: "/",
-      });
-
-      const res = await server.request("http://localhost/build/main.js");
+      const res = await headersFor(server, "/build/main.js");
       assertEquals(res.status, 200);
-      assertEquals(
-        res.headers.get("Cache-Control"),
-        "private, no-cache, must-revalidate, max-age=0",
-      );
-      assertExists(res.headers.get("ETag"));
-      await res.body?.cancel();
+      assertEquals(res.cacheControl, revalidate);
+      assertExists(res.etag);
     } finally {
-      await Deno.remove(tempDir, { recursive: true });
+      await Deno.remove(dir, { recursive: true });
     }
   });
 
-  it("should set long cache headers for other /build/* files", async () => {
-    const tempDir = await Deno.makeTempDir();
+  it("should revalidate stable-named CSS entry points like /build/main.css", async () => {
+    const { dir, server } = await makeBuild({
+      "main.css": "body { color: red; }",
+    });
     try {
-      const buildDir = `${tempDir}/public/build`;
-      await Deno.mkdir(buildDir, { recursive: true });
-      await Deno.writeTextFile(
-        `${buildDir}/chunk-abc123.js`,
-        "export const x = 1;",
-      );
-
-      const client = new Client({
-        path: "/",
-        main: { default: () => <div>Home</div> },
-      });
-
-      const server = createServer(`file://${tempDir}/server.ts`, client, {
-        path: "/",
-      });
-
-      const res = await server.request(
-        "http://localhost/build/chunk-abc123.js",
-      );
+      const res = await headersFor(server, "/build/main.css");
       assertEquals(res.status, 200);
-      assertEquals(res.headers.get("Cache-Control"), "public, max-age=14400");
-      assertEquals(res.headers.get("ETag"), null);
-      await res.body?.cancel();
+      assertEquals(res.cacheControl, revalidate);
+      assertExists(res.etag);
     } finally {
-      await Deno.remove(tempDir, { recursive: true });
+      await Deno.remove(dir, { recursive: true });
+    }
+  });
+
+  it("should revalidate custom entry points that keep their filename", async () => {
+    const { dir, server } = await makeBuild({
+      "styles/theme.css": ".theme { color: blue; }",
+      "workers/sw.js": "self.addEventListener('fetch', () => {});",
+      "main.js.map": "{}",
+    });
+    try {
+      for (
+        const pathname of [
+          "/build/styles/theme.css",
+          "/build/workers/sw.js",
+          "/build/main.js.map",
+        ]
+      ) {
+        const res = await headersFor(server, pathname);
+        assertEquals(res.status, 200, pathname);
+        assertEquals(res.cacheControl, revalidate, pathname);
+        assertExists(res.etag, pathname);
+      }
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  });
+
+  it("should revalidate a hyphenated name that is not an esbuild hash", async () => {
+    const { dir, server } = await makeBuild({
+      "theme-dark.css": ".dark { color: white; }",
+      "main-ABC123.css": ".short { color: gray; }",
+      "main-abcd2345.css": ".lower { color: black; }",
+      "vendor-ABCD2345EF.js": "export const vendor = 1;",
+    });
+    try {
+      for (
+        const pathname of [
+          "/build/theme-dark.css",
+          "/build/main-ABC123.css",
+          "/build/main-abcd2345.css",
+          "/build/vendor-ABCD2345EF.js",
+        ]
+      ) {
+        const res = await headersFor(server, pathname);
+        assertEquals(res.status, 200, pathname);
+        assertEquals(res.cacheControl, revalidate, pathname);
+        assertExists(res.etag, pathname);
+      }
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  });
+
+  it("should set long cache headers for fingerprinted /build/* files", async () => {
+    const { dir, server } = await makeBuild({
+      "chunk-ABC123XY.js": "export const x = 1;",
+      "chunk-ABC123XY.js.map": "{}",
+      "main-2E3V2KW6.css": ".hashed { color: green; }",
+      "routes/about-U7H2PI3A.js": "export const about = true;",
+    });
+    try {
+      for (
+        const pathname of [
+          "/build/chunk-ABC123XY.js",
+          "/build/chunk-ABC123XY.js.map",
+          "/build/main-2E3V2KW6.css",
+          "/build/routes/about-U7H2PI3A.js",
+        ]
+      ) {
+        const res = await headersFor(server, pathname);
+        assertEquals(res.status, 200, pathname);
+        assertEquals(res.cacheControl, longLived, pathname);
+        assertEquals(res.etag, null, pathname);
+      }
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  });
+
+  it("should answer a matching If-None-Match for a stable asset with 304", async () => {
+    const { dir, server } = await makeBuild({
+      "main.css": "body { color: red; }",
+    });
+    try {
+      const first = await server.request("http://localhost/build/main.css");
+      const etag = first.headers.get("ETag");
+      await first.body?.cancel();
+      assertExists(etag);
+
+      const cached = await server.request("http://localhost/build/main.css", {
+        headers: { "If-None-Match": etag },
+      });
+      assertEquals(cached.status, 304);
+      assertEquals(cached.headers.get("Cache-Control"), revalidate);
+      assertEquals(cached.headers.get("ETag"), etag);
+      await cached.body?.cancel();
+
+      const changed = await server.request("http://localhost/build/main.css", {
+        headers: { "If-None-Match": '"stale"' },
+      });
+      assertEquals(changed.status, 200);
+      assertEquals(await changed.text(), "body { color: red; }");
+
+      await Deno.writeTextFile(
+        path.join(dir, "public", "build", "main.css"),
+        "body { color: blue; }",
+      );
+      const rebuilt = await server.request("http://localhost/build/main.css", {
+        headers: { "If-None-Match": etag },
+      });
+      assertEquals(rebuilt.status, 200);
+      assertEquals(await rebuilt.text(), "body { color: blue; }");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
     }
   });
 });

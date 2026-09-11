@@ -282,10 +282,18 @@ const cacheMaxAge = isProduction() ? 3600 : 0;
 
 Juniper automatically applies cache headers to build artifacts:
 
-- **`/build/main.js`**: Uses `no-cache` with ETag validation. Caches may store
-  it but must validate it before reuse.
-- **Other `/build/*` files**: Cached for 4 hours. Lazy JavaScript chunks have
-  content hashes; explicit entries such as `main.css` can have stable names.
+- **Fingerprinted `/build/*` files** (`name-XXXXXXXX.ext`): Cached for 4 hours.
+  The hash in the filename changes with the content.
+- **Every other `/build/*` file** (`main.js`, `main.css`, custom entry points):
+  Uses `no-cache` with ETag validation. Caches may store it but must validate it
+  before reuse, so HTML, JavaScript, and styles stay consistent across deploys.
+
+`private` also means a shared cache may not store those files at all, so entry
+points such as `main.css` are served from the origin rather than a CDN edge.
+Each request is a conditional one that usually answers `304 Not Modified`.
+
+CDNs can override these headers. Verify them on the public custom domain, not
+only on a preview hostname.
 
 You can override these defaults in your route handlers. See
 [Static Files - Cache Headers](static-files.md#cache-headers) for details on
