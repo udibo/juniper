@@ -150,6 +150,9 @@ function rejectedWith(error: unknown): Promise<never> {
   return promise;
 }
 
+const loneLeadSurrogate = String.fromCharCode(0xd800);
+const loneTrailSurrogate = String.fromCharCode(0xdc00);
+
 const ROUND_TRIPS: [string, () => unknown][] = [
   ["a Date", () => new Date("2026-09-11T12:34:56.789Z")],
   ["the epoch", () => new Date(0)],
@@ -211,7 +214,9 @@ const ROUND_TRIPS: [string, () => unknown][] = [
     new (class Box {
       inside = 1;
     })()],
-  ["a lone surrogate", () => ({ "key\uD800": "value\uDC00" })],
+  ["a lone surrogate", () => ({
+    [`key${loneLeadSurrogate}`]: `value${loneTrailSurrogate}`,
+  })],
   ["markup and line separators", () => "</script><!--<script>\u2028\u2029"],
   ["nested data", () => ({
     list: [{ at: new Date(1), n: [NaN, -0, undefined] }],
