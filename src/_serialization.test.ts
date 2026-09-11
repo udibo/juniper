@@ -1,4 +1,10 @@
-import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertRejects,
+  assertStringIncludes,
+  assertThrows,
+} from "@std/assert";
 import { delay } from "@std/async/delay";
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { HttpError } from "@udibo/http-error";
@@ -331,8 +337,8 @@ describe("Serialization Module", () => {
 
       const serialized = await serializeHydrationData(hydrationData);
 
-      assertEquals(serialized.version, 2);
-      assertEquals(typeof serialized.data, "string");
+      assertEquals(serialized.version, 3);
+      assertStringIncludes(JSON.stringify(serialized.data), '"title":"Home"');
 
       const deserialized = deserializeHydrationData(serialized);
       assertEquals(deserialized.matches, hydrationData.matches);
