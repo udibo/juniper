@@ -1,6 +1,6 @@
 {
   "name": "@udibo/juniper",
-  "version": "0.11.3",
+  "version": "0.11.4",
   "description": "Juniper is a web framework for building React applications with Deno.",
   "license": "MIT",
   "exports": {
@@ -26,7 +26,6 @@
   },
   "imports": {
     "@babel/core": "npm:@babel/core@^7.29.7",
-    "@modelcontextprotocol/sdk": "npm:@modelcontextprotocol/sdk@^1.29.0",
     "@udibo/http-error": "jsr:@udibo/http-error@^0.11.1",
     "@std/testing": "jsr:@std/testing@^1.0.20",
     "@std/assert": "jsr:@std/assert@^1.0.19",
