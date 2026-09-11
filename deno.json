@@ -1,5 +1,8 @@
 {
-  "minimumDependencyAge": "P3D",
+  "minimumDependencyAge": {
+    "age": "P3D",
+    "exclude": ["jsr:@udibo/*"]
+  },
   "workspace": [
     "./src",
     "./example",
