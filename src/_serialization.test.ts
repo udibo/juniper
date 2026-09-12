@@ -820,3 +820,134 @@ describe("Serialization Module", () => {
     });
   });
 });
+
+describe("decoding an own __proto__ key where assignment sets the prototype", () => {
+  const browserDecodeScript = `
+const {
+  createStreamingLoaderData,
+  deserializeHydrationData,
+  deserializeLoaderData,
+  deserializeStreamingLoaderData,
+  serializeHydrationData,
+  serializeLoaderData,
+} = await import(${
+    JSON.stringify(new URL("./_serialization.ts", import.meta.url).href)
+  });
+
+const untrusted = () =>
+  JSON.parse('{"__proto__":{"isAdmin":true},"name":"guest"}');
+
+function installBrowserAccessor() {
+  Object.defineProperty(Object.prototype, "__proto__", {
+    get() {
+      return Object.getPrototypeOf(this);
+    },
+    set(prototype) {
+      Object.setPrototypeOf(this, prototype);
+    },
+    configurable: true,
+  });
+}
+
+if (Deno.args.includes("--encode-with-accessor")) {
+  installBrowserAccessor();
+}
+
+const hydration = await serializeHydrationData({
+  matches: [{ id: "route" }],
+  loaderData: { route: untrusted() },
+});
+const loaderBytes = await serializeLoaderData(untrusted());
+const streamBytes = new Uint8Array(
+  await new Response(
+    createStreamingLoaderData({
+      prefs: untrusted(),
+      later: Promise.resolve(untrusted()),
+    }),
+  ).arrayBuffer(),
+);
+
+installBrowserAccessor();
+const probe = {};
+probe["__proto__"] = { viaAccessor: true };
+
+const report = (value) => ({
+  ownKeys: Object.keys(value),
+  hasOwnProto: Object.hasOwn(value, "__proto__"),
+  ownProtoValue: Object.getOwnPropertyDescriptor(value, "__proto__")?.value,
+  ownProtoWritable: Object.getOwnPropertyDescriptor(value, "__proto__")?.writable,
+  ownProtoConfigurable: Object.getOwnPropertyDescriptor(value, "__proto__")?.configurable,
+  protoIsObjectPrototype: Object.getPrototypeOf(value) === Object.prototype,
+  isAdmin: "isAdmin" in value,
+});
+
+const streamed = await deserializeStreamingLoaderData(new Response(streamBytes));
+const paths = {
+  "page load": report(deserializeHydrationData(hydration).loaderData.route),
+  "data request": report(deserializeLoaderData(loaderBytes)),
+  "streamed data": report(streamed.prefs),
+  "deferred data": report(await streamed.later),
+};
+console.log(JSON.stringify({
+  accessorSetsPrototype: probe.viaAccessor === true &&
+    !Object.hasOwn(probe, "__proto__"),
+  objectPrototypeUnaffected: ({}).isAdmin === undefined && !("isAdmin" in {}),
+  paths,
+}));
+`;
+
+  async function decodeInBrowserLikeRuntime(
+    encodeWithAccessor: boolean,
+  ): Promise<
+    Record<string, unknown>
+  > {
+    const { code, stdout, stderr } = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "eval",
+        browserDecodeScript,
+        ...(encodeWithAccessor ? ["--encode-with-accessor"] : []),
+      ],
+      cwd: new URL(".", import.meta.url),
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    const decoder = new TextDecoder();
+    assertEquals(code, 0, decoder.decode(stderr));
+    return JSON.parse(decoder.decode(stdout));
+  }
+
+  for (const encodeWithAccessor of [false, true]) {
+    it(
+      `keeps the key as an own property on every decode path (${
+        encodeWithAccessor ? "encode with accessor" : "decode with accessor"
+      })`,
+      async () => {
+        const { accessorSetsPrototype, objectPrototypeUnaffected, paths } =
+          await decodeInBrowserLikeRuntime(encodeWithAccessor);
+        assert(
+          accessorSetsPrototype,
+          "the child must assign __proto__ through the accessor, as browsers do",
+        );
+        assert(
+          objectPrototypeUnaffected,
+          "Object.prototype must remain unaffected",
+        );
+        const ownProtoKept = {
+          ownKeys: ["__proto__", "name"],
+          hasOwnProto: true,
+          ownProtoValue: { isAdmin: true },
+          ownProtoWritable: true,
+          ownProtoConfigurable: true,
+          protoIsObjectPrototype: true,
+          isAdmin: false,
+        };
+        assertEquals(paths, {
+          "page load": ownProtoKept,
+          "data request": ownProtoKept,
+          "streamed data": ownProtoKept,
+          "deferred data": ownProtoKept,
+        });
+      },
+    );
+  }
+});
