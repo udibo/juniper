@@ -1,3 +1,12 @@
+## [0.11.6](https://github.com/udibo/juniper/compare/0.11.5...0.11.6) (2026-09-12)
+
+### Bug Fixes
+
+- preserve own keys through serialization
+  ([#133](https://github.com/udibo/juniper/issues/133))
+  ([6237634](https://github.com/udibo/juniper/commit/6237634443c715bc70bf3a71386a6c652fe645ed)),
+  closes [#132](https://github.com/udibo/juniper/issues/132)
+
 ## [0.11.5](https://github.com/udibo/juniper/compare/0.11.4...0.11.5) (2026-09-11)
 
 ### Bug Fixes
