@@ -104,13 +104,13 @@ export default function ServerDeferredDataDemo({
             Fast data is included in the initial HTML response
           </li>
           <li>
-            Promises are serialized using tagged JSON and streamed as NDJSON
+            As promises resolve, the server streams HTML for each section
           </li>
           <li>
-            Client hydrates immediately with Suspense fallbacks
+            The client hydrates after the document's tagged JSON data is ready
           </li>
           <li>
-            As server promises resolve, data streams to the client
+            Later client data requests stream tagged JSON resolutions as NDJSON
           </li>
         </ol>
       </div>

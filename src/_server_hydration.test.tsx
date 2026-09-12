@@ -10,7 +10,12 @@ import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { createContext } from "react-router";
 import { Client } from "@udibo/juniper/client";
-import { HttpError, registerContext, registerType } from "@udibo/juniper";
+import {
+  HttpError,
+  registerContext,
+  registerError,
+  registerType,
+} from "@udibo/juniper";
 import { createServer } from "@udibo/juniper/server";
 import { simulateEnvironment } from "@udibo/juniper/utils/testing";
 import {
@@ -130,6 +135,19 @@ describe("the document's hydration payload", () => {
     simulateEnvironment({ APP_ENV: "development" }, async () => {
       class Zulu {}
       class Alpha {}
+      class Domain extends Error {}
+      registerError({
+        name: "Domain",
+        is: (value): value is Domain => value instanceof Domain,
+        serialize: () => ({}),
+        deserialize: () => new Domain(),
+      });
+      registerContext({
+        name: "Shared",
+        context: createContext(0),
+        serialize: (value) => value,
+        deserialize: (value) => value ?? 0,
+      });
       registerType({
         name: "Zulu",
         is: (v): v is Zulu => v instanceof Zulu,
@@ -151,11 +169,14 @@ describe("the document's hydration payload", () => {
           .registeredNames;
       assertEquals(names, [...names].sort());
       assert(names.includes("type:Zulu") && names.includes("type:Alpha"));
+      assert(
+        names.includes("error:Domain") && names.includes("context:Shared"),
+      );
       resetRegistries();
       using logged = stub(console, "error");
       deserializeHydrationData(serialized);
       assertEquals(logged.calls.map((call) => call.args[0]), [
-        "Missing Juniper registrations: type:Alpha, type:Zulu",
+        "Missing Juniper registrations: context:Shared, error:Domain, type:Alpha, type:Zulu",
       ]);
     }),
   );

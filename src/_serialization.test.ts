@@ -292,7 +292,7 @@ describe("Serialization Module", () => {
       const thrown = { custom: "error object" };
       const serialized = serializeError(thrown);
 
-      assertEquals(serialized.__errorType, "Unknown");
+      assertEquals(serialized.__errorType, null);
       assertEquals(serialized.data.value, thrown);
 
       const deserialized = deserializeError(serialized);

@@ -186,7 +186,7 @@ export function sanitizeServerData<T>(data: T): T {
 }
 
 export interface ErrorEnvelope extends Record<string, unknown> {
-  __errorType: string;
+  __errorType: string | null;
   data: Record<string, unknown>;
 }
 
@@ -211,13 +211,13 @@ export function serializeError(error: unknown): ErrorEnvelope {
       },
     };
   }
-  return { __errorType: "Unknown", data: { value: error } };
+  return { __errorType: null, data: { value: error } };
 }
 
 export function deserializeError(envelope: Record<string, unknown>): unknown {
   const name = envelope.__errorType;
   const data = envelope.data as Record<string, unknown>;
-  if (name === "Unknown") return data.value;
+  if (name === null) return data.value;
   const serializer = errorRegistry.get(name as string);
   if (!serializer) {
     throw new Error(`No deserializer registered for error "${String(name)}"`);
@@ -351,6 +351,12 @@ interface PendingPromises {
   entries: { id: string; promise: PromiseLike<unknown> }[];
 }
 
+function discardPending(pending: PendingPromises): void {
+  for (const entry of pending.entries.splice(0)) {
+    Promise.resolve(entry.promise).catch(() => {});
+  }
+}
+
 export function containsPromises(value: unknown): boolean {
   if (value === null || value === undefined) return false;
   if (isThenable(value)) return true;
@@ -411,9 +417,7 @@ function prepareData(
   try {
     return { processed: processValueForStreaming(data, pending), pending };
   } catch (error) {
-    for (const entry of pending.entries) {
-      Promise.resolve(entry.promise).catch(() => {});
-    }
+    discardPending(pending);
     throw error;
   }
 }
@@ -433,6 +437,7 @@ function createDataStream(
   let controller: ReadableStreamDefaultController<Uint8Array>;
   function stop(): void {
     stopped = true;
+    processed = undefined;
     ready = [];
     signal?.removeEventListener("abort", abort);
     waiting?.();
@@ -505,19 +510,24 @@ function createDataStream(
                   ),
                 };
             } catch (error) {
-              line = {
-                id: resolution.id,
-                status: "rejected",
-                error: toTaggedJson(
-                  processValueForStreaming(
-                    serializeError(sanitizeServerError(error)),
-                    pending,
+              discardPending(pending);
+              try {
+                line = {
+                  id: resolution.id,
+                  status: "rejected",
+                  error: toTaggedJson(
+                    processValueForStreaming(
+                      serializeError(sanitizeServerError(error)),
+                      pending,
+                    ),
                   ),
-                ),
-              };
-            } finally {
-              observePending();
+                };
+              } catch (fallbackError) {
+                discardPending(pending);
+                throw fallbackError;
+              }
             }
+            observePending();
             c.enqueue(encoder.encode(JSON.stringify(line) + "\n"));
           }
           if (readIndex >= ready.length) {
@@ -760,16 +770,23 @@ function registeredNames(): string[] {
 export async function serializeHydrationData(
   hydrationData: HydrationData,
 ): Promise<SerializedHydrationData> {
-  const { errors, ...rest } = hydrationData;
-  const processed = await processValue({
+  const { errors, publicEnv, ...rest } = hydrationData;
+  const data = {
     ...rest,
     errors: errors && Object.fromEntries(
       Object.entries(errors).map((
         [id, error],
       ) => [id, sanitizeServerError(error)]),
     ),
-    ...(isDevelopment() ? { registeredNames: registeredNames() } : {}),
-  });
+  };
+  const processed: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    defineOwnValue(processed, key, await processValue(value));
+  }
+  defineOwnValue(processed, "publicEnv", publicEnv);
+  if (isDevelopment()) {
+    defineOwnValue(processed, "registeredNames", registeredNames());
+  }
   return { version: 3, data: toTaggedJson(processed) };
 }
 

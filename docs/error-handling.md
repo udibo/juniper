@@ -269,6 +269,10 @@ processed recursively and may contain supported values, promises, or registered
 types. A serializer whose output matches its own `is` predicate throws. The
 first matching error registration wins.
 
+Non-Error thrown values use a `null` error type in the envelope, leaving every
+string name available for registered errors. A missing string name always
+throws, including a custom registration named `Unknown`.
+
 ```typescript
 // routes/main.tsx
 import "@/errors/custom.ts";
