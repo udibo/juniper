@@ -25,7 +25,6 @@ import { delay } from "@std/async/delay";
 import {
   deserializeError,
   deserializeHydrationData,
-  deserializeLoaderData,
   deserializeStreamingLoaderData,
   type HydrationData,
   type SerializedHydrationData,
@@ -341,6 +340,16 @@ function scheduleDocumentNavigation(
   return promise;
 }
 
+export function reloadUnsupportedHydration(version: number): Promise<never> {
+  if (!shouldReload(BUILD_SKEW_RELOAD_KEY)) {
+    throw new Error(`Unsupported hydration data version: ${version}`);
+  }
+  return scheduleDocumentNavigation(
+    BUILD_SKEW_RELOAD_KEY,
+    () => globalThis.location.reload(),
+  );
+}
+
 async function fetchServerData(
   request: Request,
   method: "GET" | "POST",
@@ -379,29 +388,15 @@ async function fetchServerData(
     }
   }
 
-  const contentType = response.headers.get("Content-Type");
-
-  if (contentType === "application/cbor-stream") {
-    if (!response.ok) {
-      const buffer = await response.arrayBuffer();
-      const deserialized = deserializeLoaderData(new Uint8Array(buffer));
-      throw deserializeError(deserialized as Record<string, unknown>);
-    }
-    return await deserializeStreamingLoaderData(response);
-  }
-
-  if (contentType === "application/cbor") {
-    const buffer = await response.arrayBuffer();
-    const deserialized = deserializeLoaderData(new Uint8Array(buffer));
-
+  const responseType = response.headers.get("X-Juniper");
+  if (responseType === "data") {
+    const deserialized = await deserializeStreamingLoaderData(response);
     if (!response.ok) {
       throw deserializeError(deserialized as Record<string, unknown>);
     }
-
     return deserialized;
   }
 
-  const responseType = response.headers.get("X-Juniper");
   if (responseType === "redirect") {
     const redirectData = await response.json();
     request.signal.throwIfAborted();

@@ -24,7 +24,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { Client } from "./client.tsx";
 import {
   _addErrorSerializer,
-  cborEncode,
+  createLoaderDataResponse,
   resetRegistries,
 } from "./_serialization.ts";
 import type { HydrationData, RootClientRoute } from "./client.tsx";
@@ -83,7 +83,7 @@ class CustomError extends Error {
 }
 
 /**
- * Registers CustomError serializer with CBOR registry.
+ * Registers CustomError serializer with serialization registry.
  * Must be called before serialization tests that use CustomError.
  */
 function registerCustomError(): void {
@@ -319,14 +319,7 @@ describe("createRoute", () => {
       globalThis,
       "fetch",
       (_input: RequestInfo | URL, _init?: RequestInit) => {
-        const cborData = cborEncode(payload);
-        return Promise.resolve(
-          new Response(new Uint8Array(cborData), {
-            headers: {
-              "Content-Type": "application/cbor",
-            },
-          }),
-        );
+        return Promise.resolve(createLoaderDataResponse(payload));
       },
     );
 

@@ -34,7 +34,6 @@
     "npm:@types/pg@^8.23.1": "8.23.1",
     "npm:@types/react@^19.2.18": "19.2.18",
     "npm:babel-plugin-react-compiler@1": "1.0.0",
-    "npm:cbor2@^2.3.0": "2.3.0",
     "npm:drizzle-kit@*": "0.31.10",
     "npm:drizzle-kit@~0.31.10": "0.31.10",
     "npm:drizzle-orm@~0.45.2": "0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.23.1_pg@8.23.0",
@@ -352,9 +351,6 @@
     },
     "@csstools/css-tokenizer@4.0.0": {
       "integrity": "sha512-QxULHAm7cNu72w97JUNCBFODFaXpbDg+dP8b/oWFAZ2MTRppA3U00Y2L1HqaS4J6yBqxwa/Y3nMBaxVKbB/NsA=="
-    },
-    "@cto.af/wtf8@0.0.5": {
-      "integrity": "sha512-LfUFi+Vv4eDzj+XAtR89e3wwjXA/NZjUSwU5NhwbBrLecxPaBYFy3exCuc1j+D4UZeOVdqlsl8G7LmOt18V0tg=="
     },
     "@drizzle-team/brocli@0.10.2": {
       "integrity": "sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w=="
@@ -985,12 +981,6 @@
     },
     "caniuse-lite@1.0.30001799": {
       "integrity": "sha512-hG1bReV+OUU+MOqK4t/ZWI0tZOyz3rqS9XuhOUz1cIcbwBKjOyJEJuw9ER5JuNyqxNk8u/JUVbGibBOL1yrjFw=="
-    },
-    "cbor2@2.3.0": {
-      "integrity": "sha512-76WB3hq8BoaGkMkBVJ27fW5LJU+qqDLEpgRNCG/SYKhODWXpVPOTD4UcUto3IEzYLA52nsvbhb0wabhHDn3qXg==",
-      "dependencies": [
-        "@cto.af/wtf8"
-      ]
     },
     "convert-source-map@2.0.0": {
       "integrity": "sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg=="
@@ -1760,7 +1750,6 @@
           "npm:@testing-library/user-event@^14.6.7",
           "npm:@types/react@^19.2.18",
           "npm:babel-plugin-react-compiler@1",
-          "npm:cbor2@^2.3.0",
           "npm:esbuild@~0.28.2",
           "npm:global-jsdom@30",
           "npm:hono@^4.13.7",

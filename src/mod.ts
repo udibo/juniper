@@ -60,8 +60,10 @@ export { redirect, redirectDocument };
  * that should be serialized in loader/action data.
  * Register types such as `Map`, `Set`, `RegExp`, and `URL` explicitly; the route
  * data preprocessor does not preserve unregistered class instances. `Date` and
- * errors have built-in handling. Bigints are accepted, but safe integer values
- * can decode as numbers; use an explicit representation when that type matters.
+ * errors have built-in handling. All bigints retain their type. The `is` guard
+ * runs before Array and Date handling; the first matching registration wins.
+ * Serializer output is recursively processed and may contain promises or other
+ * registered types. Output matching the serializer's own `is` guard throws.
  *
  * @template T - The type being serialized
  * @template S - The serialized representation type (defaults to `unknown`)
@@ -185,7 +187,10 @@ export interface ContextSerializer<T, S = unknown> {
  *
  * Call once at module scope in a shared module imported by both server and client.
  * Registrations are process-wide. The first matching type guard wins; keep guards
- * narrow and names stable. Both ends must agree on the name and representation.
+ * narrow and names stable. Guards run before Array and Date handling. Both ends
+ * must agree on the name and representation; an unknown name throws on decode.
+ * A streamed decode failure rejects only the affected promise. Development
+ * hydration logs registrations missing in the browser.
  *
  * @param serializer - Synchronous type guard, encoder, and decoder.
  * @throws {Error} If this type name is already registered.
@@ -215,7 +220,11 @@ export function registerType<T, S = unknown>(
  * Import the registration on both server and client before routes run. Serialize
  * only fields safe for the user to read: Juniper does not redact custom payloads.
  * Built-in errors and `HttpError` already have serializers; give each custom
- * error a distinct name.
+ * error a distinct name. The first matching registration wins. Output is
+ * recursively processed and must not match the serializer's own `is` guard.
+ * An output key named `__errorType` remains data inside the error envelope.
+ * Unknown error names throw on decode, rejecting only the affected promise in
+ * a deferred stream.
  *
  * @param serializer - Synchronous encoder and decoder for a specific error class.
  * @throws {Error} If this error name is already registered.

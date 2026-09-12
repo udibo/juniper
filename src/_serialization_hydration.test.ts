@@ -1,8 +1,6 @@
 import {
-  assert,
   assertEquals,
   assertFalse,
-  assertInstanceOf,
   assertRejects,
   assertStringIncludes,
   assertThrows,
@@ -13,11 +11,8 @@ import { HttpError } from "@udibo/http-error";
 import { registerError, registerType } from "./mod.ts";
 import {
   deserializeHydrationData,
-  encodeToBase64,
-  processHydrationData,
   resetRegistries,
   type SerializedHydrationData,
-  type SerializedHydrationDataV2,
   serializeHydrationData,
   toInlineScriptJson,
 } from "./_serialization.ts";
@@ -63,20 +58,6 @@ function asEmbeddedInTheDocument(
   return new Function(`return ${toInlineScriptJson(serialized)};`)();
 }
 
-async function serializeV2(
-  loaderValue: unknown,
-): Promise<SerializedHydrationDataV2> {
-  return {
-    version: 2,
-    data: encodeToBase64(
-      await processHydrationData({
-        matches: [{ id: "/" }],
-        loaderData: { "/": { value: loaderValue } },
-      }),
-    ),
-  };
-}
-
 async function serializeV3(
   loaderValue: unknown,
 ): Promise<SerializedHydrationData> {
@@ -120,6 +101,16 @@ async function observed(value: unknown): Promise<unknown> {
       holes: value.length - Object.keys(value).length,
     };
   }
+  if (value instanceof Error) {
+    return {
+      name: value.name,
+      message: value instanceof HttpError
+        ? value.exposedMessage
+        : value.message,
+      ...(value instanceof HttpError ? { status: value.status } : {}),
+      ...(value instanceof CustomError ? { code: value.code } : {}),
+    };
+  }
   const object = value as Record<string, unknown>;
   const prototype = Object.getPrototypeOf(object);
   const own: [string, unknown][] = [];
@@ -153,14 +144,14 @@ function rejectedWith(error: unknown): Promise<never> {
 const loneLeadSurrogate = String.fromCharCode(0xd800);
 const loneTrailSurrogate = String.fromCharCode(0xdc00);
 
-const ROUND_TRIPS: [string, () => unknown][] = [
+const ROUND_TRIPS: [string, () => unknown, (() => unknown)?][] = [
   ["a Date", () => new Date("2026-09-11T12:34:56.789Z")],
   ["the epoch", () => new Date(0)],
   ["a Date before the epoch", () => new Date(-1)],
   ["an invalid Date", () => new Date(NaN)],
-  ["a bigint in the safe range, as CBOR collapses it", () => 123n],
-  ["the lowest bigint CBOR collapses", () => -(2n ** 53n)],
-  ["the lowest bigint CBOR keeps", () => 2n ** 53n],
+  ["a bigint in the safe range", () => 123n],
+  ["a large negative bigint", () => -(2n ** 53n)],
+  ["a large positive bigint", () => 2n ** 53n],
   ["a bigint beyond 64 bits", () => 2n ** 64n],
   ["a negative bigint beyond 64 bits", () => -(2n ** 64n) - 1n],
   ["NaN", () => NaN],
@@ -171,7 +162,7 @@ const ROUND_TRIPS: [string, () => unknown][] = [
   ["a fraction", () => 1.5],
   ["undefined", () => undefined],
   ["a key whose value is undefined", () => ({ kept: undefined })],
-  ["an array hole", () => [1, , 3]],
+  ["an array hole", () => [1, , 3], () => [1, undefined, 3]],
   ["an Error", () => new Error("plain")],
   ["a TypeError", () => new TypeError("typed")],
   ["an HttpError", () => new HttpError(404, "Missing")],
@@ -205,18 +196,22 @@ const ROUND_TRIPS: [string, () => unknown][] = [
     "an own __proto__ key in loader data",
     () => JSON.parse('{"__proto__":{"polluted":true},"kept":1}'),
   ],
-  ["a Map, flattened", () => new Map([["a", 1]])],
-  ["a Set, flattened", () => new Set([1])],
-  ["a RegExp, flattened", () => /x/g],
-  ["a URL, flattened", () => new URL("https://example.com/")],
-  ["a typed array, flattened", () => new Uint8Array([1, 2])],
+  ["a Map, flattened", () => new Map([["a", 1]]), () => ({})],
+  ["a Set, flattened", () => new Set([1]), () => ({})],
+  ["a RegExp, flattened", () => /x/g, () => ({})],
+  ["a URL, flattened", () => new URL("https://example.com/"), () => ({})],
+  [
+    "a typed array, flattened",
+    () => new Uint8Array([1, 2]),
+    () => ({ 0: 1, 1: 2 }),
+  ],
   ["a class instance, flattened", () =>
     new (class Box {
       inside = 1;
-    })()],
+    })(), () => ({ inside: 1 })],
   ["a lone surrogate", () => ({
     [`key${loneLeadSurrogate}`]: `value${loneTrailSurrogate}`,
-  })],
+  }), () => ({ "key�": "value�" })],
   ["markup and line separators", () => "</script><!--<script>\u2028\u2029"],
   ["nested data", () => ({
     list: [{ at: new Date(1), n: [NaN, -0, undefined] }],
@@ -234,12 +229,12 @@ describe("hydration payload version 3", () => {
     resetRegistries();
   });
 
-  describe("hydrates every value exactly as version 2 did", () => {
-    for (const [name, make] of ROUND_TRIPS) {
+  describe("round trips the supported values and documented flattening", () => {
+    for (const [name, make, expected] of ROUND_TRIPS) {
       it(name, async () => {
-        const v2 = hydratedValue(await serializeV2(make()));
+        const original = (expected ?? make)();
         const v3 = hydratedValue(await serializeV3(make()));
-        assertEquals(await observed(v3), await observed(v2));
+        assertEquals(await observed(v3), await observed(original));
       });
     }
   });
@@ -250,8 +245,7 @@ describe("hydration payload version 3", () => {
       ["a symbol", () => Symbol("private")],
     ] as const
   ) {
-    it(`refuses ${name}, as version 2 did`, async () => {
-      await assertRejects(() => serializeV2({ inside: make() }));
+    it(`refuses ${name}`, async () => {
       await assertRejects(() => serializeV3({ inside: make() }), TypeError);
     });
   }
@@ -290,61 +284,24 @@ describe("hydration payload version 3", () => {
           data: { matches: [], loaderData: { $t: "Map", v: [] } },
         }),
       Error,
-      "Unknown hydration data tag: Map",
+      "Unknown tagged JSON tag: Map",
     );
   });
 });
 
-const GOLDEN_V2: SerializedHydrationDataV2 = {
-  version: 2,
-  data:
-    "pXFzZXJpYWxpemVkQ29udGV4dKFkdXNlcqFkbmFtZWNBZGFnbWF0Y2hlc4GhYmlkYS9qbG9hZGVyRGF0YaFhL6pkZGF0ZcH7Qdqo/VwyfvpnbWlzc2luZ/djbmFu+X4AbG5lZ2F0aXZlWmVyb/mAAGVzbWFsbBh7Y2JpZ8JJAQAAAAAAAAAAZXBvaW502ZxComZfX3R5cGVlUG9pbnRkZGF0YaJheAFheQJlZXJyb3LZnEOka19fZXJyb3JUeXBlaUh0dHBFcnJvcmdtZXNzYWdlZ01pc3Npbmdmc3RhdHVzGQGUZmV4cG9zZfVoZGVmZXJyZWTZnEDBAGZmYWlsZWTZnEGka19fZXJyb3JUeXBlaUh0dHBFcnJvcmdtZXNzYWdlaUZvcmJpZGRlbmZzdGF0dXMZAZNmZXhwb3Nl9WdidWlsZElkZ2J1aWxkLTFmZXJyb3JzoWEv2ZxDpGtfX2Vycm9yVHlwZWlIdHRwRXJyb3JnbWVzc2FnZXgvVGhlIHNlcnZlciBlbmNvdW50ZXJlZCBhbiB1bmV4cGVjdGVkIGNvbmRpdGlvbi5mc3RhdHVzGQH0ZmV4cG9zZfU=",
-  publicEnv: { APP_NAME: "Golden" },
-};
-
-describe("hydration payload version 2", () => {
-  beforeEach(() => {
-    resetRegistries();
-    registerFixtures();
-  });
-
-  afterEach(() => {
-    resetRegistries();
-  });
-
-  it("still hydrates a document rendered by Juniper 0.11.5", async () => {
-    const hydration = deserializeHydrationData(
-      asEmbeddedInTheDocument(GOLDEN_V2),
+describe("obsolete hydration formats", () => {
+  it("refuses a version 2 document without a fallback decoder", () => {
+    assertThrows(
+      () =>
+        deserializeHydrationData({
+          version: 2,
+          data: "obsolete-base64",
+        } as unknown as SerializedHydrationData),
+      Error,
+      "Unsupported hydration data version: 2",
     );
-    assertEquals(hydration.publicEnv, { APP_NAME: "Golden" });
-    assertEquals(hydration.buildId, "build-1");
-    assertEquals(hydration.matches, [{ id: "/" }]);
-    assertEquals(hydration.serializedContext, { user: { name: "Ada" } });
-
-    const data = hydration.loaderData?.["/"] as Record<string, unknown>;
-    assertInstanceOf(data.date, Date);
-    assertEquals(data.date.toISOString(), "2026-09-11T12:34:56.789Z");
-    assert(Object.hasOwn(data, "missing") && data.missing === undefined);
-    assert(Number.isNaN(data.nan));
-    assert(Object.is(data.negativeZero, -0));
-    assertEquals(data.small, 123);
-    assertEquals(data.big, 2n ** 64n);
-    assertInstanceOf(data.point, Point);
-    assertEquals({ ...data.point }, { x: 1, y: 2 });
-    assertInstanceOf(data.error, HttpError);
-    assertEquals([data.error.status, data.error.message], [404, "Missing"]);
-    assertEquals(((await data.deferred) as Date).getTime(), 0);
-    await assertRejects(
-      () => data.failed as Promise<unknown>,
-      HttpError,
-      "Forbidden",
-    );
-    const error = hydration.errors?.["/"];
-    assertInstanceOf(error, HttpError);
-    assertEquals(error.message, new HttpError(500).exposedMessage);
   });
 });
-
 describe("toInlineScriptJson", () => {
   const hostile = "</script><script>alert(1)</script><!--<script>\u2028\u2029";
 

@@ -22,6 +22,7 @@ import {
   generateRouteId,
   JuniperContextProvider,
   registerRouter,
+  reloadUnsupportedHydration,
   setClientBuildId,
 } from "./_client.tsx";
 import type { HydrationData, LazyRoute, ServerFlags } from "./_client.tsx";
@@ -304,6 +305,10 @@ export class Client {
    * @throws {Error} If the document has no Juniper hydration data.
    */
   async hydrate(): Promise<void> {
+    const serialized = env.getHydrationData();
+    if (serialized && serialized.version !== 3) {
+      return await reloadUnsupportedHydration(serialized.version);
+    }
     const { matches, serializedContext, buildId, ...hydrationData } = this
       .getHydrationData();
     setClientBuildId(buildId);

@@ -1,8 +1,3 @@
----
-title: Juniper
-last_verified: 2026-09-09
----
-
 # Juniper
 
 [![JSR](https://jsr.io/badges/@udibo/juniper)](https://jsr.io/@udibo/juniper)
@@ -27,6 +22,8 @@ seamless full-stack development experience.
   initial page loads and SEO benefits.
 - **Data Loading and Actions** - Fetch data with loaders and handle form
   submissions with actions, on either server or client.
+- **Tagged JSON Transport** - One encoding for hydration, data requests, and
+  streamed deferred promises, with shared custom type and error registration.
 - **Hot Reload** - See changes instantly during development.
 - **TypeScript First** - Full TypeScript support with type-safe route
   parameters, loader data, and action data.
@@ -40,6 +37,12 @@ seamless full-stack development experience.
   code needed for each page.
 
 ## Quick Start
+
+Version 0.12 uses tagged JSON throughout and requires matching server and
+browser builds. Older hydration payloads trigger a guarded document reload.
+Middleware should identify loader/action responses by `X-Juniper: data`. See
+[How Values Travel](docs/state-management.md#how-values-travel) for the wire
+format and registration contracts.
 
 Use `degit` to clone a template and get started:
 

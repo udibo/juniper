@@ -10,18 +10,16 @@ import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { HttpError } from "@udibo/http-error";
 
 import {
-  cborDecode,
-  cborEncode,
   containsPromises,
   createStreamingLoaderData,
-  decodeFromBase64,
   deserializeError,
   deserializeHydrationData,
   deserializeStreamingLoaderData,
-  encodeToBase64,
+  fromTaggedJson,
   resetRegistries,
   serializeError,
   serializeHydrationData,
+  toTaggedJson,
 } from "./_serialization.ts";
 
 import { registerError, registerType } from "./mod.ts";
@@ -35,55 +33,29 @@ describe("Serialization Module", () => {
     resetRegistries();
   });
 
-  describe("cborEncode/cborDecode", () => {
+  describe("toTaggedJson/fromTaggedJson", () => {
     it("should encode and decode primitive values", () => {
-      assertEquals(cborDecode(cborEncode(42)), 42);
-      assertEquals(cborDecode(cborEncode("hello")), "hello");
-      assertEquals(cborDecode(cborEncode(true)), true);
-      assertEquals(cborDecode(cborEncode(null)), null);
-      assertEquals(cborDecode(cborEncode(undefined)), undefined);
+      assertEquals(fromTaggedJson(toTaggedJson(42)), 42);
+      assertEquals(fromTaggedJson(toTaggedJson("hello")), "hello");
+      assertEquals(fromTaggedJson(toTaggedJson(true)), true);
+      assertEquals(fromTaggedJson(toTaggedJson(null)), null);
+      assertEquals(fromTaggedJson(toTaggedJson(undefined)), undefined);
     });
 
     it("should encode and decode arrays", () => {
       const input = [1, 2, 3, "a", "b"];
-      assertEquals(cborDecode(cborEncode(input)), input);
+      assertEquals(fromTaggedJson(toTaggedJson(input)), input);
     });
 
     it("should encode and decode objects", () => {
       const input = { name: "test", value: 123, nested: { a: 1 } };
-      assertEquals(cborDecode(cborEncode(input)), input);
+      assertEquals(fromTaggedJson(toTaggedJson(input)), input);
     });
 
     it("should encode and decode Dates", () => {
       const date = new Date("2025-01-01T00:00:00Z");
-      const decoded = cborDecode<Date>(cborEncode(date));
+      const decoded = fromTaggedJson(toTaggedJson(date)) as Date;
       assertEquals(decoded.toISOString(), date.toISOString());
-    });
-  });
-
-  describe("encodeToBase64/decodeFromBase64", () => {
-    it("round-trips hydration data larger than the function argument limit", () => {
-      const input = { text: "水🌿".repeat(200_000) };
-      assertEquals(decodeFromBase64(encodeToBase64(input)), input);
-    });
-
-    it("should encode and decode to base64 strings", () => {
-      const input = { message: "hello world", count: 42 };
-      const base64 = encodeToBase64(input);
-      assertEquals(typeof base64, "string");
-      assertEquals(decodeFromBase64(base64), input);
-    });
-
-    it("should handle complex nested structures", () => {
-      const input = {
-        users: [
-          { name: "Alice", age: 30 },
-          { name: "Bob", age: 25 },
-        ],
-        metadata: { version: 1 },
-      };
-      const base64 = encodeToBase64(input);
-      assertEquals(decodeFromBase64(base64), input);
     });
   });
 
@@ -169,8 +141,8 @@ describe("Serialization Module", () => {
       const serialized = serializeError(error);
 
       assertEquals(serialized.__errorType, "ValidationError");
-      assertEquals(serialized.message, "Invalid input");
-      assertEquals(serialized.fields, ["email", "name"]);
+      assertEquals(serialized.data.message, "Invalid input");
+      assertEquals(serialized.data.fields, ["email", "name"]);
 
       const deserialized = deserializeError(serialized) as ValidationError;
       assertEquals(deserialized instanceof ValidationError, true);
@@ -208,8 +180,8 @@ describe("Serialization Module", () => {
       const serialized = serializeError(error);
 
       assertEquals(serialized.__errorType, "HttpError");
-      assertEquals(serialized.status, 404);
-      assertEquals(serialized.message, "Not Found");
+      assertEquals(serialized.data.status, 404);
+      assertEquals(serialized.data.message, "Not Found");
 
       const deserialized = deserializeError(serialized) as HttpError;
       assertEquals(deserialized instanceof HttpError, true);
@@ -225,12 +197,12 @@ describe("Serialization Module", () => {
       const serialized = serializeError(error);
 
       assertEquals(
-        serialized.message,
+        serialized.data.message,
         error.exposedMessage,
         "the wire carries what the rendering layer would show",
       );
       assertEquals(
-        (serialized.message as string).includes("connection refused"),
+        (serialized.data.message as string).includes("connection refused"),
         false,
         "and never the internal detail — this payload reaches the browser",
       );
@@ -248,7 +220,7 @@ describe("Serialization Module", () => {
       const error = new HttpError(404, "Tenant not found");
       const serialized = serializeError(error);
 
-      assertEquals(serialized.message, "Tenant not found");
+      assertEquals(serialized.data.message, "Tenant not found");
       assertEquals(
         (deserializeError(serialized) as HttpError).message,
         "Tenant not found",
@@ -262,9 +234,12 @@ describe("Serialization Module", () => {
       });
       const serialized = serializeError(error);
 
-      assertEquals(serialized.message, "You don't have permission to do that.");
       assertEquals(
-        serialized.expose,
+        serialized.data.message,
+        "You don't have permission to do that.",
+      );
+      assertEquals(
+        serialized.data.expose,
         true,
         "what reached the wire is exposable by construction, so the flag says so",
       );
@@ -282,7 +257,7 @@ describe("Serialization Module", () => {
       const serialized = serializeError(error);
 
       assertEquals(serialized.__errorType, "TypeError");
-      assertEquals(serialized.message, "Invalid type");
+      assertEquals(serialized.data.message, "Invalid type");
 
       const deserialized = deserializeError(serialized) as TypeError;
       assertEquals(deserialized instanceof TypeError, true);
@@ -294,7 +269,7 @@ describe("Serialization Module", () => {
       const serialized = serializeError(error);
 
       assertEquals(serialized.__errorType, "RangeError");
-      assertEquals(serialized.message, "Out of range");
+      assertEquals(serialized.data.message, "Out of range");
 
       const deserialized = deserializeError(serialized) as RangeError;
       assertEquals(deserialized instanceof RangeError, true);
@@ -306,7 +281,7 @@ describe("Serialization Module", () => {
       const serialized = serializeError(error);
 
       assertEquals(serialized.__errorType, "Error");
-      assertEquals(serialized.message, "Something went wrong");
+      assertEquals(serialized.data.message, "Something went wrong");
 
       const deserialized = deserializeError(serialized) as Error;
       assertEquals(deserialized instanceof Error, true);
@@ -318,7 +293,7 @@ describe("Serialization Module", () => {
       const serialized = serializeError(thrown);
 
       assertEquals(serialized.__errorType, "Unknown");
-      assertEquals(serialized.value, thrown);
+      assertEquals(serialized.data.value, thrown);
 
       const deserialized = deserializeError(serialized);
       assertEquals(deserialized, thrown);
@@ -553,8 +528,7 @@ describe("Serialization Module", () => {
     for (const framing of ["coalesced", "split", "bytes"] as const) {
       it(`resolves deferred data with ${framing} transport chunks`, async () => {
         const bytes = await deferredFrames();
-        const firstFrameEnd = new DataView(bytes.buffer).getUint32(0, false) +
-          4;
+        const firstFrameEnd = bytes.indexOf(10) + 1;
         const chunks = framing === "coalesced"
           ? [bytes]
           : framing === "bytes"
@@ -580,7 +554,7 @@ describe("Serialization Module", () => {
 
     it("rejects every unresolved value when the stream ends between frames", async () => {
       const bytes = await deferredFrames();
-      const firstFrameEnd = new DataView(bytes.buffer).getUint32(0, false) + 4;
+      const firstFrameEnd = bytes.indexOf(10) + 1;
       const response = chunkedResponse([bytes.slice(0, firstFrameEnd)]);
       const data = await deserializeStreamingLoaderData<{
         first: Promise<string>;
@@ -595,12 +569,12 @@ describe("Serialization Module", () => {
       assertEquals(response.body!.locked, false);
     });
 
-    it("cancels and unlocks a response whose initial CBOR frame cannot decode", async () => {
+    it("cancels and unlocks a response whose initial JSON line cannot decode", async () => {
       let canceled = false;
       const response = new Response(
         new ReadableStream({
           start(controller) {
-            controller.enqueue(Uint8Array.of(0, 0, 0, 1, 0xff));
+            controller.enqueue(new TextEncoder().encode("{invalid\n"));
           },
           cancel() {
             canceled = true;
@@ -614,13 +588,13 @@ describe("Serialization Module", () => {
 
     it("cancels and unlocks a malformed resolution stream after rejecting its values", async () => {
       const bytes = await deferredFrames();
-      const firstFrameEnd = new DataView(bytes.buffer).getUint32(0, false) + 4;
+      const firstFrameEnd = bytes.indexOf(10) + 1;
       let canceled = false;
       const response = new Response(
         new ReadableStream({
           start(controller) {
             controller.enqueue(bytes.slice(0, firstFrameEnd));
-            controller.enqueue(Uint8Array.of(0, 0, 0, 1, 0xff));
+            controller.enqueue(new TextEncoder().encode("{invalid\n"));
           },
           cancel() {
             canceled = true;
@@ -646,7 +620,7 @@ describe("Serialization Module", () => {
       const stream = createStreamingLoaderData(data);
 
       const response = new Response(stream, {
-        headers: { "Content-Type": "application/cbor-stream" },
+        headers: { "Content-Type": "application/x-ndjson" },
       });
 
       const result = await deserializeStreamingLoaderData(response);
@@ -661,7 +635,7 @@ describe("Serialization Module", () => {
 
       const stream = createStreamingLoaderData(data);
       const response = new Response(stream, {
-        headers: { "Content-Type": "application/cbor-stream" },
+        headers: { "Content-Type": "application/x-ndjson" },
       });
 
       const result = await deserializeStreamingLoaderData<{
@@ -683,7 +657,7 @@ describe("Serialization Module", () => {
 
       const stream = createStreamingLoaderData(data);
       const response = new Response(stream, {
-        headers: { "Content-Type": "application/cbor-stream" },
+        headers: { "Content-Type": "application/x-ndjson" },
       });
 
       const result = await deserializeStreamingLoaderData<{
@@ -704,7 +678,7 @@ describe("Serialization Module", () => {
 
       const stream = createStreamingLoaderData(data);
       const response = new Response(stream, {
-        headers: { "Content-Type": "application/cbor-stream" },
+        headers: { "Content-Type": "application/x-ndjson" },
       });
 
       const result = await deserializeStreamingLoaderData<{
@@ -725,7 +699,7 @@ describe("Serialization Module", () => {
 
       const stream = createStreamingLoaderData(data);
       const response = new Response(stream, {
-        headers: { "Content-Type": "application/cbor-stream" },
+        headers: { "Content-Type": "application/x-ndjson" },
       });
 
       const result = await deserializeStreamingLoaderData<{
@@ -752,7 +726,7 @@ describe("Serialization Module", () => {
 
       const stream = createStreamingLoaderData(data);
       const response = new Response(stream, {
-        headers: { "Content-Type": "application/cbor-stream" },
+        headers: { "Content-Type": "application/x-ndjson" },
       });
 
       const result = await deserializeStreamingLoaderData<{
@@ -784,7 +758,7 @@ describe("Serialization Module", () => {
 
       const stream = createStreamingLoaderData(data);
       const response = new Response(stream, {
-        headers: { "Content-Type": "application/cbor-stream" },
+        headers: { "Content-Type": "application/x-ndjson" },
       });
 
       const result = await deserializeStreamingLoaderData<{
@@ -810,7 +784,7 @@ describe("Serialization Module", () => {
 
       const stream = createStreamingLoaderData(data);
       const response = new Response(stream, {
-        headers: { "Content-Type": "application/cbor-stream" },
+        headers: { "Content-Type": "application/x-ndjson" },
       });
 
       const result = await deserializeStreamingLoaderData<{

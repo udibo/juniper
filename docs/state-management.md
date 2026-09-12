@@ -306,10 +306,8 @@ loader/action data. See [error handling](error-handling.md#error-serialization)
 for the distinction between thrown errors, returned error data, and custom error
 serializers.
 
-`bigint` values are accepted, but the underlying numeric encoding can change
-their JavaScript type: `123n` decodes as the number `123`, while integers beyond
-the safe-number range remain `bigint`. Send a decimal string or register a
-wrapper type if the consumer requires an exact `bigint` contract.
+`bigint` values keep their JavaScript type, including small values such as
+`123n`. `NaN`, `Infinity`, `-Infinity`, and `-0` also round-trip unchanged.
 
 `Map`, `Set`, `RegExp`, and `URL` are **not** built-in round-trip types. Without
 registration, objects are reduced to their enumerable own properties; typical
@@ -341,33 +339,46 @@ import "@/serialization/url.ts";
 
 The route can then return a URL instance in loader data. Give each registration
 a unique name and import the module wherever standalone server code needs it.
-Use synchronous serializers that return plain data: JSON values plus
-`undefined`, `Date`, `bigint`, and non-finite numbers. Do not return promises or
-other instances (`Map`, `Set`, `URL`, class instances) from a serializer; its
-output is not processed recursively, and the first document load reduces such
-instances to their enumerable own properties.
+Serializer output is processed recursively: it can contain `Date`, `undefined`,
+promises, and other registered types. A serializer whose output matches its own
+`is` predicate throws. Avoid cycles between serializers or in their data.
+
+Registered `is` predicates run before the Array and Date checks. When several
+registrations match a value, the first registration wins. Duplicate names throw.
+An unknown registered type or error name throws during decoding; in a deferred
+resolution, only that promise rejects and other resolutions continue. Import
+every registration on both sides. Development hydration includes sorted
+registration names, and the browser logs names missing from its registry.
 
 #### How Values Travel
 
-The first document load embeds the page's data in an inline script as JSON text
-(hydration payload version 3). Values JSON cannot express are written as tagged
-objects of the form `{"$t": tag, "v": value}`: `Date`, `undefined`, `NaN`,
-`Infinity`, `-Infinity`, `-0`, `bigint` values outside the safe-number range,
-errors, settled promises, and registered types. A plain object that has its own
-`$t` or `__proto__` key is written in an escaped form, so data can never be
-mistaken for a tag. Every `<`, U+2028, and U+2029 in the payload is written as a
-`\u` escape, so no string in loader data can close the script element or start
-an HTML comment.
+Juniper uses tagged JSON text for document hydration, client data requests, and
+deferred resolutions. Values JSON cannot express use string tags of the form
+`{"$t": tag, "v": value}`. The tags are `undefined`, `number`, `bigint`, `Date`,
+`object`, `pending`, `promise`, `rejected`, `type`, and `error`; unknown tags
+throw. Plain objects with an own `$t` or `__proto__` key use escaped entry
+lists, including inside serializer output, so their keys remain ordinary data.
 
-Client navigations and fetchers request data as CBOR (`application/cbor`, or
-`application/cbor-stream` when deferred promises are still pending). Both paths
-decode to the same values, including the `bigint` normalization described above,
-so a loader's data has the same types whether it arrived with the document or on
-a later navigation.
+The first document load embeds hydration version 3 with one tagged value
+containing loader/action data, errors, context, and public environment values.
+Every `<`, U+2028, and U+2029 in that script is written as a `\u` escape.
+Documents carrying another hydration version use the guarded document reload
+path. There is no legacy decoder; deploy the server and browser build together.
 
-A document rendered by an earlier Juniper release carries hydration payload
-version 2 (base64-encoded CBOR). The browser client still decodes it, so a page
-restored from cache after an upgrade hydrates with the new client bundle.
+Client navigations and fetchers receive settled data as `application/json` with
+a UTF-8 `Content-Length`. Deferred data uses `application/x-ndjson`: the first
+line contains tagged data with pending placeholders, followed by lines shaped as
+`{"id":"p0","status":"resolved","value":...}` or
+`{"id":"p0","status":"rejected","error":...}`. Each value or error uses the same
+codec. Resolutions arrive as they become ready, including nested promises. The
+stream respects consumer back-pressure and stops on request cancellation.
+
+Both response kinds, including data-request errors, carry `X-Juniper: data`. Use
+this marker to identify framework data in middleware; JSON content type also
+occurs on ordinary API responses and redirect envelopes. Deferred streams carry
+`Cache-Control: no-transform` and must remain uncompressed at the origin so
+buffering does not delay individual resolutions. Settled JSON can use normal
+HTTP compression. The client uses one text-line decoder for both response kinds.
 
 ## React Context
 

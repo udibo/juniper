@@ -28,7 +28,10 @@ import {
   getBuildId,
   mergeServerRoutes,
 } from "./_server.tsx";
-import { cborDecode, deserializeHydrationData } from "./_serialization.ts";
+import {
+  deserializeHydrationData,
+  deserializeLoaderData,
+} from "./_serialization.ts";
 import type { SerializedHydrationData } from "./_serialization.ts";
 
 describe("createServer", () => {
@@ -410,7 +413,7 @@ describe("createServer", () => {
     assertStringIncludes(html, "<div>Home</div>");
   });
 
-  it("should return CBOR for data requests when X-Juniper-Route-Id is present", async () => {
+  it("should return tagged JSON for data requests when X-Juniper-Route-Id is present", async () => {
     const client = new Client({
       path: "/",
       main: {
@@ -429,9 +432,9 @@ describe("createServer", () => {
     });
     assertEquals(res.status, 200);
     const ct = res.headers.get("content-type");
-    assertEquals(ct, "application/cbor");
-    const buffer = await res.arrayBuffer();
-    const data = cborDecode<{ ok: boolean }>(new Uint8Array(buffer));
+    assertEquals(ct, "application/json");
+    const buffer = await res.text();
+    const data = deserializeLoaderData<{ ok: boolean }>(buffer);
     assertEquals(data, { ok: true });
   });
 
@@ -936,9 +939,9 @@ describe("createServer", () => {
     });
     assertEquals(res.status, 200);
     const ct = res.headers.get("content-type");
-    assertEquals(ct, "application/cbor");
-    const buffer = await res.arrayBuffer();
-    const data = cborDecode<{ currentUser: string }>(new Uint8Array(buffer));
+    assertEquals(ct, "application/json");
+    const buffer = await res.text();
+    const data = deserializeLoaderData<{ currentUser: string }>(buffer);
     assertEquals(data, { currentUser: "test-user" });
   });
 

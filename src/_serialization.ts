@@ -1,16 +1,17 @@
-/**
- * Internal serialization module.
- *
- * Data requests travel as CBOR (cbor2). The document's hydration payload
- * travels as tagged JSON text (version 3) so the page stays readable to the
- * compressor; version 2 (base64 of CBOR) is still decoded for documents cached
- * before an upgrade. Public interfaces and registration functions are exported
- * from mod.ts.
- *
- * @internal
- * @module
- */
-import { decode, encode, Tag } from "cbor2";
+import {
+  decodeHydrationPayload,
+  defineOwnValue,
+  fromTaggedJson,
+  Tagged,
+  toTaggedJson,
+} from "./_tagged-json.ts";
+import type { TaggedJson } from "./_tagged-json.ts";
+export {
+  fromTaggedJson,
+  toInlineScriptJson,
+  toTaggedJson,
+} from "./_tagged-json.ts";
+export type { TaggedJson } from "./_tagged-json.ts";
 import type { RouterContext, RouterContextProvider } from "react-router";
 import { HttpError, isHttpErrorLike } from "@udibo/http-error";
 
@@ -48,12 +49,6 @@ export interface ContextSerializer<T, S = unknown> {
   serialize: (value: T) => S;
   deserialize: (data: S | undefined) => T;
 }
-
-const PROMISE_RESOLVED_TAG = 40000;
-const PROMISE_REJECTED_TAG = 40001;
-const CUSTOM_TYPE_TAG = 40002;
-const ERROR_TAG = 40003;
-const PROMISE_PENDING_TAG = 40004;
 
 // deno-lint-ignore no-explicit-any
 const typeRegistry = new Map<string, TypeSerializer<any, any>>();
@@ -190,109 +185,88 @@ export function sanitizeServerData<T>(data: T): T {
   ) as T;
 }
 
-/**
- * Serialize an error using the registered error serializers.
- *
- * @param error - The error to serialize
- * @returns The serialized error data
- */
-export function serializeError(error: unknown): Record<string, unknown> {
+export interface ErrorEnvelope extends Record<string, unknown> {
+  __errorType: string;
+  data: Record<string, unknown>;
+}
+
+export function serializeError(error: unknown): ErrorEnvelope {
   const serializer = findErrorSerializer(error);
   if (serializer) {
-    return {
-      __errorType: serializer.name,
-      ...serializer.serialize(error as Error),
-    };
-  }
-
-  if (error instanceof Error) {
-    const serialized: Record<string, unknown> = {
-      __errorType: "Error",
-      message: error.message,
-      name: error.name,
-    };
-    if (isDevelopment()) {
-      serialized.stack = error.stack;
+    const data = serializer.serialize(error as Error);
+    if (serializer.is(data)) {
+      throw new Error(
+        `Error serializer "${serializer.name}" output matches its own is predicate`,
+      );
     }
-    return serialized;
+    return { __errorType: serializer.name, data };
   }
-
-  return { __errorType: "Unknown", value: error };
+  if (error instanceof Error) {
+    return {
+      __errorType: "Error",
+      data: {
+        message: error.message,
+        name: error.name,
+        ...(isDevelopment() ? { stack: error.stack } : {}),
+      },
+    };
+  }
+  return { __errorType: "Unknown", data: { value: error } };
 }
 
-/**
- * Deserialize an error from serialized data.
- *
- * @param data - The serialized error data
- * @returns The deserialized error
- */
-export function deserializeError(data: Record<string, unknown>): unknown {
-  const errorType = data.__errorType as string;
-
-  const serializer = errorRegistry.get(errorType);
-  if (serializer) {
-    return serializer.deserialize(data);
+export function deserializeError(envelope: Record<string, unknown>): unknown {
+  const name = envelope.__errorType;
+  const data = envelope.data as Record<string, unknown>;
+  if (name === "Unknown") return data.value;
+  const serializer = errorRegistry.get(name as string);
+  if (!serializer) {
+    throw new Error(`No deserializer registered for error "${String(name)}"`);
   }
-
-  if (errorType === "Unknown") {
-    return data.value;
-  }
-
-  const error = new Error(data.message as string);
-  if (data.name) error.name = data.name as string;
-  if (data.stack) error.stack = data.stack as string;
-  return error;
+  return serializer.deserialize(data);
 }
 
-// Thenable check (not instanceof Promise) for cross-realm compatibility.
 function isThenable(value: unknown): value is PromiseLike<unknown> {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    "then" in value &&
-    typeof (value as { then: unknown }).then === "function"
-  );
+  return value !== null && typeof value === "object" && "then" in value &&
+    typeof (value as { then: unknown }).then === "function";
+}
+
+function serializeType(
+  value: unknown,
+  serializer: TypeSerializer<unknown>,
+): unknown {
+  const data = serializer.serialize(value);
+  if (serializer.is(data)) {
+    throw new Error(
+      `Type serializer "${serializer.name}" output matches its own is predicate`,
+    );
+  }
+  return data;
 }
 
 async function processValue(value: unknown): Promise<unknown> {
-  if (value === null || value === undefined) {
-    return value;
-  }
-
+  if (value === null || value === undefined) return value;
   if (isThenable(value)) {
     try {
-      const resolved = await value;
-      const processedValue = await processValue(resolved);
-      return new Tag(PROMISE_RESOLVED_TAG, processedValue);
+      return new Tagged("promise", await processValue(await value));
     } catch (error) {
-      return new Tag(
-        PROMISE_REJECTED_TAG,
-        serializeError(sanitizeServerError(error)),
+      return new Tagged(
+        "rejected",
+        await processValue(serializeError(sanitizeServerError(error))),
       );
     }
   }
-
   if (value instanceof Error || isHttpErrorLike(value)) {
-    return new Tag(ERROR_TAG, serializeError(value));
+    return new Tagged("error", await processValue(serializeError(value)));
   }
-
-  const typeSerializer = findTypeSerializer(value);
-  if (typeSerializer) {
-    return new Tag(CUSTOM_TYPE_TAG, {
-      __type: typeSerializer.name,
-      data: typeSerializer.serialize(value),
+  const serializer = findTypeSerializer(value);
+  if (serializer) {
+    return new Tagged("type", {
+      __type: serializer.name,
+      data: await processValue(serializeType(value, serializer)),
     });
   }
-
-  if (Array.isArray(value)) {
-    const processed = await Promise.all(value.map(processValue));
-    return processed;
-  }
-
-  if (value instanceof Date) {
-    return value;
-  }
-
+  if (Array.isArray(value)) return await Promise.all(value.map(processValue));
+  if (value instanceof Date) return value;
   if (typeof value === "object") {
     const result: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(value)) {
@@ -300,498 +274,406 @@ async function processValue(value: unknown): Promise<unknown> {
     }
     return result;
   }
-
   return value;
 }
 
-function defineOwnValue(
-  target: Record<string, unknown>,
-  key: string,
-  value: unknown,
-): void {
-  Object.defineProperty(target, key, {
-    value,
-    enumerable: true,
-    writable: true,
-    configurable: true,
-  });
-}
+type PromiseResolvers = Map<string, {
+  promise: Promise<unknown>;
+  resolve: (value: unknown) => void;
+  reject: (error: unknown) => void;
+}>;
 
-function restoreValue(value: unknown): unknown {
-  if (value === null || value === undefined) {
-    return value;
-  }
-
-  if (value instanceof Tag) {
-    const tagNum = Number(value.tag);
-
-    if (tagNum === PROMISE_RESOLVED_TAG) {
-      const restored = restoreValue(value.contents);
-      return Promise.resolve(restored);
+function restoreValue(value: unknown, pending?: PromiseResolvers): unknown {
+  if (value instanceof Tagged) {
+    if (value.tag === "pending") {
+      if (!pending || typeof value.contents !== "string") {
+        throw new Error("Unexpected pending promise tag");
+      }
+      const existing = pending.get(value.contents);
+      if (existing) return existing.promise;
+      const resolver = Promise.withResolvers<unknown>();
+      resolver.promise.catch(() => {});
+      pending.set(value.contents, resolver);
+      return resolver.promise;
     }
-
-    if (tagNum === PROMISE_REJECTED_TAG) {
-      const error = deserializeError(value.contents as Record<string, unknown>);
-      return Promise.reject(error);
+    if (value.tag === "promise") {
+      return Promise.resolve(restoreValue(value.contents, pending));
     }
-
-    if (tagNum === CUSTOM_TYPE_TAG) {
+    if (value.tag === "rejected") {
+      const promise = Promise.reject(
+        deserializeError(
+          restoreValue(value.contents, pending) as Record<string, unknown>,
+        ),
+      );
+      promise.catch(() => {});
+      return promise;
+    }
+    if (value.tag === "type") {
       const { __type, data } = value.contents as {
         __type: string;
         data: unknown;
       };
       const serializer = typeRegistry.get(__type);
-      if (serializer) {
-        return serializer.deserialize(data);
+      if (!serializer) {
+        throw new Error(`No deserializer registered for type "${__type}"`);
       }
-      console.warn(`No deserializer registered for type "${__type}"`);
-      return data;
+      return serializer.deserialize(restoreValue(data, pending));
     }
-
-    if (tagNum === ERROR_TAG) {
-      return deserializeError(value.contents as Record<string, unknown>);
+    if (value.tag === "error") {
+      return deserializeError(
+        restoreValue(value.contents, pending) as Record<string, unknown>,
+      );
     }
-
-    return restoreValue(value.contents);
+    throw new Error(`Unknown tagged JSON tag: ${String(value.tag)}`);
   }
-
-  if (Array.isArray(value)) {
-    return value.map(restoreValue);
-  }
-
-  if (value instanceof Date) {
-    return value;
-  }
-
+  if (Array.isArray(value)) return value.map((v) => restoreValue(v, pending));
+  if (value instanceof Date || value === null) return value;
   if (typeof value === "object") {
     const result: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(value)) {
-      defineOwnValue(result, key, restoreValue(val));
+      defineOwnValue(result, key, restoreValue(val, pending));
     }
     return result;
   }
-
   return value;
 }
 
-export function cborEncode(data: unknown): Uint8Array {
-  return encode(data);
+export async function serializeLoaderData(data: unknown): Promise<string> {
+  return JSON.stringify(toTaggedJson(await processValue(data)));
 }
 
-export function cborDecode<T = unknown>(data: Uint8Array): T {
-  return decode(data) as T;
+export function deserializeLoaderData<T = unknown>(data: string): T {
+  return restoreValue(fromTaggedJson(JSON.parse(data))) as T;
 }
 
-/**
- * Serialize loader/action data for client-side data requests.
- * Processes promises, errors, and custom types before CBOR encoding.
- *
- * @param data - The loader/action data to serialize
- * @returns The CBOR encoded data as Uint8Array
- */
-export async function serializeLoaderData(data: unknown): Promise<Uint8Array> {
-  const processed = await processValue(data);
-  return encode(processed);
+interface PendingPromises {
+  nextId: number;
+  entries: { id: string; promise: PromiseLike<unknown> }[];
 }
 
-/**
- * Deserialize loader/action data from client-side data requests.
- * Decodes CBOR and restores promises, errors, and custom types from tags.
- *
- * @param data - The CBOR encoded data
- * @returns The deserialized data with promises and custom types restored
- */
-export function deserializeLoaderData<T = unknown>(data: Uint8Array): T {
-  const decoded = decode(data);
-  return restoreValue(decoded) as T;
-}
-
-interface PendingPromise {
-  id: string;
-  promise: PromiseLike<unknown>;
-}
-
-/**
- * Check if a value contains any promises (thenables).
- * Used to determine if streaming should be used.
- */
 export function containsPromises(value: unknown): boolean {
-  if (value === null || value === undefined) {
-    return false;
-  }
-
-  if (isThenable(value)) {
-    return true;
-  }
-
-  if (Array.isArray(value)) {
-    return value.some(containsPromises);
-  }
-
+  if (value === null || value === undefined) return false;
+  if (isThenable(value)) return true;
   if (typeof value === "object") {
     return Object.values(value).some(containsPromises);
   }
-
   return false;
 }
 
-/**
- * Process a value for streaming, replacing promises with pending tags.
- * Returns the processed structure and a list of pending promises with their IDs.
- */
 function processValueForStreaming(
   value: unknown,
-  pendingPromises: PendingPromise[],
-  idPrefix = "p",
+  pending: PendingPromises,
 ): unknown {
-  if (value === null || value === undefined) {
-    return value;
-  }
-
+  if (value === null || value === undefined) return value;
   if (isThenable(value)) {
-    const id = `${idPrefix}${pendingPromises.length}`;
-    pendingPromises.push({ id, promise: value });
-    return new Tag(PROMISE_PENDING_TAG, id);
+    const id = `p${pending.nextId++}`;
+    pending.entries.push({ id, promise: value });
+    return new Tagged("pending", id);
   }
-
   if (value instanceof Error || isHttpErrorLike(value)) {
-    return new Tag(ERROR_TAG, serializeError(value));
-  }
-
-  const typeSerializer = findTypeSerializer(value);
-  if (typeSerializer) {
-    return new Tag(CUSTOM_TYPE_TAG, {
-      __type: typeSerializer.name,
-      data: typeSerializer.serialize(value),
-    });
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((v, i) =>
-      processValueForStreaming(v, pendingPromises, `${idPrefix}${i}_`)
+    return new Tagged(
+      "error",
+      processValueForStreaming(serializeError(value), pending),
     );
   }
-
-  if (value instanceof Date) {
-    return value;
+  const serializer = findTypeSerializer(value);
+  if (serializer) {
+    return new Tagged("type", {
+      __type: serializer.name,
+      data: processValueForStreaming(serializeType(value, serializer), pending),
+    });
   }
-
+  if (Array.isArray(value)) {
+    return value.map((v) => processValueForStreaming(v, pending));
+  }
+  if (value instanceof Date) return value;
   if (typeof value === "object") {
     const result: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(value)) {
-      defineOwnValue(
-        result,
-        key,
-        processValueForStreaming(val, pendingPromises, `${idPrefix}${key}_`),
-      );
+      defineOwnValue(result, key, processValueForStreaming(val, pending));
     }
     return result;
   }
-
   return value;
 }
 
-/**
- * Encode a length-prefixed CBOR chunk.
- * Format: 4-byte big-endian length + CBOR data
- */
-function encodeLengthPrefixedChunk(data: unknown): Uint8Array {
-  const cborData = encode(data);
-  const chunk = new Uint8Array(4 + cborData.length);
-  const view = new DataView(chunk.buffer);
-  view.setUint32(0, cborData.length, false);
-  chunk.set(cborData, 4);
-  return chunk;
-}
-
-/**
- * Resolution message sent for each resolved/rejected promise.
- */
 interface PromiseResolution {
   id: string;
   status: "resolved" | "rejected";
   value?: unknown;
-  error?: Record<string, unknown>;
+  error?: unknown;
 }
 
-/**
- * Create a streaming response for loader data with deferred promises.
- * Returns a ReadableStream that emits length-prefixed CBOR chunks:
- * 1. Initial chunk: data structure with pending promise placeholders
- * 2. Subsequent chunks: promise resolutions as they complete
- *
- * @param data - The loader data (may contain promises)
- * @returns A ReadableStream of CBOR chunks
- */
+function prepareData(
+  data: unknown,
+): { processed: unknown; pending: PendingPromises } {
+  const pending: PendingPromises = { nextId: 0, entries: [] };
+  try {
+    return { processed: processValueForStreaming(data, pending), pending };
+  } catch (error) {
+    for (const entry of pending.entries) {
+      Promise.resolve(entry.promise).catch(() => {});
+    }
+    throw error;
+  }
+}
+
+function createDataStream(
+  processed: unknown,
+  pending: PendingPromises,
+  signal?: AbortSignal,
+): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  let ready: PromiseResolution[] = [];
+  let readIndex = 0;
+  let waiting: (() => void) | undefined;
+  let outstanding = 0;
+  let initial = true;
+  let stopped = false;
+  let controller: ReadableStreamDefaultController<Uint8Array>;
+  function stop(): void {
+    stopped = true;
+    ready = [];
+    signal?.removeEventListener("abort", abort);
+    waiting?.();
+    waiting = undefined;
+  }
+  function abort(): void {
+    if (stopped) return;
+    controller.error(signal!.reason);
+    stop();
+  }
+  function settle(resolution: PromiseResolution): void {
+    outstanding--;
+    if (stopped) return;
+    ready.push(resolution);
+    waiting?.();
+    waiting = undefined;
+  }
+  function observePending(): void {
+    for (const { id, promise } of pending.entries.splice(0)) {
+      outstanding++;
+      Promise.resolve(promise).then(
+        (value) => settle({ id, status: "resolved", value }),
+        (error) => settle({ id, status: "rejected", error }),
+      );
+    }
+  }
+  return new ReadableStream<Uint8Array>({
+    start(c) {
+      controller = c;
+      observePending();
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) abort();
+    },
+    async pull(c) {
+      if (stopped) return;
+      try {
+        if (initial) {
+          initial = false;
+          c.enqueue(
+            encoder.encode(JSON.stringify(toTaggedJson(processed)) + "\n"),
+          );
+          processed = undefined;
+        } else {
+          while (!stopped && readIndex === ready.length && outstanding > 0) {
+            const wake = Promise.withResolvers<void>();
+            waiting = wake.resolve;
+            await wake.promise;
+          }
+          if (stopped) return;
+          const resolution = ready[readIndex++];
+          if (resolution) {
+            let line: PromiseResolution;
+            try {
+              line = resolution.status === "resolved"
+                ? {
+                  id: resolution.id,
+                  status: "resolved",
+                  value: toTaggedJson(
+                    processValueForStreaming(resolution.value, pending),
+                  ),
+                }
+                : {
+                  id: resolution.id,
+                  status: "rejected",
+                  error: toTaggedJson(
+                    processValueForStreaming(
+                      serializeError(sanitizeServerError(resolution.error)),
+                      pending,
+                    ),
+                  ),
+                };
+            } catch (error) {
+              line = {
+                id: resolution.id,
+                status: "rejected",
+                error: toTaggedJson(
+                  processValueForStreaming(
+                    serializeError(sanitizeServerError(error)),
+                    pending,
+                  ),
+                ),
+              };
+            } finally {
+              observePending();
+            }
+            c.enqueue(encoder.encode(JSON.stringify(line) + "\n"));
+          }
+          if (readIndex >= ready.length) {
+            ready = [];
+            readIndex = 0;
+          }
+        }
+        if (outstanding === 0 && ready.length === 0) {
+          c.close();
+          stop();
+        }
+      } catch (error) {
+        c.error(error);
+        stop();
+      }
+    },
+    cancel() {
+      stop();
+    },
+  }, { highWaterMark: 0 });
+}
+
 export function createStreamingLoaderData(
   data: unknown,
+  signal?: AbortSignal,
 ): ReadableStream<Uint8Array> {
-  const pendingPromises: PendingPromise[] = [];
-  const processedData = processValueForStreaming(data, pendingPromises);
+  const { processed, pending } = prepareData(data);
+  return createDataStream(processed, pending, signal);
+}
 
-  return new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const initialChunk = encodeLengthPrefixedChunk(processedData);
-      controller.enqueue(initialChunk);
-
-      if (pendingPromises.length === 0) {
-        controller.close();
-        return;
-      }
-
-      const resolutionPromises = pendingPromises.map(
-        async ({ id, promise }) => {
-          try {
-            const resolved = await promise;
-            const processedValue = await processValue(resolved);
-            const resolution: PromiseResolution = {
-              id,
-              status: "resolved",
-              value: processedValue,
-            };
-            return encodeLengthPrefixedChunk(resolution);
-          } catch (error) {
-            const resolution: PromiseResolution = {
-              id,
-              status: "rejected",
-              error: serializeError(sanitizeServerError(error)),
-            };
-            return encodeLengthPrefixedChunk(resolution);
-          }
-        },
-      );
-
-      const remaining = [...resolutionPromises];
-      while (remaining.length > 0) {
-        const { chunk, index } = await Promise.race(
-          remaining.map((p, i) => p.then((chunk) => ({ chunk, index: i }))),
-        );
-        controller.enqueue(chunk);
-        remaining.splice(index, 1);
-      }
-
-      controller.close();
+export function createLoaderDataResponse(
+  data: unknown,
+  signal?: AbortSignal,
+): Response {
+  const { processed, pending } = prepareData(data);
+  if (pending.entries.length) {
+    return new Response(createDataStream(processed, pending, signal), {
+      headers: {
+        "Content-Type": "application/x-ndjson",
+        "X-Juniper": "data",
+        "Cache-Control": "no-transform",
+      },
+    });
+  }
+  const bytes = new TextEncoder().encode(
+    JSON.stringify(toTaggedJson(processed)),
+  );
+  return new Response(bytes, {
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Length": String(bytes.length),
+      "X-Juniper": "data",
     },
   });
 }
 
-function restoreValueWithPendingPromises(
-  value: unknown,
-  promiseResolvers: Map<string, {
-    resolve: (value: unknown) => void;
-    reject: (error: unknown) => void;
-  }>,
-): unknown {
-  if (value === null || value === undefined) {
-    return value;
-  }
-
-  if (value instanceof Tag) {
-    const tagNum = Number(value.tag);
-
-    if (tagNum === PROMISE_PENDING_TAG) {
-      const id = value.contents as string;
-      const { promise, resolve, reject } = Promise.withResolvers<unknown>();
-      promiseResolvers.set(id, { resolve, reject });
-      return promise;
-    }
-
-    if (tagNum === PROMISE_RESOLVED_TAG) {
-      const restored = restoreValueWithPendingPromises(
-        value.contents,
-        promiseResolvers,
-      );
-      return Promise.resolve(restored);
-    }
-
-    if (tagNum === PROMISE_REJECTED_TAG) {
-      const error = deserializeError(value.contents as Record<string, unknown>);
-      return Promise.reject(error);
-    }
-
-    if (tagNum === CUSTOM_TYPE_TAG) {
-      const { __type, data } = value.contents as {
-        __type: string;
-        data: unknown;
-      };
-      const serializer = typeRegistry.get(__type);
-      if (serializer) {
-        return serializer.deserialize(data);
-      }
-      console.warn(`No deserializer registered for type "${__type}"`);
-      return data;
-    }
-
-    if (tagNum === ERROR_TAG) {
-      return deserializeError(value.contents as Record<string, unknown>);
-    }
-
-    return restoreValueWithPendingPromises(value.contents, promiseResolvers);
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((v) =>
-      restoreValueWithPendingPromises(v, promiseResolvers)
-    );
-  }
-
-  if (value instanceof Date) {
-    return value;
-  }
-
-  if (typeof value === "object") {
-    const result: Record<string, unknown> = {};
-    for (const [key, val] of Object.entries(value)) {
-      defineOwnValue(
-        result,
-        key,
-        restoreValueWithPendingPromises(val, promiseResolvers),
-      );
-    }
-    return result;
-  }
-
-  return value;
-}
-
-function createLengthPrefixedReader(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-): () => Promise<Uint8Array | null> {
-  let buffer = new Uint8Array(0);
-
+function createLineReader(
+  reader: ReadableStreamDefaultReader<string>,
+): () => Promise<string | null> {
+  let fragments: string[] = [];
+  let buffer = "";
+  let offset = 0;
   return async () => {
-    while (buffer.length < 4) {
-      const { done, value } = await reader.read();
-      if (done) {
-        if (buffer.length === 0) return null;
-        throw new Error("Unexpected end of stream while reading chunk length");
+    while (true) {
+      const end = buffer.indexOf("\n", offset);
+      if (end !== -1) {
+        fragments.push(buffer.slice(offset, end));
+        const line = fragments.join("");
+        fragments = [];
+        offset = end + 1;
+        return line;
       }
-      const newBuffer = new Uint8Array(buffer.length + value.length);
-      newBuffer.set(buffer);
-      newBuffer.set(value, buffer.length);
-      buffer = newBuffer;
-    }
-
-    const view = new DataView(buffer.buffer, buffer.byteOffset);
-    const length = view.getUint32(0, false);
-
-    while (buffer.length < 4 + length) {
-      const { done, value } = await reader.read();
-      if (done) {
-        throw new Error("Unexpected end of stream while reading chunk data");
+      if (offset < buffer.length) fragments.push(buffer.slice(offset));
+      const next = await reader.read();
+      if (next.done) {
+        const line = fragments.length ? fragments.join("") : null;
+        fragments = [];
+        buffer = "";
+        offset = 0;
+        return line;
       }
-      const newBuffer = new Uint8Array(buffer.length + value.length);
-      newBuffer.set(buffer);
-      newBuffer.set(value, buffer.length);
-      buffer = newBuffer;
+      buffer = next.value;
+      offset = 0;
     }
-
-    const chunkData = buffer.slice(4, 4 + length);
-    buffer = buffer.slice(4 + length);
-    return chunkData;
   };
 }
-/**
- * Deserialize streaming loader data from a Response.
- * Reads the stream and returns the data structure with promises that
- * will be resolved as resolution messages arrive.
- *
- * @param response - The streaming Response from the server
- * @returns The deserialized data with live promises
- */
+
 export async function deserializeStreamingLoaderData<T = unknown>(
   response: Response,
 ): Promise<T> {
-  const reader = response.body!.getReader();
-  const promiseResolvers = new Map<
-    string,
-    { resolve: (value: unknown) => void; reject: (error: unknown) => void }
-  >();
-
-  const readChunk = createLengthPrefixedReader(reader);
+  if (!response.body) throw new Error("Empty data response");
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+  const pending: PromiseResolvers = new Map();
+  const readLine = createLineReader(reader);
+  function rejectPending(error: unknown): void {
+    for (const resolver of pending.values()) resolver.reject(error);
+    pending.clear();
+  }
   let data: unknown;
   try {
-    const initialChunk = await readChunk();
-    if (!initialChunk) throw new Error("Empty streaming response");
-    data = restoreValueWithPendingPromises(
-      decode(initialChunk),
-      promiseResolvers,
-    );
+    const line = await readLine();
+    if (line === null) throw new Error("Empty data response");
+    data = restoreValue(fromTaggedJson(JSON.parse(line)), pending);
   } catch (error) {
-    reader.cancel(error).catch(() => {});
+    rejectPending(error);
+    await reader.cancel(error).catch(() => {});
     reader.releaseLock();
     throw error;
   }
-
-  if (promiseResolvers.size > 0) {
+  if (!pending.size) {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  } else {
     (async () => {
       try {
-        let chunk: Uint8Array | null;
-        while ((chunk = await readChunk()) !== null) {
-          const resolution = decode(chunk) as PromiseResolution;
-          const resolver = promiseResolvers.get(resolution.id);
-          if (resolver) {
+        let line: string | null;
+        while ((line = await readLine()) !== null) {
+          const resolution = JSON.parse(line) as PromiseResolution;
+          const resolver = pending.get(resolution.id);
+          if (!resolver) continue;
+          pending.delete(resolution.id);
+          try {
             if (resolution.status === "resolved") {
-              const restoredValue = restoreValue(resolution.value);
-              resolver.resolve(restoredValue);
+              resolver.resolve(
+                restoreValue(fromTaggedJson(resolution.value), pending),
+              );
+            } else if (resolution.status === "rejected") {
+              resolver.reject(
+                deserializeError(
+                  restoreValue(
+                    fromTaggedJson(resolution.error),
+                    pending,
+                  ) as Record<string, unknown>,
+                ),
+              );
             } else {
-              const error = deserializeError(resolution.error!);
-              resolver.reject(error);
+              throw new Error("Invalid promise resolution status");
             }
-            promiseResolvers.delete(resolution.id);
+          } catch (error) {
+            resolver.reject(error);
           }
         }
-        if (promiseResolvers.size > 0) {
+        if (pending.size) {
           throw new Error(
             "Unexpected end of stream before all promises resolved",
           );
         }
       } catch (error) {
-        for (const resolver of promiseResolvers.values()) {
-          resolver.reject(error);
-        }
-        promiseResolvers.clear();
-        reader.cancel(error).catch(() => {});
+        rejectPending(error);
+        await reader.cancel(error).catch(() => {});
       } finally {
         reader.releaseLock();
       }
     })();
-  } else {
-    reader.cancel().catch(() => {});
-    reader.releaseLock();
   }
   return data as T;
-}
-
-/**
- * Encode data as base64 of CBOR, the version 2 hydration payload format.
- * Only tests produce it now; documents rendered before version 3 still carry it.
- *
- * @param data - The data to encode
- * @returns The base64 encoded string
- */
-export function encodeToBase64(data: unknown): string {
-  const bytes = cborEncode(data);
-  let binary = "";
-  for (let offset = 0; offset < bytes.length; offset += 32768) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768));
-  }
-  return btoa(binary);
-}
-
-/**
- * Decode data from a base64 string.
- *
- * @param base64 - The base64 string to decode
- * @returns The decoded data
- */
-export function decodeFromBase64<T = unknown>(base64: string): T {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return cborDecode<T>(bytes);
 }
 
 /**
@@ -811,10 +693,10 @@ export function serializeAllContext(
       const value = routerContext.get(serializer.context as any);
       const data = serializer.serialize(value);
       if (data !== undefined) {
-        result[name] = data;
+        defineOwnValue(result, name, data);
       }
     } catch {
-      // skip
+      continue;
     }
   }
 
@@ -839,171 +721,10 @@ export function deserializeAllContext(
   }
 }
 
-/**
- * A JSON value as it appears in the version 3 hydration payload: plain JSON,
- * with values JSON cannot carry replaced by `{"$t": tag, "v": value}` objects.
- */
-export type TaggedJson =
-  | null
-  | boolean
-  | number
-  | string
-  | TaggedJson[]
-  | { [key: string]: TaggedJson };
-
-const JSON_TAG_KEY = "$t";
-const JSON_VALUE_KEY = "v";
-
-function tagged(tag: string | number, value?: TaggedJson): TaggedJson {
-  return value === undefined
-    ? { [JSON_TAG_KEY]: tag }
-    : { [JSON_TAG_KEY]: tag, [JSON_VALUE_KEY]: value };
-}
-
-function collapseBigIntLikeCbor(value: bigint): number | bigint {
-  return cborDecode<number | bigint>(cborEncode(value));
-}
-
-function numberToTaggedJson(value: number): TaggedJson {
-  if (Number.isNaN(value)) return tagged("number", "NaN");
-  if (value === Infinity) return tagged("number", "Infinity");
-  if (value === -Infinity) return tagged("number", "-Infinity");
-  if (Object.is(value, -0)) return tagged("number", "-0");
-  return value;
-}
-
-function mustEscapeObjectKeys(keys: string[]): boolean {
-  return keys.includes(JSON_TAG_KEY) || keys.includes("__proto__");
-}
-
-/**
- * Converts a processed value (the output of `processValue`) into JSON-safe
- * tagged form. Decodes back through `fromTaggedJson` into exactly what CBOR
- * decoding of the same value produces, so `restoreValue` treats both alike.
- *
- * @throws {TypeError} For functions and symbols, which CBOR also refuses.
- */
-export function toTaggedJson(value: unknown): TaggedJson {
-  if (value === undefined) return tagged("undefined");
-  if (value === null || typeof value === "boolean") return value;
-  if (typeof value === "string") return value.toWellFormed();
-  if (typeof value === "number") return numberToTaggedJson(value);
-  if (typeof value === "bigint") {
-    const collapsed = collapseBigIntLikeCbor(value);
-    return typeof collapsed === "number"
-      ? collapsed
-      : tagged("bigint", collapsed.toString());
-  }
-  if (typeof value === "function" || typeof value === "symbol") {
-    throw new TypeError(`Cannot serialize a ${typeof value} value`);
-  }
-  if (value instanceof Tag) {
-    return tagged(Number(value.tag), toTaggedJson(value.contents));
-  }
-  if (value instanceof Date) {
-    return tagged("Date", numberToTaggedJson(value.getTime()));
-  }
-  if (Array.isArray(value)) return Array.from(value, toTaggedJson);
-
-  const entries = Object.entries(value as Record<string, unknown>).map((
-    [key, entry],
-  ): [string, TaggedJson] => [key.toWellFormed(), toTaggedJson(entry)]);
-  if (mustEscapeObjectKeys(entries.map(([key]) => key))) {
-    return tagged("object", entries);
-  }
-  return Object.fromEntries(entries);
-}
-
-function objectFromEntries(
-  entries: [string, unknown][],
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const [key, entry] of entries) {
-    Object.defineProperty(result, key, {
-      value: fromTaggedJson(entry),
-      enumerable: true,
-      writable: true,
-      configurable: true,
-    });
-  }
-  return result;
-}
-
-function fromTag(tag: unknown, value: unknown): unknown {
-  if (typeof tag === "number") return new Tag(tag, fromTaggedJson(value));
-  switch (tag) {
-    case "undefined":
-      return undefined;
-    case "number":
-      return Number(value);
-    case "bigint":
-      return BigInt(value as string);
-    case "Date":
-      return new Date(fromTaggedJson(value) as number);
-    case "object":
-      return objectFromEntries(value as [string, unknown][]);
-  }
-  throw new Error(`Unknown hydration data tag: ${String(tag)}`);
-}
-
-/**
- * Converts the tagged JSON of a version 3 payload back into the value CBOR
- * decoding would have produced, ready for `restoreValue`.
- *
- * @throws {Error} On a tag this version of Juniper does not know.
- */
-export function fromTaggedJson(value: unknown): unknown {
-  if (value === null || typeof value !== "object") return value;
-  if (Array.isArray(value)) return value.map(fromTaggedJson);
-  const record = value as Record<string, unknown>;
-  if (Object.hasOwn(record, JSON_TAG_KEY)) {
-    return fromTag(record[JSON_TAG_KEY], record[JSON_VALUE_KEY]);
-  }
-  return objectFromEntries(Object.entries(record));
-}
-
-/**
- * Serializes a value as JSON text that is safe to place inside an inline
- * `<script>` element: `<` and the U+2028/U+2029 line terminators are written
- * as escapes, so no string in the value can close the element, open a comment,
- * or end a line in an older JavaScript parser.
- */
-export function toInlineScriptJson(value: unknown): string {
-  return JSON.stringify(value)
-    .replaceAll("<", "\\u003c")
-    .replaceAll("\u2028", "\\u2028")
-    .replaceAll("\u2029", "\\u2029");
-}
-
-/** Version 2 hydration payload: loader data as base64 of CBOR. */
-export interface SerializedHydrationDataV2 {
-  /** Version identifier for compatibility checking */
-  version: 2;
-  /** Base64 encoded CBOR data */
-  data: string;
-  /** Public environment variables */
-  publicEnv?: Record<string, string>;
-}
-
-/** Version 3 hydration payload: loader data as tagged JSON. */
-export interface SerializedHydrationDataV3 {
-  /** Version identifier for compatibility checking */
+export interface SerializedHydrationData {
   version: 3;
-  /** Tagged JSON data */
   data: TaggedJson;
-  /** Public environment variables */
-  publicEnv?: Record<string, string>;
 }
-
-/**
- * Hydration data as embedded in the document. The server writes version 3;
- * the client also reads version 2, which documents cached before the upgrade
- * still carry.
- */
-export type SerializedHydrationData =
-  | SerializedHydrationDataV2
-  | SerializedHydrationDataV3;
-
 /**
  * Hydration data structure.
  */
@@ -1028,78 +749,49 @@ export interface HydrationData {
   buildId?: string;
 }
 
-/**
- * Applies server error privacy and resolves promises in hydration data,
- * producing the value every payload version encodes. Exported so tests can
- * build a version 2 payload from the same input.
- */
-export async function processHydrationData(
+function registeredNames(): string[] {
+  return [
+    ...Array.from(typeRegistry.keys(), (name) => `type:${name}`),
+    ...Array.from(errorRegistry.keys(), (name) => `error:${name}`),
+    ...Array.from(contextRegistry.keys(), (name) => `context:${name}`),
+  ].sort();
+}
+
+export async function serializeHydrationData(
   hydrationData: HydrationData,
-): Promise<unknown> {
-  const { publicEnv: _publicEnv, errors, ...rest } = hydrationData;
-  return await processValue({
+): Promise<SerializedHydrationData> {
+  const { errors, ...rest } = hydrationData;
+  const processed = await processValue({
     ...rest,
     errors: errors && Object.fromEntries(
       Object.entries(errors).map((
         [id, error],
       ) => [id, sanitizeServerError(error)]),
     ),
+    ...(isDevelopment() ? { registeredNames: registeredNames() } : {}),
   });
+  return { version: 3, data: toTaggedJson(processed) };
 }
 
-/**
- * Serialize hydration data for embedding in HTML.
- *
- * @param hydrationData - The hydration data to serialize
- * @returns The serialized hydration data
- */
-export async function serializeHydrationData(
-  hydrationData: HydrationData,
-): Promise<SerializedHydrationDataV3> {
-  return {
-    version: 3,
-    data: toTaggedJson(await processHydrationData(hydrationData)),
-    publicEnv: hydrationData.publicEnv,
-  };
-}
-
-function decodeHydrationPayload(
-  serialized: SerializedHydrationData,
-): unknown {
-  if (serialized.version === 3) return fromTaggedJson(serialized.data);
-  if (serialized.version === 2) return decodeFromBase64(serialized.data);
-  throw new Error(
-    `Unsupported hydration data version: ${
-      String((serialized as { version: unknown }).version)
-    }`,
-  );
-}
-
-/**
- * Deserialize hydration data from the serialized format.
- *
- * @param serialized - The serialized hydration data
- * @returns The deserialized hydration data
- * @throws {Error} If the payload version is neither 2 nor 3.
- */
 export function deserializeHydrationData(
   serialized: SerializedHydrationData,
 ): HydrationData {
-  const restored = restoreValue(decodeHydrationPayload(serialized)) as {
-    serializedContext?: unknown;
-    matches: { id: string }[];
-    errors?: Record<string, unknown> | null;
-    loaderData?: Record<string, unknown> | null;
-    actionData?: Record<string, unknown> | null;
-    buildId?: string;
-  };
-
+  const decoded = decodeHydrationPayload(serialized);
+  if (Array.isArray(decoded.registeredNames)) {
+    const available = new Set(registeredNames());
+    const missing = decoded.registeredNames.filter((name) =>
+      !available.has(name)
+    );
+    if (missing.length) {
+      console.error(`Missing Juniper registrations: ${missing.join(", ")}`);
+    }
+  }
+  const restored = restoreValue(decoded) as HydrationData;
   return {
-    publicEnv: serialized.publicEnv,
+    publicEnv: restored.publicEnv,
     serializedContext: restored.serializedContext,
     buildId: restored.buildId,
     matches: restored.matches,
-    // React Router needs undefined, not null, for these fields.
     errors: restored.errors ?? undefined,
     loaderData: restored.loaderData ?? undefined,
     actionData: restored.actionData ?? undefined,
@@ -1107,23 +799,13 @@ export function deserializeHydrationData(
 }
 
 function initializeBuiltInSerializers(): void {
-  // Order matters: HttpError before generic Error, generic Error registered last as fallback.
   _addErrorSerializer<HttpError>({
     name: "HttpError",
     is: (e): e is HttpError => e instanceof HttpError || isHttpErrorLike(e),
     serialize: (error) => {
-      // `exposedMessage`, never `message`: this payload reaches the browser
-      // through client-navigation data errors and the SSR hydration script, and
-      // `message` is where an app puts detail meant for its own logs. The
-      // rendering layer already drew this boundary; the wire did not, so an
-      // internal message shipped to every client on a data-error path.
       const serialized: Record<string, unknown> = {
         message: error.exposedMessage,
         status: error.status,
-        // Everything written above is exposable by construction, so the flag
-        // says so rather than replaying a server-side decision the client
-        // cannot act on: `expose: false` here would make the deserialized
-        // error's `exposedMessage` disagree with the text it was handed.
         expose: true,
       };
       if (error.instance !== undefined) serialized.instance = error.instance;
@@ -1135,9 +817,11 @@ function initializeBuiltInSerializers(): void {
     deserialize: (data) => {
       const error = new HttpError(
         data.status as number,
-        data.message as string,
+        {
+          message: data.message as string,
+          expose: data.expose as boolean | undefined,
+        },
       );
-      if (data.expose !== undefined) error.expose = data.expose as boolean;
       if (data.instance !== undefined) error.instance = data.instance as string;
       if (data.stack) error.stack = data.stack as string;
       return error;
