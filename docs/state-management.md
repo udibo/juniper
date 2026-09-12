@@ -359,13 +359,13 @@ deferred resolutions. Values JSON cannot express use string tags of the form
 throw. Plain objects with an own `$t` or `__proto__` key use escaped entry
 lists, including inside serializer output, so their keys remain ordinary data.
 
-The first document load embeds hydration version 3 with one tagged value
-containing loader/action data, errors, context, and public environment values.
-Application registrations do not transform public environment strings or
-diagnostic registration names; these still travel inside the same tagged value.
-Every `<`, U+2028, and U+2029 in that script is written as a `\u` escape.
-Documents carrying another hydration version use the guarded document reload
-path. There is no legacy decoder; deploy the server and browser build together.
+The first document load embeds one tagged hydration value containing
+loader/action data, errors, context, and public environment values. Application
+registrations do not transform public environment strings or diagnostic
+registration names; these still travel inside the same tagged value. Every `<`,
+U+2028, and U+2029 in that script is written as a `\u` escape. Deploy server
+code and browser assets from the same build. If their hydration formats do not
+match, Juniper uses a guarded document reload.
 
 Client navigations and fetchers receive settled data as `application/json` with
 a UTF-8 `Content-Length`. Deferred data uses `application/x-ndjson`: the first

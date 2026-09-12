@@ -38,12 +38,6 @@ seamless full-stack development experience.
 
 ## Quick Start
 
-Version 0.12 uses tagged JSON throughout and requires matching server and
-browser builds. Older hydration payloads trigger a guarded document reload.
-Middleware should identify loader/action responses by `X-Juniper: data`. See
-[How Values Travel](docs/state-management.md#how-values-travel) for the wire
-format and registration contracts.
-
 Use `degit` to clone a template and get started:
 
 ```bash
