@@ -14,6 +14,7 @@ import {
   it,
 } from "@std/testing/bdd";
 import { assertSpyCalls, stub } from "@std/testing/mock";
+import { FakeTime } from "@std/testing/time";
 import { delay } from "@std/async/delay";
 import { deadline } from "@std/async/deadline";
 import { HttpError } from "./mod.ts";
@@ -983,9 +984,12 @@ describe("createLazyRoute failure recovery", () => {
     registerRouter(undefined);
   });
 
-  function failingLazyRoute() {
+  function failingLazyRoute(importDelay = 0) {
     return createLazyRoute(
-      () => Promise.reject(new Error("chunk missing")),
+      async () => {
+        if (importDelay) await delay(importDelay);
+        throw new Error("chunk missing");
+      },
       undefined,
       "route-1",
     );
@@ -1004,15 +1008,17 @@ describe("createLazyRoute failure recovery", () => {
   }
 
   async function assertPendingRecovery(
+    time: FakeTime,
     result: Promise<unknown>,
   ): Promise<void> {
     let outcome = "pending";
     result.then(() => outcome = "resolved", () => outcome = "rejected");
-    await delay(10);
+    await time.tickAsync(1);
     assertEquals(outcome, "pending");
   }
 
   it("hard-navigates to the in-flight navigation's destination", async () => {
+    using time = new FakeTime();
     registerRouter({
       state: {
         location: { pathname: "/current", search: "", hash: "" },
@@ -1022,18 +1028,19 @@ describe("createLazyRoute failure recovery", () => {
       },
     });
 
-    await assertPendingRecovery(recoverFailedLazyRoute());
+    await assertPendingRecovery(time, recoverFailedLazyRoute());
 
     assertEquals(assigned, ["/destination?q=1#top"]);
   });
 
   it("keeps the current route without publishing an error during document recovery", async () => {
+    using time = new FakeTime();
     const router = createMemoryRouter([{
       path: "/current",
       Component: () => <div>Current page</div>,
     }, {
       path: "/destination",
-      lazy: failingLazyRoute(),
+      lazy: failingLazyRoute(25),
     }], { initialEntries: ["/current"] });
     registerRouter(router);
     const errors: unknown[] = [];
@@ -1041,7 +1048,9 @@ describe("createLazyRoute failure recovery", () => {
       if (state.errors) errors.push(state.errors);
     });
     try {
-      await assertPendingRecovery(router.navigate("/destination?q=1#top"));
+      const navigation = router.navigate("/destination?q=1#top");
+      await time.tickAsync(25);
+      await assertPendingRecovery(time, navigation);
       assertEquals(assigned, ["/destination?q=1#top"]);
       assertEquals(router.state.location.pathname, "/current");
       assertEquals(router.state.navigation.state, "loading");
@@ -1053,6 +1062,7 @@ describe("createLazyRoute failure recovery", () => {
   });
 
   it("retries a canceled document recovery on a later navigation", async () => {
+    using time = new FakeTime();
     const router = createMemoryRouter([{
       path: "/current",
       Component: () => <div>Current page</div>,
@@ -1062,9 +1072,15 @@ describe("createLazyRoute failure recovery", () => {
     }], { initialEntries: ["/current"] });
     registerRouter(router);
     try {
-      await assertPendingRecovery(router.navigate("/destination?q=1#top"));
+      await assertPendingRecovery(
+        time,
+        router.navigate("/destination?q=1#top"),
+      );
       await router.navigate("/current");
-      await assertPendingRecovery(router.navigate("/destination?q=2#retry"));
+      await assertPendingRecovery(
+        time,
+        router.navigate("/destination?q=2#retry"),
+      );
       assertEquals(assigned, [
         "/destination?q=1#top",
         "/destination?q=2#retry",
@@ -1081,6 +1097,7 @@ describe("createLazyRoute failure recovery", () => {
   });
 
   it("keeps a form navigation pending during document recovery", async () => {
+    using time = new FakeTime();
     const router = createMemoryRouter([{
       path: "/current",
       Component: () => <div>Current page</div>,
@@ -1090,10 +1107,13 @@ describe("createLazyRoute failure recovery", () => {
     }], { initialEntries: ["/current"] });
     registerRouter(router);
     try {
-      await assertPendingRecovery(router.navigate("/destination", {
-        formMethod: "post",
-        formData: new FormData(),
-      }));
+      await assertPendingRecovery(
+        time,
+        router.navigate("/destination", {
+          formMethod: "post",
+          formData: new FormData(),
+        }),
+      );
       assertEquals(assigned, ["/destination"]);
       assertEquals(router.state.location.pathname, "/current");
       assertEquals(router.state.navigation.state, "submitting");
@@ -1104,6 +1124,7 @@ describe("createLazyRoute failure recovery", () => {
   });
 
   it("holds initial lazy matching until the replacement document arrives", async () => {
+    using time = new FakeTime();
     const client = new Client({
       path: "/",
       children: [{
@@ -1112,6 +1133,7 @@ describe("createLazyRoute failure recovery", () => {
       }],
     });
     await assertPendingRecovery(
+      time,
       client.loadLazyMatches([{ id: "/destination" }]),
     );
     assertEquals(assigned, ["http://localhost/current"]);
@@ -1119,6 +1141,7 @@ describe("createLazyRoute failure recovery", () => {
   });
 
   it("navigates to the settled location when no navigation is in flight", async () => {
+    using time = new FakeTime();
     registerRouter({
       state: {
         location: { pathname: "/current", search: "?tab=2", hash: "" },
@@ -1126,27 +1149,29 @@ describe("createLazyRoute failure recovery", () => {
       },
     });
 
-    await assertPendingRecovery(recoverFailedLazyRoute());
+    await assertPendingRecovery(time, recoverFailedLazyRoute());
 
     assertEquals(assigned, ["/current?tab=2"]);
   });
 
   it("falls back to location.href when no router is registered", async () => {
-    await assertPendingRecovery(failingLazyRoute()());
+    using time = new FakeTime();
+    await assertPendingRecovery(time, failingLazyRoute()());
 
     assertEquals(assigned, ["http://localhost/current"]);
   });
 
   it("stops navigating once the loop guard trips, so the error can surface", async () => {
+    using time = new FakeTime();
     for (let attempt = 0; attempt < 2; attempt++) {
-      await assertPendingRecovery(failingLazyRoute()());
+      await assertPendingRecovery(time, failingLazyRoute()());
     }
     await assertRejects(
       () => deadline(failingLazyRoute()(), 250),
       Error,
       "chunk missing",
     );
-    await delay(1);
+    await time.tickAsync(1);
 
     assertEquals(assigned.length, 2);
   });
