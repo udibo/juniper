@@ -244,7 +244,7 @@ export class Builder implements AsyncDisposable {
       : [this.watchPaths];
     const resolved: string[] = [];
     for (const root of roots) {
-      await this.collectWatchPaths(
+      await this.#collectWatchPaths(
         path.resolve(this.projectRoot, root),
         resolved,
       );
@@ -252,11 +252,11 @@ export class Builder implements AsyncDisposable {
     return resolved;
   }
 
-  private async collectWatchPaths(
+  async #collectWatchPaths(
     dir: string,
     into: string[],
   ): Promise<void> {
-    if (this.isPathIgnored(dir)) return;
+    if (this.#isPathIgnored(dir)) return;
     const prefix = toPosixPath(dir).replace(/\/+$/, "") + "/";
     const containsIgnored = this.ignorePaths.some((ignore) =>
       toPosixPath(ignore).startsWith(prefix)
@@ -269,8 +269,8 @@ export class Builder implements AsyncDisposable {
       for await (const entry of Deno.readDir(dir)) {
         const child = path.join(dir, entry.name);
         if (entry.isDirectory) {
-          await this.collectWatchPaths(child, into);
-        } else if (!this.isPathIgnored(child)) {
+          await this.#collectWatchPaths(child, into);
+        } else if (!this.#isPathIgnored(child)) {
           into.push(child);
         }
       }
@@ -279,7 +279,7 @@ export class Builder implements AsyncDisposable {
     }
   }
 
-  private isPathIgnored(absolutePath: string): boolean {
+  #isPathIgnored(absolutePath: string): boolean {
     const target = toPosixPath(absolutePath);
     return this.ignorePaths.some((ignore) => {
       const normalized = toPosixPath(ignore);
