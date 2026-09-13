@@ -1,3 +1,21 @@
+# [0.12.0](https://github.com/udibo/juniper/compare/0.11.6...0.12.0) (2026-09-13)
+
+- feat!: use tagged JSON end to end
+  ([#131](https://github.com/udibo/juniper/issues/131))
+  ([f873721](https://github.com/udibo/juniper/commit/f873721e434247f9eb5b813744067cb0b058da2b)),
+  closes [udibo/udibo#974](https://github.com/udibo/udibo/issues/974)
+
+### BREAKING CHANGES
+
+- hydration, data requests, and deferred streams use tagged JSON; legacy
+  hydration versions trigger guarded reloads.
+
+- fix: cover tagged JSON review edge cases
+
+- docs: describe current serialization behavior
+
+- fix: keep private helpers out of API docs
+
 ## [0.11.6](https://github.com/udibo/juniper/compare/0.11.5...0.11.6) (2026-09-12)
 
 ### Bug Fixes
