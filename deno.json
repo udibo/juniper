@@ -173,7 +173,15 @@
     },
     "check": {
       "description": "Checks the code for errors, formatting, and runs the linter.",
-      "command": "deno check && deno lint && deno fmt --check && deno task test:doc-lint && deno task doc-lint"
+      "command": "deno check && deno lint && deno fmt --check && deno task test:allow-scripts && deno task allow-scripts && deno task test:doc-lint && deno task doc-lint"
+    },
+    "allow-scripts": {
+      "description": "Checks install-script decisions against the lockfile and installed packages.",
+      "command": "deno run --allow-read scripts/allow-scripts.ts"
+    },
+    "test:allow-scripts": {
+      "description": "Verifies the install-script gate rejects stale permissions and uncovered scripts.",
+      "command": "deno test --allow-read --allow-run scripts/allow-scripts.test.ts"
     },
     "doc-lint": {
       "description": "Checks public JSDoc coverage and type-checks every exported entrypoint's examples.",
@@ -226,11 +234,12 @@
     "sanitizeResources": true
   },
   "allowScripts": {
-    "allow": ["npm:esbuild@0.27.2"],
+    "allow": [],
     "deny": [
-      "npm:@parcel/watcher@2.5.6",
+      "npm:esbuild@0.18.20",
       "npm:esbuild@0.25.12",
-      "npm:less@4.5.1"
+      "npm:esbuild@0.28.2",
+      "npm:fsevents@2.3.3"
     ]
   }
 }

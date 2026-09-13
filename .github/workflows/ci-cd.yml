@@ -54,6 +54,10 @@ jobs:
           cache: false
       - name: Install dependencies
         run: deno ci
+      - name: Test install-script policy gate
+        run: deno task test:allow-scripts
+      - name: Check install-script policy
+        run: deno task allow-scripts
       - name: Build minimal production application
         run: deno task build:prod:minimal
       - name: Build Tailwind production application
