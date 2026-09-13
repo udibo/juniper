@@ -1,3 +1,5 @@
+## [0.12.1](https://github.com/udibo/juniper/compare/0.12.0...0.12.1) (2026-09-13)
+
 # [0.12.0](https://github.com/udibo/juniper/compare/0.11.6...0.12.0) (2026-09-13)
 
 - feat!: use tagged JSON end to end
