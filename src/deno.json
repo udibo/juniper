@@ -38,7 +38,6 @@
     "@deno/esbuild-plugin": "jsr:@deno/esbuild-plugin@^1.2.1",
     "@opentelemetry/api": "npm:@opentelemetry/api@^1.9.1",
     "babel-plugin-react-compiler": "npm:babel-plugin-react-compiler@^1.0.0",
-    "cbor2": "npm:cbor2@^2.3.0",
     "esbuild": "npm:esbuild@^0.28.2",
     "isbot": "npm:isbot@^5.2.2",
     "quick-lru": "npm:quick-lru@^7.3.0",

@@ -101,11 +101,11 @@ export async function action({
 
 Actions can return data, redirects, or throw redirects. Action data is
 automatically serialized when sent to the client. JSON-shaped data, `undefined`,
-`Date`, and `Error` have built-in handling; `bigint` values are accepted with
-the numeric normalization described in
-[serializable values](state-management.md#serializable-values). Promise values
-can defer data. Register other classes with `registerType` or convert them to
-plain data before returning them.
+`Date`, `Error`, and `bigint` have built-in handling. The same tagged JSON codec
+carries action data in hydration and fetcher responses. Promise values can defer
+data through an NDJSON stream. See
+[How Values Travel](state-management.md#how-values-travel). Register other
+classes with `registerType` or convert them to plain data before returning them.
 
 ```typescript
 // Return data (available in component via actionData)

@@ -446,6 +446,10 @@ describe("Builder", () => {
       await Deno.copyFile(clientSrcPath, clientDstPath);
       await Deno.copyFile(clientInternalSrcPath, clientInternalDstPath);
       await Deno.copyFile(serializationSrcPath, serializationDstPath);
+      await Deno.copyFile(
+        path.resolve(projectRootDir, "_tagged-json.ts"),
+        path.resolve(tmp, "_tagged-json.ts"),
+      );
       await Deno.copyFile(envSrcPath, envDstPath);
       await Deno.copyFile(envInternalSrcPath, envInternalDstPath);
 

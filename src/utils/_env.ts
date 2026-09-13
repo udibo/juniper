@@ -1,4 +1,5 @@
 import type { ClientGlobals } from "../_client.tsx";
+import { decodeHydrationPayload } from "../_tagged-json.ts";
 
 /**
  * Internal environment utilities that can be stubbed for testing.
@@ -15,7 +16,14 @@ export const env = {
     if (env.isServer()) {
       return Deno.env.get(key);
     }
-    return env.getHydrationData()?.publicEnv?.[key];
+    const payload = env.getHydrationData();
+    if (!payload || payload.version !== 3) return undefined;
+    const publicEnv = decodeHydrationPayload(payload).publicEnv as
+      | Record<string, string>
+      | undefined;
+    return publicEnv && Object.hasOwn(publicEnv, key)
+      ? publicEnv[key]
+      : undefined;
   },
   getHydrationData: () => {
     return (globalThis as ClientGlobals).__juniperHydrationData;

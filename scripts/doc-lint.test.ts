@@ -98,17 +98,26 @@ describe("public documentation gate", () => {
     );
   });
 
-  it("tolerates the named private Builder methods but rejects making one public without JSDoc", async () => {
+  it("keeps private identifiers out of public docs and rejects undocumented methods", async () => {
     await using project = await fixture({ ".": "./build.ts" }, {
       "build.ts":
-        "/** Fixture API. @module */\n/** Builds the fixture. */\nexport class Builder {\n private collectWatchPaths(): void {}\n}\n",
+        "/** Fixture API. @module */\n/** Builds the fixture. */\nexport class Builder {\n #collectWatchPaths(): void {}\n}\n",
     });
     assertEquals((await runGate(project.config)).success, true);
-    await Deno.writeTextFile(
-      join(project.directory, "build.ts"),
-      "/** Fixture API. @module */\n/** Builds the fixture. */\nexport class Builder {\n collectWatchPaths(): void {}\n}\n",
-    );
-    assertEquals((await runGate(project.config)).success, false);
+    for (const name of ["collectWatchPaths", "isPathIgnored"]) {
+      for (const access of ["private ", ""]) {
+        await Deno.writeTextFile(
+          join(project.directory, "build.ts"),
+          `/** Fixture API. @module */\n/** Builds the fixture. */\nexport class Builder {\n ${access}${name}(): void {}\n}\n`,
+        );
+        const result = await runGate(project.config);
+        assertEquals(result.success, false, `${access}${name}`);
+        assertStringIncludes(
+          new TextDecoder().decode(result.stderr),
+          "error[missing-jsdoc]",
+        );
+      }
+    }
   });
 
   it("does not hide a plain fatal error beside an allowed external reference", async () => {

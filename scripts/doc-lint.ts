@@ -1,8 +1,7 @@
 /**
  * Checks every published entrypoint for undocumented API and optionally checks
  * its JSDoc examples. Known external-type diagnostics are scoped to their file,
- * public symbol, and referenced type; the named private Builder methods are
- * exempt only while their source declarations remain private.
+ * public symbol, and referenced type.
  * @module
  */
 import { fromFileUrl, relative, resolve, toFileUrl } from "@std/path";
@@ -85,7 +84,7 @@ function splitDiagnostics(
   return { blocks, fatal, counts };
 }
 
-async function isTolerated(block: string, sourceDir: string): Promise<boolean> {
+function isTolerated(block: string, sourceDir: string): boolean {
   const location = block.match(/^\s*-->\s+(.+):(\d+):(\d+)\s*$/m);
   if (!location) return false;
   const file = location[1].startsWith("file:")
@@ -102,25 +101,19 @@ async function isTolerated(block: string, sourceDir: string): Promise<boolean> {
       .test(file.replaceAll("\\", "/")) &&
       routerReferences.has(reference);
   }
-  if (!block.startsWith("error[missing-jsdoc]:") || localFile !== "build.ts") {
-    return false;
-  }
-  const sourceLine =
-    (await Deno.readTextFile(file)).split(/\r?\n/)[Number(location[2]) - 1];
-  return /^\s*private\s+(?:async\s+)?(?:collectWatchPaths|isPathIgnored)\s*\(/
-    .test(sourceLine ?? "");
+  return false;
 }
 
 /** Classifies one doc invocation; only the named package/type exceptions can pass a lint failure. */
-export async function assessDocLint(
+export function assessDocLint(
   code: number,
   stderr: string,
   sourceDir: string,
-): Promise<{ passed: boolean; violations: string[] }> {
+): { passed: boolean; violations: string[] } {
   const { blocks, fatal, counts } = splitDiagnostics(stderr);
   const violations = [...fatal];
   for (const block of blocks) {
-    if (!await isTolerated(block, sourceDir)) violations.push(block);
+    if (!isTolerated(block, sourceDir)) violations.push(block);
   }
   if (
     code !== 0 &&
@@ -162,7 +155,7 @@ export async function lintDocumentation(
     stderr: "piped",
   }).output();
   const stderr = new TextDecoder().decode(result.stderr);
-  const assessment = await assessDocLint(result.code, stderr, sourceDir);
+  const assessment = assessDocLint(result.code, stderr, sourceDir);
   if (!assessment.passed) {
     console.error(stderr);
     console.error(

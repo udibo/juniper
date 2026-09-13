@@ -32,15 +32,13 @@ import { getInstance } from "./utils/otel.ts";
 
 import { App, generateRouteId, JuniperContextProvider } from "./_client.tsx";
 import {
-  cborEncode,
-  containsPromises,
-  createStreamingLoaderData,
+  createLoaderDataResponse,
   sanitizeServerData,
   sanitizeServerError,
   serializeAllContext,
   serializeError,
   serializeHydrationData,
-  serializeLoaderData,
+  toInlineScriptJson,
 } from "./_serialization.ts";
 import type { SerializedHydrationData } from "./_serialization.ts";
 import { startActiveSpan } from "./utils/_otel.ts";
@@ -375,7 +373,7 @@ async function renderDocument(
           hydrationData,
         ).then((data: SerializedHydrationData) =>
           `import { client } from "/build/main.js"; window.__juniperHydrationData = ${
-            JSON.stringify(data).replaceAll("<", "\\u003c")
+            toInlineScriptJson(data)
           }; await client.hydrate();`
         );
 
@@ -807,7 +805,7 @@ export function toRedirectEnvelope(response: Response): Response {
 /**
  * Builds the Hono handlers for the client routes — server-rendered documents
  * and data requests — plus the error handler `createServer` installs alongside
- * them, which renders an error as a document, or as a CBOR error response for
+ * them, which renders an error as a document, or as a tagged JSON error response for
  * data requests.
  */
 export function createHandlers<
@@ -879,19 +877,11 @@ export function createHandlers<
           return c.newResponse(response.body, response);
         }
 
-        if (containsPromises(dataOrResponse)) {
-          c.header("Content-Type", "application/cbor-stream");
-
-          const dataStream = createStreamingLoaderData(dataOrResponse);
-          return stream(c, async (streamInstance) => {
-            await streamInstance.pipe(dataStream);
-          });
-        }
-
-        const cborData = await serializeLoaderData(dataOrResponse);
-        return c.newResponse(cborData as Uint8Array<ArrayBuffer>, 200, {
-          "Content-Type": "application/cbor",
-        });
+        const response = createLoaderDataResponse(
+          dataOrResponse,
+          c.req.raw.signal,
+        );
+        return c.newResponse(response.body, response);
       });
     },
   );
@@ -908,14 +898,13 @@ export function createHandlers<
 
     if (c.req.header("X-Juniper-Route-Id")) {
       const serialized = serializeError(error);
-      const cborData = cborEncode(serialized);
-      const headers = new Headers({
-        "Content-Type": "application/cbor",
-      });
+      const response = createLoaderDataResponse(serialized, c.req.raw.signal);
+      const headers = new Headers(response.headers);
       if (error.headers) {
         for (const [key, value] of error.headers.entries()) {
           if (
-            key.toLowerCase() !== "content-type" &&
+            !["content-type", "content-length", "content-encoding", "x-juniper"]
+              .includes(key.toLowerCase()) &&
             key.toLowerCase() !== "set-cookie"
           ) {
             headers.set(key, value);
@@ -925,7 +914,7 @@ export function createHandlers<
           headers.append("Set-Cookie", cookie);
         }
       }
-      return c.newResponse(cborData as Uint8Array<ArrayBuffer>, {
+      return c.newResponse(response.body, {
         status: error.status as StatusCode,
         headers,
       });

@@ -197,7 +197,11 @@ export function ErrorBoundary({
 Errors thrown on the server are serialized for the client. Juniper handles this
 automatically, but you can customize the representation of registered error
 types. See [serializable values](state-management.md#serializable-values) for
-supported data types, numeric normalization, and custom type registration.
+supported data types and custom type registration. Data-request errors use the
+same tagged JSON codec and `X-Juniper: data` marker as successful data.
+Unexpected server failures remain sanitized outside development, and
+`HttpError.exposedMessage` determines the message sent to the browser, including
+deferred rejections.
 
 ### Custom Error Serialization
 
@@ -256,6 +260,18 @@ registerError<CustomError>({
 Import this shared module from the root **client** route so registration occurs
 on the server and in the browser before hydration data is deserialized. An
 import only from `routes/main.ts` never registers the browser-side decoder.
+
+Unknown registered error names throw during decoding. On a deferred stream, only
+the affected promise rejects. Error envelopes keep the registered name in
+`__errorType` and serializer output in `data`; an output property named
+`__errorType` remains data and cannot choose a different deserializer. Output is
+processed recursively and may contain supported values, promises, or registered
+types. A serializer whose output matches its own `is` predicate throws. The
+first matching error registration wins.
+
+Non-Error thrown values use a `null` error type in the envelope, leaving every
+string name available for registered errors. A missing string name always
+throws, including a custom registration named `Unknown`.
 
 ```typescript
 // routes/main.tsx

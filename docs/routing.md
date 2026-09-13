@@ -193,11 +193,12 @@ Export `publicEnvKeys` from the root **server** module, `routes/main.ts`, to
 allowlist additional environment values in hydration data. See
 [configuration](configuration.md#public-environment-variables).
 
-Juniper serializes JSON-shaped data, `undefined`, `Date`, and `Error`. It also
-accepts `bigint` and promise values, with numeric and deferred-data behavior
-described in [serializable values](state-management.md#serializable-values).
-Register other classes with `registerType`; unregistered objects do not retain
-their class identity.
+Juniper carries JSON-shaped data, `undefined`, `Date`, `Error`, `bigint`, and
+promises through one tagged JSON codec. Client data responses carry
+`X-Juniper: data`: settled values use JSON and deferred values stream as NDJSON.
+See [How Values Travel](state-management.md#how-values-travel). Register other
+classes with `registerType`; unregistered objects do not retain their class
+identity.
 
 ### Layout Wrapper Pattern
 

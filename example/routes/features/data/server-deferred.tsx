@@ -34,9 +34,9 @@ export default function ServerDeferredDataDemo({
       </h2>
       <p className="text-slate-300 mb-6 leading-relaxed">
         Server loaders can also return promises for deferred data. The promises
-        are serialized using CBOR and streamed to the client for progressive
-        hydration. This demonstrates the full server-to-client data flow with
-        {" "}
+        are serialized using tagged JSON and streamed to the client for
+        progressive hydration. This demonstrates the full server-to-client data
+        flow with{" "}
         <code className="px-2 py-1 bg-slate-700 rounded text-emerald-400">
           Suspense
         </code>{" "}
@@ -104,13 +104,13 @@ export default function ServerDeferredDataDemo({
             Fast data is included in the initial HTML response
           </li>
           <li>
-            Promises are serialized using CBOR with custom tags
+            As promises resolve, the server streams HTML for each section
           </li>
           <li>
-            Client hydrates immediately with Suspense fallbacks
+            The client hydrates after the document's tagged JSON data is ready
           </li>
           <li>
-            As server promises resolve, data streams to the client
+            Later client data requests stream tagged JSON resolutions as NDJSON
           </li>
         </ol>
       </div>
