@@ -17,6 +17,7 @@ import type {
   LoaderFunction,
   LoaderFunctionArgs,
   MiddlewareFunction as ReactRouterMiddlewareFunction,
+  ShouldRevalidateFunction,
 } from "react-router";
 import React, { createContext, Suspense, useContext } from "react";
 import type { ComponentType } from "react";
@@ -462,6 +463,7 @@ export type Route = {
     args: ActionFunctionArgs<RequestContext>,
   ) => unknown | Promise<unknown>;
   middleware?: ReactRouterMiddlewareFunction<RequestContext>[];
+  shouldRevalidate?: ShouldRevalidateFunction;
 };
 
 export type LazyRouteResult = Omit<Route, "middleware">;
@@ -493,6 +495,7 @@ export function createRoute(
     loader: _loader,
     action: _action,
     middleware: _middleware,
+    shouldRevalidate,
   } = routeFile;
 
   const hasServerLoader = serverFlags?.loader === true;
@@ -697,6 +700,7 @@ export function createRoute(
     loader,
     action,
     middleware,
+    shouldRevalidate,
   };
 }
 

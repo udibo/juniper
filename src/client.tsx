@@ -161,12 +161,14 @@ export class Client {
           loader,
           action,
           middleware,
+          shouldRevalidate,
         } = createRoute(route.main, route.server, routeId);
         routeObject.Component = Component;
         routeObject.ErrorBoundary = ErrorBoundary;
         routeObject.HydrateFallback = HydrateFallback;
         routeObject.loader = loader;
         routeObject.action = action;
+        routeObject.shouldRevalidate = shouldRevalidate;
         if (middleware) {
           (routeObject as { middleware: unknown }).middleware = middleware;
         }
@@ -279,12 +281,14 @@ export class Client {
           HydrateFallback,
           loader,
           action,
+          shouldRevalidate,
         } = await (route.lazy as LazyRoute)();
         if (Component) route.Component = Component;
         if (ErrorBoundary) route.ErrorBoundary = ErrorBoundary;
         if (HydrateFallback) route.HydrateFallback = HydrateFallback;
         if (loader) route.loader = loader;
         if (action) route.action = action;
+        if (shouldRevalidate) route.shouldRevalidate = shouldRevalidate;
         delete route.lazy;
       }
     }
