@@ -1,3 +1,11 @@
+# [0.13.0](https://github.com/udibo/juniper/compare/0.12.1...0.13.0) (2026-09-21)
+
+### Features
+
+- support shouldRevalidate route exports
+  ([#136](https://github.com/udibo/juniper/issues/136))
+  ([da40663](https://github.com/udibo/juniper/commit/da40663126d2ce1f0f58cd468fd0c7af54f156e3))
+
 ## [0.12.1](https://github.com/udibo/juniper/compare/0.12.0...0.12.1) (2026-09-13)
 
 # [0.12.0](https://github.com/udibo/juniper/compare/0.11.6...0.12.0) (2026-09-13)
