@@ -646,20 +646,24 @@ export interface RouteModule<
    * form submission, or fetcher call in the browser.
    *
    * By default React Router revalidates every active loader after a successful
-   * action and whenever the URL changes a matched route's params or search.
-   * Return `false` to keep the current loader data, or return
-   * `defaultShouldRevalidate` to keep that default for the cases you do not
-   * handle. It never runs during server-side rendering or for the initial
+   * action, when a navigation changes a matched route's params or the URL's
+   * search, on a navigation to the current URL, and on an explicit
+   * `useRevalidator().revalidate()`. Return `false` to keep the current loader
+   * data, and return `defaultShouldRevalidate` for every case you do not mean
+   * to skip. It never runs during server-side rendering or for the initial
    * hydration, and it cannot skip the loader of a route that is newly matched
-   * by a navigation.
+   * by a navigation. Export it from the route's `.tsx` module; a `.ts` server
+   * module's `shouldRevalidate` export is ignored.
    *
    * @example
    * ```tsx
    * import type { ShouldRevalidateFunction } from "react-router";
    * export const shouldRevalidate: ShouldRevalidateFunction = (
-   *   { currentUrl, nextUrl, defaultShouldRevalidate },
+   *   { currentUrl, nextUrl, formMethod, defaultShouldRevalidate },
    * ) => {
-   *   if (currentUrl.pathname === nextUrl.pathname) return false;
+   *   const searchOnly = currentUrl.pathname === nextUrl.pathname &&
+   *     currentUrl.search !== nextUrl.search;
+   *   if (!formMethod && searchOnly) return false;
    *   return defaultShouldRevalidate;
    * };
    * ```

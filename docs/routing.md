@@ -187,7 +187,7 @@ A route module can export:
 | `middleware`       | Array     | Functions that run before loaders/actions         |
 | `ErrorBoundary`    | Component | Displays errors for this route                    |
 | `HydrateFallback`  | Component | Shows while deferred route data is unresolved     |
-| `shouldRevalidate` | Function  | Decides whether the loader reruns after a change  |
+| `shouldRevalidate` | Function  | Decides if the loader reruns (client `.tsx` only) |
 | `beforeHydrate`    | Function  | Runs before React hydrates (root `main.tsx` only) |
 
 Export `publicEnvKeys` from the root **server** module, `routes/main.ts`, to
@@ -486,10 +486,13 @@ The behavior depends on which loaders are defined for a route:
 
 ### Skipping Revalidation
 
-After a successful action, and on navigations that change the URL's search or
-the route's params, React Router reruns the loaders of every route that stays on
-the page. Export `shouldRevalidate` from a route's `.tsx` module to keep its
-current loader data instead:
+By default React Router reruns the loader of every route that stays on the page
+after a successful action, when a navigation changes the route's params or the
+URL's search, on a navigation to the current URL, and when
+`useRevalidator().revalidate()` is called. Export `shouldRevalidate` from a
+route's `.tsx` module to keep its current loader data in the cases you choose.
+This one skips the reload when only the search changes, such as a filter or tab
+kept in the URL, and keeps the default everywhere else:
 
 ```tsx
 // routes/products/index.tsx
@@ -498,19 +501,29 @@ import type { ShouldRevalidateFunction } from "react-router";
 export const shouldRevalidate: ShouldRevalidateFunction = ({
   currentUrl,
   nextUrl,
+  formMethod,
   defaultShouldRevalidate,
 }) => {
-  if (currentUrl.pathname === nextUrl.pathname) return false;
+  const searchOnly = currentUrl.pathname === nextUrl.pathname &&
+    currentUrl.search !== nextUrl.search;
+  if (!formMethod && searchOnly) return false;
   return defaultShouldRevalidate;
 };
 ```
 
-Return `defaultShouldRevalidate` for the cases you do not handle. The function
-runs only in the browser, so it applies whichever loader the route uses: a
-`false` result skips the client loader, or the request for the server loader
-when the route has only a server loader. It does not run during server-side
-rendering or hydration, and a route that a navigation newly matches always
-loads.
+Return `defaultShouldRevalidate` for every case you do not mean to skip. A
+condition on the pathname alone also matches form submissions to the same page
+and `revalidate()` calls, which leaves the page showing data from before the
+change. The `formMethod` check keeps the reload after a form submission, and
+comparing the search keeps the reload after `revalidate()`, which does not
+change the URL.
+
+The function runs only in the browser, so it applies whichever loader the route
+uses: a `false` result skips the client loader, or the request for the server
+loader when the route has only a server loader. It does not run during
+server-side rendering or hydration, and a route that a navigation newly matches
+always loads. Juniper reads it only from the `.tsx` module; a `shouldRevalidate`
+exported from the paired `.ts` server module is ignored.
 
 ### Calling Server Loaders from Client Loaders
 

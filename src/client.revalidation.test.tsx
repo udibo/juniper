@@ -25,28 +25,78 @@ function countingRoute(
   };
 }
 
+async function startRouter(
+  client: Client,
+  path: string,
+): Promise<ReturnType<typeof createMemoryRouter>> {
+  const router = createMemoryRouter(client.routeObjects, {
+    initialEntries: [path],
+  });
+  if (!router.state.initialized) {
+    await new Promise<void>((resolve) => {
+      const unsubscribe = router.subscribe((state) => {
+        if (!state.initialized) return;
+        unsubscribe();
+        resolve();
+      });
+    });
+  }
+  return router;
+}
+
 async function loadsAfterSearchChange(
   client: Client,
   path: string,
   loads: () => number,
 ): Promise<number> {
-  const router = createMemoryRouter(client.routeObjects, {
-    initialEntries: [path],
-  });
+  const router = await startRouter(client, path);
   try {
-    if (!router.state.initialized) {
-      await new Promise<void>((resolve) => {
-        const unsubscribe = router.subscribe((state) => {
-          if (!state.initialized) return;
-          unsubscribe();
-          resolve();
-        });
-      });
-    }
     assertEquals(loads(), 1);
     await router.navigate(`${path}?page=2`);
     assertEquals(router.state.location.search, "?page=2");
     return loads();
+  } finally {
+    router.dispose();
+  }
+}
+
+const skipSearchOnlyChanges: ShouldRevalidateFunction = (
+  { currentUrl, nextUrl, formMethod, defaultShouldRevalidate },
+) => {
+  const searchOnly = currentUrl.pathname === nextUrl.pathname &&
+    currentUrl.search !== nextUrl.search;
+  if (!formMethod && searchOnly) return false;
+  return defaultShouldRevalidate;
+};
+
+const skipSamePathname: ShouldRevalidateFunction = (
+  { currentUrl, nextUrl, defaultShouldRevalidate },
+) => {
+  if (currentUrl.pathname === nextUrl.pathname) return false;
+  return defaultShouldRevalidate;
+};
+
+async function loadsAcrossChanges(
+  shouldRevalidate: ShouldRevalidateFunction,
+): Promise<{ search: number; action: number; revalidate: number }> {
+  const { module, loads } = countingRoute(shouldRevalidate);
+  const client = new Client({
+    path: "/",
+    main: { ...module, action: () => ({ saved: true }) },
+  });
+  const router = await startRouter(client, "/");
+  try {
+    assertEquals(loads(), 1);
+    await router.navigate("/?page=2");
+    const search = loads();
+    await router.navigate("/?page=3", {
+      formMethod: "post",
+      formData: new FormData(),
+    });
+    assertEquals(router.state.actionData, { "/": { saved: true } });
+    const action = loads();
+    await router.revalidate();
+    return { search, action, revalidate: loads() };
   } finally {
     router.dispose();
   }
@@ -128,6 +178,22 @@ describe("shouldRevalidate route export", () => {
       children: [{ path: "about", main: () => Promise.resolve(module) }],
     });
     assertEquals(await loadsAfterSearchChange(client, "/about", loads), 1);
+  });
+
+  it("the documented search-only skip still reloads after an action and revalidate()", async () => {
+    assertEquals(await loadsAcrossChanges(skipSearchOnlyChanges), {
+      search: 1,
+      action: 2,
+      revalidate: 3,
+    });
+  });
+
+  it("a pathname-only skip also drops the reloads after an action and revalidate()", async () => {
+    assertEquals(await loadsAcrossChanges(skipSamePathname), {
+      search: 1,
+      action: 1,
+      revalidate: 1,
+    });
   });
 
   it("a lazy root's export stops the router from revalidating its loader", async () => {
