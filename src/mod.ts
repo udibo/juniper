@@ -7,7 +7,7 @@
  * @module
  */
 import type { ReactElement } from "react";
-import type { RouterContext } from "react-router";
+import type { RouterContext, ShouldRevalidateFunction } from "react-router";
 import {
   redirect,
   redirectDocument,
@@ -641,6 +641,30 @@ export interface RouteModule<
   action?: ActionFunction<Params, ActionData>;
   /** The middleware functions that run before loaders and actions. */
   middleware?: MiddlewareFunction<Params>[];
+  /**
+   * Decides whether this route's loader runs again after a navigation,
+   * form submission, or fetcher call in the browser.
+   *
+   * By default React Router revalidates every active loader after a successful
+   * action and whenever the URL changes a matched route's params or search.
+   * Return `false` to keep the current loader data, or return
+   * `defaultShouldRevalidate` to keep that default for the cases you do not
+   * handle. It never runs during server-side rendering or for the initial
+   * hydration, and it cannot skip the loader of a route that is newly matched
+   * by a navigation.
+   *
+   * @example
+   * ```tsx
+   * import type { ShouldRevalidateFunction } from "react-router";
+   * export const shouldRevalidate: ShouldRevalidateFunction = (
+   *   { currentUrl, nextUrl, defaultShouldRevalidate },
+   * ) => {
+   *   if (currentUrl.pathname === nextUrl.pathname) return false;
+   *   return defaultShouldRevalidate;
+   * };
+   * ```
+   */
+  shouldRevalidate?: ShouldRevalidateFunction;
 }
 
 /**

@@ -7,7 +7,13 @@
 import { fromFileUrl, relative, resolve, toFileUrl } from "@std/path";
 
 const externalReferences = new Map<string, ReadonlySet<string>>([
-  ["mod.ts", new Set(['ContextSerializer["context"]|RouterContext'])],
+  [
+    "mod.ts",
+    new Set([
+      'ContextSerializer["context"]|RouterContext',
+      'RouteModule["shouldRevalidate"]|ShouldRevalidateFunction',
+    ]),
+  ],
   [
     "build.ts",
     new Set([

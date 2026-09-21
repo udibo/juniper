@@ -179,15 +179,16 @@ export function ErrorBoundary(
 
 A route module can export:
 
-| Export            | Type      | Description                                       |
-| ----------------- | --------- | ------------------------------------------------- |
-| `default`         | Component | The React component to render                     |
-| `loader`          | Function  | Fetches data before rendering                     |
-| `action`          | Function  | Handles form submissions                          |
-| `middleware`      | Array     | Functions that run before loaders/actions         |
-| `ErrorBoundary`   | Component | Displays errors for this route                    |
-| `HydrateFallback` | Component | Shows while deferred route data is unresolved     |
-| `beforeHydrate`   | Function  | Runs before React hydrates (root `main.tsx` only) |
+| Export             | Type      | Description                                       |
+| ------------------ | --------- | ------------------------------------------------- |
+| `default`          | Component | The React component to render                     |
+| `loader`           | Function  | Fetches data before rendering                     |
+| `action`           | Function  | Handles form submissions                          |
+| `middleware`       | Array     | Functions that run before loaders/actions         |
+| `ErrorBoundary`    | Component | Displays errors for this route                    |
+| `HydrateFallback`  | Component | Shows while deferred route data is unresolved     |
+| `shouldRevalidate` | Function  | Decides whether the loader reruns after a change  |
+| `beforeHydrate`    | Function  | Runs before React hydrates (root `main.tsx` only) |
 
 Export `publicEnvKeys` from the root **server** module, `routes/main.ts`, to
 allowlist additional environment values in hydration data. See
@@ -482,6 +483,34 @@ The behavior depends on which loaders are defined for a route:
   navigation.
 - If a route has both loaders, the server loader runs during SSR, and the client
   loader runs during client-side navigation.
+
+### Skipping Revalidation
+
+After a successful action, and on navigations that change the URL's search or
+the route's params, React Router reruns the loaders of every route that stays on
+the page. Export `shouldRevalidate` from a route's `.tsx` module to keep its
+current loader data instead:
+
+```tsx
+// routes/products/index.tsx
+import type { ShouldRevalidateFunction } from "react-router";
+
+export const shouldRevalidate: ShouldRevalidateFunction = ({
+  currentUrl,
+  nextUrl,
+  defaultShouldRevalidate,
+}) => {
+  if (currentUrl.pathname === nextUrl.pathname) return false;
+  return defaultShouldRevalidate;
+};
+```
+
+Return `defaultShouldRevalidate` for the cases you do not handle. The function
+runs only in the browser, so it applies whichever loader the route uses: a
+`false` result skips the client loader, or the request for the server loader
+when the route has only a server loader. It does not run during server-side
+rendering or hydration, and a route that a navigation newly matches always
+loads.
 
 ### Calling Server Loaders from Client Loaders
 
