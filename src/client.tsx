@@ -27,6 +27,7 @@ import {
 } from "./_client.tsx";
 import type { HydrationData, LazyRoute, ServerFlags } from "./_client.tsx";
 import { deserializeAllContext } from "./_serialization.ts";
+import { isSupportedHydrationVersion } from "./_tagged-json.ts";
 import { env } from "./utils/_env.ts";
 
 export type { HydrationData, ServerFlags };
@@ -306,7 +307,7 @@ export class Client {
    */
   async hydrate(): Promise<void> {
     const serialized = env.getHydrationData();
-    if (serialized && serialized.version !== 3) {
+    if (serialized && !isSupportedHydrationVersion(serialized.version)) {
       return await reloadUnsupportedHydration(serialized.version);
     }
     const { matches, serializedContext, buildId, ...hydrationData } = this

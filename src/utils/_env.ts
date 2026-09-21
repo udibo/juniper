@@ -1,5 +1,34 @@
 import type { ClientGlobals } from "../_client.tsx";
-import { decodeHydrationPayload } from "../_tagged-json.ts";
+import {
+  decodeHydrationPayload,
+  isSupportedHydrationVersion,
+} from "../_tagged-json.ts";
+
+/** The parts of `document` that `whenParsed` reads. */
+export type ParsingDocument = Pick<Document, "readyState" | "addEventListener">;
+
+/**
+ * The deferred hydration queue on `scope`, replacing any non-array value —
+ * such as an element named by DOM clobbering — with a fresh array.
+ */
+export function deferredHydrationQueue(scope: ClientGlobals): unknown[] {
+  const queue = scope.__juniperDeferredHydration;
+  if (Array.isArray(queue)) return queue;
+  return scope.__juniperDeferredHydration = [];
+}
+
+/** Calls `callback` once `document` has finished parsing; never without a document. */
+export function whenParsed(
+  document: ParsingDocument | undefined,
+  callback: () => void,
+): void {
+  if (!document) return;
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", callback, { once: true });
+  } else {
+    callback();
+  }
+}
 
 /**
  * Internal environment utilities that can be stubbed for testing.
@@ -17,7 +46,9 @@ export const env = {
       return Deno.env.get(key);
     }
     const payload = env.getHydrationData();
-    if (!payload || payload.version !== 3) return undefined;
+    if (!payload || !isSupportedHydrationVersion(payload.version)) {
+      return undefined;
+    }
     const publicEnv = decodeHydrationPayload(payload).publicEnv as
       | Record<string, string>
       | undefined;
@@ -29,14 +60,12 @@ export const env = {
     return (globalThis as ClientGlobals).__juniperHydrationData;
   },
   getDeferredHydration: (): unknown[] => {
-    return (globalThis as ClientGlobals).__juniperDeferredHydration ??= [];
+    return deferredHydrationQueue(globalThis as ClientGlobals);
   },
   whenDocumentParsed: (callback: () => void): void => {
-    if (typeof document === "undefined") return;
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", callback, { once: true });
-    } else {
-      callback();
-    }
+    whenParsed(
+      typeof document === "undefined" ? undefined : document,
+      callback,
+    );
   },
 };

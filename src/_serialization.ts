@@ -747,8 +747,13 @@ export function deserializeAllContext(
   }
 }
 
+/**
+ * The document's hydration payload. Version 4 marks a payload with pending
+ * placeholders, so a client that decodes only version 3 reloads instead of
+ * failing on them.
+ */
 export interface SerializedHydrationData {
-  version: 3;
+  version: 3 | 4;
   data: TaggedJson;
 }
 /**
@@ -800,12 +805,13 @@ function hydrationFields(
 function hydrationPayload(
   processed: Record<string, unknown>,
   publicEnv: HydrationData["publicEnv"],
+  version: SerializedHydrationData["version"],
 ): SerializedHydrationData {
   defineOwnValue(processed, "publicEnv", publicEnv);
   if (isDevelopment()) {
     defineOwnValue(processed, "registeredNames", registeredNames());
   }
-  return { version: 3, data: toTaggedJson(processed) };
+  return { version, data: toTaggedJson(processed) };
 }
 
 /** Serializes hydration data after every promise in it settles; SSR uses `prepareHydrationData` instead. */
@@ -816,7 +822,7 @@ export async function serializeHydrationData(
   for (const [key, value] of Object.entries(hydrationFields(hydrationData))) {
     defineOwnValue(processed, key, await processValue(value));
   }
-  return hydrationPayload(processed, hydrationData.publicEnv);
+  return hydrationPayload(processed, hydrationData.publicEnv, 3);
 }
 
 /**
@@ -859,7 +865,11 @@ export function prepareHydrationData(
       defineOwnValue(processed, key, processValueForStreaming(value, pending));
     }
     return {
-      serialized: hydrationPayload(processed, hydrationData.publicEnv),
+      serialized: hydrationPayload(
+        processed,
+        hydrationData.publicEnv,
+        pending.entries.length ? 4 : 3,
+      ),
       deferred: observeDeferred(pending),
     };
   } catch (error) {

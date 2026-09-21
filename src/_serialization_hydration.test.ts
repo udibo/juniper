@@ -269,10 +269,10 @@ describe("hydration payload version 3", () => {
     assertThrows(
       () =>
         deserializeHydrationData(
-          { version: 4, data: {} } as unknown as SerializedHydrationData,
+          { version: 5, data: {} } as unknown as SerializedHydrationData,
         ),
       Error,
-      "Unsupported hydration data version: 4",
+      "Unsupported hydration data version: 5",
     );
   });
 

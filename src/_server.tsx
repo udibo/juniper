@@ -262,9 +262,10 @@ function DeferredHydrationScript(
         nonce={nonce}
         suppressHydrationWarning
         dangerouslySetInnerHTML={{
-          __html: `(globalThis.__juniperDeferredHydration ||= []).push(${
-            toInlineScriptJson(resolution)
-          });`,
+          __html:
+            `{let q=globalThis.__juniperDeferredHydration;if(!Array.isArray(q))q=globalThis.__juniperDeferredHydration=[];q.push(${
+              toInlineScriptJson(resolution)
+            });}`,
         }}
       />
       <DeferredHydrationScripts deferred={nested} nonce={nonce} />

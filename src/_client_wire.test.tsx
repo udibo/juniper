@@ -6,7 +6,11 @@ import { FakeTime } from "@std/testing/time";
 import { Client } from "@udibo/juniper/client";
 import { HttpError } from "@udibo/juniper";
 import { createRoute } from "./_client.tsx";
-import { createLoaderDataResponse, serializeError } from "./_serialization.ts";
+import {
+  createLoaderDataResponse,
+  prepareHydrationData,
+  serializeError,
+} from "./_serialization.ts";
 import type { SerializedHydrationData } from "./_serialization.ts";
 import { env } from "./utils/_env.ts";
 
@@ -101,7 +105,7 @@ describe("hydration version recovery", () => {
     sessionStorage.removeItem(key);
   });
 
-  for (const version of [2, 4, 0]) {
+  for (const version of [2, 5, 0]) {
     it(`reloads version ${version} before reading its data and coalesces concurrent attempts`, async () => {
       using time = new FakeTime();
       let decoded = 0;
@@ -133,6 +137,29 @@ describe("hydration version recovery", () => {
       assertEquals(JSON.parse(sessionStorage.getItem(key)!).count, 1);
     });
   }
+
+  it("hydrates a version 4 payload with pending placeholders instead of reloading", async () => {
+    using time = new FakeTime();
+    const { serialized } = prepareHydrationData({
+      matches: [{ id: "/" }],
+      loaderData: { "/": { later: Promise.resolve(1) } },
+    });
+    assertEquals(serialized.version, 4);
+    let loaded = 0;
+    using _data = stub(env, "getHydrationData", () => serialized);
+    using _queue = stub(env, "getDeferredHydration", () => []);
+    using _parsed = stub(env, "whenDocumentParsed", () => {});
+    const client = new Client({ path: "/" });
+    using _routes = stub(client, "loadLazyMatches", () => {
+      loaded++;
+      return new Promise<void>(() => {});
+    });
+    client.hydrate();
+    await time.tickAsync(1);
+    assertEquals(reloads, 0);
+    assertEquals(loaded, 1);
+    assertEquals(sessionStorage.getItem(key), null);
+  });
 
   it("surfaces an unsupported version after the guarded reload budget is exhausted", async () => {
     sessionStorage.setItem(
