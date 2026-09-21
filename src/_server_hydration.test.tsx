@@ -5,10 +5,15 @@ import {
   assertFalse,
   assertInstanceOf,
   assertRejects,
+  assertStringIncludes,
 } from "@std/assert";
+import { delay } from "@std/async/delay";
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { createContext } from "react-router";
+import { Suspense } from "react";
+import { Await, createContext } from "react-router";
+import { Hono } from "hono";
+import { NONCE, secureHeaders } from "hono/secure-headers";
 import { Client } from "@udibo/juniper/client";
 import {
   HttpError,
@@ -16,6 +21,7 @@ import {
   registerError,
   registerType,
 } from "@udibo/juniper";
+import type { AnyParams, RouteProps } from "@udibo/juniper";
 import { createServer } from "@udibo/juniper/server";
 import { simulateEnvironment } from "@udibo/juniper/utils/testing";
 import {
@@ -27,6 +33,7 @@ import {
   type SerializedHydrationData,
   serializeHydrationData,
 } from "./_serialization.ts";
+import { env } from "./utils/_env.ts";
 
 const HYDRATION_ASSIGNMENT =
   /window\.__juniperHydrationData = (.*?); await client\.hydrate\(\);/;
@@ -52,7 +59,10 @@ function scriptBodyContaining(html: string, marker: string): string {
   return html.slice(bodyStart, bodyEnd);
 }
 
-function assertEscapedDocument(html: string): SerializedHydrationData {
+function assertEscapedDocument(
+  html: string,
+  version: SerializedHydrationData["version"] = 3,
+): SerializedHydrationData {
   const body = scriptBodyContaining(html, "window.__juniperHydrationData");
   assert(body.startsWith('import { client } from "/build/main.js";'));
   assert(
@@ -66,7 +76,7 @@ function assertEscapedDocument(html: string): SerializedHydrationData {
   const payload = HYDRATION_ASSIGNMENT.exec(body)?.[1];
   assertExists(payload);
   const serialized = JSON.parse(payload) as SerializedHydrationData;
-  assertEquals(serialized.version, 3);
+  assertEquals(serialized.version, version);
   return serialized;
 }
 
@@ -344,4 +354,369 @@ describe("tagged JSON data requests", () => {
       await assertRejects(() => restored.exposed, HttpError, "Not permitted");
     }),
   );
+});
+
+const DEFERRED_QUEUE = "__juniperDeferredHydration";
+
+interface DeferredPageData {
+  now: string;
+  later: Promise<unknown>;
+}
+
+function serverWithDeferredPage(loaderData: () => unknown) {
+  const client = new Client({
+    path: "/",
+    main: {
+      default: ({ loaderData }: RouteProps<AnyParams, DeferredPageData>) => (
+        <main>
+          <p>{loaderData.now}</p>
+          <Suspense fallback={<p>Loading later</p>}>
+            <Await
+              resolve={loaderData.later}
+              errorElement={<p>Later failed</p>}
+            >
+              {(value: unknown) => <p>Later: {JSON.stringify(value)}</p>}
+            </Await>
+          </Suspense>
+        </main>
+      ),
+    },
+  });
+  return createServer(import.meta.url, client, {
+    path: "/",
+    main: { loader: loaderData },
+  });
+}
+
+function documentReader(response: Response) {
+  const reader = response.body!.pipeThrough(new TextDecoderStream())
+    .getReader();
+  let html = "";
+  async function readUntil(done: (html: string) => boolean): Promise<boolean> {
+    while (!done(html)) {
+      const chunk = await reader.read();
+      if (chunk.done) return done(html);
+      html += chunk.value;
+    }
+    return true;
+  }
+  return {
+    get html(): string {
+      return html;
+    },
+    readUntil,
+    async readToEnd(): Promise<string> {
+      try {
+        await readUntil(() => false);
+      } finally {
+        reader.releaseLock();
+      }
+      return html;
+    },
+  };
+}
+
+function hasHydrationScript(html: string): boolean {
+  const at = html.indexOf("window.__juniperHydrationData");
+  return at >= 0 && html.indexOf("</script>", at) > at;
+}
+
+async function emittedBeforeSettling(
+  document: ReturnType<typeof documentReader>,
+  settle: () => void,
+): Promise<boolean> {
+  const timeout = new AbortController();
+  const reading = document.readUntil(hasHydrationScript);
+  const emitted = await Promise.race([
+    reading,
+    delay(2000, { signal: timeout.signal }).then(() => false, () => false),
+  ]);
+  timeout.abort();
+  if (!emitted) {
+    settle();
+    await reading;
+  }
+  return emitted;
+}
+
+function deferredScripts(html: string): { attributes: string; body: string }[] {
+  return Array.from(
+    html.matchAll(/<script([^>]*)>([^<]*)<\/script>/g),
+    ([, attributes, body]) => ({ attributes, body }),
+  ).filter(({ body }) => body.includes(DEFERRED_QUEUE));
+}
+
+function browserScope(scope: Record<string, unknown> = {}) {
+  let executed = 0;
+  return {
+    queue: () => (scope[DEFERRED_QUEUE] ??= []) as unknown[],
+    runNewScripts(html: string): number {
+      const scripts = deferredScripts(html).slice(executed);
+      for (const { body } of scripts) {
+        assertFalse(body.includes(" ") || body.includes(" "));
+        new Function("globalThis", body)(scope);
+      }
+      executed += scripts.length;
+      return scripts.length;
+    },
+  };
+}
+
+function track(promise: Promise<unknown>): { settled: boolean } {
+  const state = { settled: false };
+  promise.then(
+    () => state.settled = true,
+    () => state.settled = true,
+  );
+  return state;
+}
+
+describe("deferred data in the document", () => {
+  beforeEach(resetRegistries);
+  afterEach(resetRegistries);
+
+  it("emits the hydration data before a deferred promise resolves, then resolves it from a later script", async () => {
+    const later = Promise.withResolvers<{ text: string }>();
+    const response = await serverWithDeferredPage(() => ({
+      now: "critical",
+      later: later.promise,
+    })).request("http://localhost/");
+    const document = documentReader(response);
+    const settle = () => later.resolve({ text: hostile });
+
+    assert(
+      await emittedBeforeSettling(document, settle),
+      "the hydration data waited for the deferred promise to settle",
+    );
+    assertStringIncludes(document.html, "Loading later");
+    assertFalse(document.html.includes("Later: "));
+    const hydrationTag = document.html.match(
+      /<script[^>]*>(?=[^<]*__juniperHydrationData)/,
+    )?.[0];
+    assertExists(hydrationTag);
+    assertStringIncludes(
+      hydrationTag,
+      'async=""',
+      "a module script without async waits for the whole document to parse",
+    );
+
+    const browser = browserScope();
+    using _queue = stub(env, "getDeferredHydration", browser.queue);
+    using _parsed = stub(env, "whenDocumentParsed", () => {});
+    const hydration = deserializeHydrationData(
+      assertEscapedDocument(document.html, 4),
+    );
+    const loaderData = hydration.loaderData?.["/"] as DeferredPageData;
+    assertEquals(loaderData.now, "critical");
+    assertInstanceOf(loaderData.later, Promise);
+    const client = track(loaderData.later);
+
+    settle();
+    const html = await document.readToEnd();
+    assertStringIncludes(html, "Later: ");
+    assertFalse(html.includes(hostile));
+    await delay(0);
+    assertFalse(client.settled, "only the streamed script settles it");
+
+    assertEquals(browser.runNewScripts(html), 1);
+    assertEquals(await loaderData.later, { text: hostile });
+  });
+
+  it(
+    "emits the hydration data before a deferred promise rejects, then rejects it with the sanitized error",
+    simulateEnvironment({ APP_ENV: "production" }, async () => {
+      const later = Promise.withResolvers<never>();
+      using _log = stub(console, "error");
+      const response = await serverWithDeferredPage(() => ({
+        now: "critical",
+        later: later.promise,
+      })).request("http://localhost/");
+      const document = documentReader(response);
+      const settle = () => later.reject(new Error("private database detail"));
+
+      assert(
+        await emittedBeforeSettling(document, settle),
+        "the hydration data waited for the deferred promise to settle",
+      );
+
+      const browser = browserScope();
+      using _queue = stub(env, "getDeferredHydration", browser.queue);
+      using _parsed = stub(env, "whenDocumentParsed", () => {});
+      const hydration = deserializeHydrationData(
+        assertEscapedDocument(document.html, 4),
+      );
+      const { later: restored } = hydration.loaderData?.[
+        "/"
+      ] as DeferredPageData;
+      const client = track(restored);
+
+      settle();
+      const html = await document.readToEnd();
+      assertStringIncludes(html, "Later failed");
+      assertFalse(html.includes("private database detail"));
+      await delay(0);
+      assertFalse(client.settled, "only the streamed script settles it");
+
+      assertEquals(browser.runNewScripts(html), 1);
+      await assertRejects(
+        () => restored,
+        HttpError,
+        new HttpError(500).exposedMessage,
+      );
+    }),
+  );
+
+  it("streams a nested deferred promise as its own later script", async () => {
+    const outer = Promise.withResolvers<{ inner: Promise<string> }>();
+    const inner = Promise.withResolvers<string>();
+    const response = await serverWithDeferredPage(() => ({
+      now: "critical",
+      later: outer.promise,
+    })).request("http://localhost/");
+    const document = documentReader(response);
+    const settleAll = () => {
+      outer.resolve({ inner: inner.promise });
+      inner.resolve("deepest");
+    };
+    assert(
+      await emittedBeforeSettling(document, settleAll),
+      "the hydration data waited for the deferred promise to settle",
+    );
+
+    const browser = browserScope();
+    using _queue = stub(env, "getDeferredHydration", browser.queue);
+    using _parsed = stub(env, "whenDocumentParsed", () => {});
+    const { later } = deserializeHydrationData(
+      assertEscapedDocument(document.html, 4),
+    ).loaderData?.["/"] as { later: Promise<{ inner: Promise<string> }> };
+
+    outer.resolve({ inner: inner.promise });
+    await document.readUntil((html) => deferredScripts(html).length > 0);
+    assertEquals(browser.runNewScripts(document.html), 1);
+    const { inner: restoredInner } = await later;
+    assertInstanceOf(restoredInner, Promise);
+    const innerState = track(restoredInner);
+    await delay(0);
+    assertFalse(innerState.settled, "the inner promise is still pending");
+
+    inner.resolve("deepest");
+    assertEquals(browser.runNewScripts(await document.readToEnd()), 1);
+    assertEquals(await restoredInner, "deepest");
+  });
+
+  it("resolves deferred data whose scripts ran before the client read the document", async () => {
+    const html = await (await serverWithDeferredPage(() => ({
+      now: "critical",
+      later: Promise.resolve({ inner: Promise.resolve(7) }),
+    })).request("http://localhost/")).text();
+    const browser = browserScope();
+    assertEquals(browser.runNewScripts(html), 2);
+    using _queue = stub(env, "getDeferredHydration", browser.queue);
+    using _parsed = stub(env, "whenDocumentParsed", (parsed) => parsed());
+    const { later } = deserializeHydrationData(assertEscapedDocument(html, 4))
+      .loaderData?.["/"] as { later: Promise<{ inner: Promise<number> }> };
+    assertEquals(await (await later).inner, 7);
+  });
+
+  it("rejects deferred data still pending once the document is parsed", async () => {
+    const html = await (await serverWithDeferredPage(() => ({
+      now: "critical",
+      later: Promise.resolve("never delivered"),
+    })).request("http://localhost/")).text();
+    const browser = browserScope();
+    using _queue = stub(env, "getDeferredHydration", browser.queue);
+    let parsed: (() => void) | undefined;
+    using _parsed = stub(env, "whenDocumentParsed", (callback) => {
+      parsed = callback;
+    });
+    const { later } = deserializeHydrationData(assertEscapedDocument(html, 4))
+      .loaderData?.["/"] as { later: Promise<string> };
+    assertExists(parsed);
+    parsed();
+    await assertRejects(
+      () => later,
+      Error,
+      "Unexpected end of document before all promises resolved",
+    );
+  });
+
+  it("puts the CSP nonce on every deferred resolution script", async () => {
+    const client = new Client({
+      path: "/",
+      main: { default: () => <div>Nonced</div> },
+    });
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        loader: () => ({ later: Promise.resolve({ inner: delay(1) }) }),
+      },
+    });
+    const app = new Hono();
+    app.use(secureHeaders({
+      contentSecurityPolicy: { scriptSrc: ["'self'", NONCE] },
+    }));
+    app.route("/", server);
+    const response = await app.request("http://localhost/");
+    const html = await response.text();
+    const nonce = response.headers.get("content-security-policy")
+      ?.match(/'nonce-([^']+)'/)?.[1];
+    assertExists(nonce);
+    const scripts = deferredScripts(html);
+    assertEquals(scripts.length, 2);
+    for (const { attributes } of scripts) {
+      assertStringIncludes(attributes, `nonce="${nonce}"`);
+    }
+  });
+
+  it("ends the document when the request aborts while a deferred promise never settles", async () => {
+    const controller = new AbortController();
+    using _log = stub(console, "error");
+    const response = await serverWithDeferredPage(() => ({
+      now: "critical",
+      later: new Promise<never>(() => {}),
+    })).request("http://localhost/", { signal: controller.signal });
+    const document = documentReader(response);
+    assert(
+      await emittedBeforeSettling(document, () => controller.abort()),
+      "the hydration data waited for the deferred promise to settle",
+    );
+    controller.abort(new Error("request canceled"));
+    await document.readToEnd().catch(() => {});
+    assertEquals(deferredScripts(document.html), []);
+  });
+});
+
+describe("deferred data under a clobbered queue global", () => {
+  const global = globalThis as Record<string, unknown>;
+  beforeEach(() => {
+    resetRegistries();
+    global[DEFERRED_QUEUE] = { tagName: "A", id: DEFERRED_QUEUE };
+  });
+  afterEach(() => {
+    delete global[DEFERRED_QUEUE];
+    resetRegistries();
+  });
+
+  async function renderDeferred(): Promise<string> {
+    return await (await serverWithDeferredPage(() => ({
+      now: "critical",
+      later: Promise.resolve({ inner: Promise.resolve("clobber-proof") }),
+    })).request("http://localhost/")).text();
+  }
+
+  it("resolves when the document's scripts run before the client reads the payload", async () => {
+    const html = await renderDeferred();
+    assertEquals(browserScope(global).runNewScripts(html), 2);
+    const { later } = deserializeHydrationData(assertEscapedDocument(html, 4))
+      .loaderData?.["/"] as { later: Promise<{ inner: Promise<string> }> };
+    assertEquals(await (await later).inner, "clobber-proof");
+  });
+
+  it("resolves when the client reads the payload before the document's scripts run", async () => {
+    const html = await renderDeferred();
+    const { later } = deserializeHydrationData(assertEscapedDocument(html, 4))
+      .loaderData?.["/"] as { later: Promise<{ inner: Promise<string> }> };
+    assertEquals(browserScope(global).runNewScripts(html), 2);
+    assertEquals(await (await later).inner, "clobber-proof");
+  });
 });

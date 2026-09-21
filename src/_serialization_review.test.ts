@@ -16,6 +16,7 @@ import {
   deserializeHydrationData,
   deserializeLoaderData,
   deserializeStreamingLoaderData,
+  prepareHydrationData,
   resetRegistries,
   serializeError,
   serializeHydrationData,
@@ -99,6 +100,18 @@ describe("tagged JSON review regressions", () => {
     using _payload = stub(env, "getHydrationData", () => payload);
     assertEquals(getEnv("APP_ENV"), "production");
     assertEquals(isProduction(), true);
+  });
+
+  it("reads browser public environment from a version 4 payload with deferred data", () => {
+    const { serialized } = prepareHydrationData({
+      matches: [],
+      loaderData: { "/": { later: Promise.resolve(1) } },
+      publicEnv: { APP_ENV: "production" },
+    });
+    assertEquals(serialized.version, 4);
+    using _browser = stub(env, "isServer", () => false);
+    using _payload = stub(env, "getHydrationData", () => serialized);
+    assertEquals(getEnv("APP_ENV"), "production");
   });
 
   it(

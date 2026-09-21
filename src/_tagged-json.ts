@@ -126,10 +126,18 @@ export function toInlineScriptJson(value: unknown): string {
 
 const hydrationPayloads = new WeakMap<object, Record<string, unknown>>();
 
+/**
+ * Hydration payload versions this client decodes: 3 carries only settled
+ * values, and 4 may carry pending placeholders resolved by later scripts.
+ */
+export function isSupportedHydrationVersion(version: unknown): boolean {
+  return version === 3 || version === 4;
+}
+
 export function decodeHydrationPayload(
   serialized: { version: number; data: unknown },
 ): Record<string, unknown> {
-  if (serialized.version !== 3) {
+  if (!isSupportedHydrationVersion(serialized.version)) {
     throw new Error(
       `Unsupported hydration data version: ${String(serialized.version)}`,
     );

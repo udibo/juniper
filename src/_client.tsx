@@ -157,6 +157,8 @@ export {
 export type ClientGlobals = {
   /** The Juniper application's hydration data. */
   __juniperHydrationData?: SerializedHydrationData;
+  /** Resolutions of the hydration data's deferred promises, pushed by later document scripts. */
+  __juniperDeferredHydration?: unknown[];
 };
 
 export interface AppProps {
