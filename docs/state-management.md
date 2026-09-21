@@ -362,10 +362,18 @@ lists, including inside serializer output, so their keys remain ordinary data.
 The first document load embeds one tagged hydration value containing
 loader/action data, errors, context, and public environment values. Application
 registrations do not transform public environment strings or diagnostic
-registration names; these still travel inside the same tagged value. Every `<`,
-U+2028, and U+2029 in that script is written as a `\u` escape. Deploy server
-code and browser assets from the same build. If their hydration formats do not
-match, Juniper uses a guarded document reload.
+registration names; these still travel inside the same tagged value. The
+hydration script is sent as soon as the critical data is ready, so the page
+hydrates while deferred sections are still loading: each pending promise is a
+`pending` placeholder, and a later inline script delivers its resolution when it
+settles, as one line of the same shape as the NDJSON lines described below.
+Rejections carry the same error privacy as data responses. Every inline script
+Juniper writes carries the request's CSP nonce when the app sets one, and the
+document stays open until every deferred promise settles or the request is
+aborted. Crawlers receive the complete document at once. Every `<`, U+2028, and
+U+2029 in these scripts is written as a `\u` escape. Deploy server code and
+browser assets from the same build. If their hydration formats do not match,
+Juniper uses a guarded document reload.
 
 Client navigations and fetchers receive settled data as `application/json` with
 a UTF-8 `Content-Length`. Deferred data uses `application/x-ndjson`: the first

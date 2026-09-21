@@ -413,6 +413,10 @@ export default function Dashboard({ loaderData }: RouteProps) {
 }
 ```
 
+On a first page load, the page hydrates without waiting for deferred promises;
+each value reaches `Await` as its promise settles on the server. See
+[How Values Travel](state-management.md#how-values-travel).
+
 ### Client Loaders
 
 Export a loader from `.tsx` when it needs to participate in client navigation.

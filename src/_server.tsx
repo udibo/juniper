@@ -33,14 +33,14 @@ import { getInstance } from "./utils/otel.ts";
 import { App, generateRouteId, JuniperContextProvider } from "./_client.tsx";
 import {
   createLoaderDataResponse,
+  prepareHydrationData,
   sanitizeServerData,
   sanitizeServerError,
   serializeAllContext,
   serializeError,
-  serializeHydrationData,
   toInlineScriptJson,
 } from "./_serialization.ts";
-import type { SerializedHydrationData } from "./_serialization.ts";
+import type { DeferredHydration } from "./_serialization.ts";
 import { startActiveSpan } from "./utils/_otel.ts";
 import type { ActionFunction, LoaderFunction } from "./mod.ts";
 import { isHttpErrorLike } from "@udibo/http-error";
@@ -130,8 +130,8 @@ export type AppEnv = Env & {
      * A per-request CSP nonce, if the app generates one. Hono's `secureHeaders`
      * sets this variable when its `contentSecurityPolicy` names `NONCE`, and
      * Juniper applies it to every inline script it emits — its own hydration
-     * script, and the ones React's streaming renderer injects to resolve
-     * Suspense boundaries.
+     * and deferred-data scripts, and the ones React's streaming renderer
+     * injects to resolve Suspense boundaries.
      *
      * Absent when the app does not use nonces, in which case nothing changes:
      * the attribute is simply omitted.
@@ -240,20 +240,58 @@ export interface Route<
   children?: Route<E, S, BasePath>[];
 }
 
-function HydrationScript(
-  { serializedHydrationData, nonce }: {
-    serializedHydrationData: Promise<string>;
-    nonce?: string;
-  },
+type PreparedHydration = ReturnType<typeof prepareHydrationData>;
+
+function DeferredHydrationScripts(
+  { deferred, nonce }: { deferred: DeferredHydration[]; nonce?: string },
 ) {
-  const hydrateScript = use(serializedHydrationData);
+  return deferred.map((entry) => (
+    <Suspense key={entry.id} fallback={null}>
+      <DeferredHydrationScript entry={entry} nonce={nonce} />
+    </Suspense>
+  ));
+}
+
+function DeferredHydrationScript(
+  { entry, nonce }: { entry: DeferredHydration; nonce?: string },
+) {
+  const { resolution, nested } = use(entry.settled);
   return (
-    <script
-      type="module"
-      nonce={nonce}
-      suppressHydrationWarning
-      dangerouslySetInnerHTML={{ __html: hydrateScript }}
-    />
+    <>
+      <script
+        nonce={nonce}
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{
+          __html: `(globalThis.__juniperDeferredHydration ||= []).push(${
+            toInlineScriptJson(resolution)
+          });`,
+        }}
+      />
+      <DeferredHydrationScripts deferred={nested} nonce={nonce} />
+    </>
+  );
+}
+
+function HydrationScript(
+  { prepare, nonce }: { prepare: () => PreparedHydration; nonce?: string },
+) {
+  const { serialized, deferred } = prepare();
+  return (
+    <>
+      <script
+        type="module"
+        async
+        nonce={nonce}
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{
+          __html:
+            `import { client } from "/build/main.js"; window.__juniperHydrationData = ${
+              toInlineScriptJson(serialized)
+            }; await client.hydrate();`,
+        }}
+      />
+      <DeferredHydrationScripts deferred={deferred} nonce={nonce} />
+    </>
   );
 }
 
@@ -369,13 +407,8 @@ async function renderDocument(
           buildId: c.get("buildId"),
         };
 
-        const serializedHydrationData = serializeHydrationData(
-          hydrationData,
-        ).then((data: SerializedHydrationData) =>
-          `import { client } from "/build/main.js"; window.__juniperHydrationData = ${
-            toInlineScriptJson(data)
-          }; await client.hydrate();`
-        );
+        let prepared: PreparedHydration | undefined;
+        const prepare = () => prepared ??= prepareHydrationData(hydrationData);
 
         const bootstrapScripts: string[] = [];
         if (args["hot-reload"]) {
@@ -393,10 +426,7 @@ async function renderDocument(
                 />
               </JuniperContextProvider>
               <Suspense fallback={null}>
-                <HydrationScript
-                  serializedHydrationData={serializedHydrationData}
-                  nonce={nonce}
-                />
+                <HydrationScript prepare={prepare} nonce={nonce} />
               </Suspense>
             </App>
           </StrictMode>,

@@ -107,7 +107,8 @@ export default function ServerDeferredDataDemo({
             As promises resolve, the server streams HTML for each section
           </li>
           <li>
-            The client hydrates after the document's tagged JSON data is ready
+            The client hydrates as soon as the fast data arrives; each deferred
+            value follows in a later script as its promise settles
           </li>
           <li>
             Later client data requests stream tagged JSON resolutions as NDJSON

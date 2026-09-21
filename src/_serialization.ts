@@ -16,6 +16,7 @@ import type { RouterContext, RouterContextProvider } from "react-router";
 import { HttpError, isHttpErrorLike } from "@udibo/http-error";
 
 import { isDevelopment } from "./utils/env.ts";
+import { env } from "./utils/_env.ts";
 
 /**
  * Internal interface for custom type serializers.
@@ -403,11 +404,58 @@ function processValueForStreaming(
   return value;
 }
 
-interface PromiseResolution {
+export interface PromiseResolution {
   id: string;
   status: "resolved" | "rejected";
   value?: unknown;
   error?: unknown;
+}
+
+function encodeRejection(id: string, error: unknown, pending: PendingPromises) {
+  return {
+    id,
+    status: "rejected",
+    error: toTaggedJson(
+      processValueForStreaming(
+        serializeError(sanitizeServerError(error)),
+        pending,
+      ),
+    ),
+  } satisfies PromiseResolution;
+}
+
+function encodeResolution(
+  resolution: PromiseResolution,
+  pending: PendingPromises,
+): PromiseResolution {
+  try {
+    return resolution.status === "resolved"
+      ? {
+        id: resolution.id,
+        status: "resolved",
+        value: toTaggedJson(
+          processValueForStreaming(resolution.value, pending),
+        ),
+      }
+      : encodeRejection(resolution.id, resolution.error, pending);
+  } catch (error) {
+    discardPending(pending);
+    try {
+      return encodeRejection(resolution.id, error, pending);
+    } catch (fallbackError) {
+      discardPending(pending);
+      throw fallbackError;
+    }
+  }
+}
+
+function settlePending(
+  { id, promise }: { id: string; promise: PromiseLike<unknown> },
+): Promise<PromiseResolution> {
+  return Promise.resolve(promise).then(
+    (value) => ({ id, status: "resolved", value }),
+    (error) => ({ id, status: "rejected", error }),
+  );
 }
 
 function prepareData(
@@ -456,12 +504,9 @@ function createDataStream(
     waiting = undefined;
   }
   function observePending(): void {
-    for (const { id, promise } of pending.entries.splice(0)) {
+    for (const entry of pending.entries.splice(0)) {
       outstanding++;
-      Promise.resolve(promise).then(
-        (value) => settle({ id, status: "resolved", value }),
-        (error) => settle({ id, status: "rejected", error }),
-      );
+      settlePending(entry).then(settle);
     }
   }
   return new ReadableStream<Uint8Array>({
@@ -489,44 +534,7 @@ function createDataStream(
           if (stopped) return;
           const resolution = ready[readIndex++];
           if (resolution) {
-            let line: PromiseResolution;
-            try {
-              line = resolution.status === "resolved"
-                ? {
-                  id: resolution.id,
-                  status: "resolved",
-                  value: toTaggedJson(
-                    processValueForStreaming(resolution.value, pending),
-                  ),
-                }
-                : {
-                  id: resolution.id,
-                  status: "rejected",
-                  error: toTaggedJson(
-                    processValueForStreaming(
-                      serializeError(sanitizeServerError(resolution.error)),
-                      pending,
-                    ),
-                  ),
-                };
-            } catch (error) {
-              discardPending(pending);
-              try {
-                line = {
-                  id: resolution.id,
-                  status: "rejected",
-                  error: toTaggedJson(
-                    processValueForStreaming(
-                      serializeError(sanitizeServerError(error)),
-                      pending,
-                    ),
-                  ),
-                };
-              } catch (fallbackError) {
-                discardPending(pending);
-                throw fallbackError;
-              }
-            }
+            const line = encodeResolution(resolution, pending);
             observePending();
             c.enqueue(encoder.encode(JSON.stringify(line) + "\n"));
           }
@@ -615,6 +623,38 @@ function createLineReader(
   };
 }
 
+function applyResolution(
+  resolution: PromiseResolution,
+  pending: PromiseResolvers,
+): void {
+  const resolver = pending.get(resolution.id);
+  if (!resolver) return;
+  pending.delete(resolution.id);
+  try {
+    if (resolution.status === "resolved") {
+      resolver.resolve(restoreValue(fromTaggedJson(resolution.value), pending));
+    } else if (resolution.status === "rejected") {
+      resolver.reject(
+        deserializeError(
+          restoreValue(
+            fromTaggedJson(resolution.error),
+            pending,
+          ) as Record<string, unknown>,
+        ),
+      );
+    } else {
+      throw new Error("Invalid promise resolution status");
+    }
+  } catch (error) {
+    resolver.reject(error);
+  }
+}
+
+function rejectAll(pending: PromiseResolvers, error: unknown): void {
+  for (const resolver of pending.values()) resolver.reject(error);
+  pending.clear();
+}
+
 export async function deserializeStreamingLoaderData<T = unknown>(
   response: Response,
 ): Promise<T> {
@@ -623,8 +663,7 @@ export async function deserializeStreamingLoaderData<T = unknown>(
   const pending: PromiseResolvers = new Map();
   const readLine = createLineReader(reader);
   function rejectPending(error: unknown): void {
-    for (const resolver of pending.values()) resolver.reject(error);
-    pending.clear();
+    rejectAll(pending, error);
   }
   let data: unknown;
   try {
@@ -645,30 +684,7 @@ export async function deserializeStreamingLoaderData<T = unknown>(
       try {
         let line: string | null;
         while ((line = await readLine()) !== null) {
-          const resolution = JSON.parse(line) as PromiseResolution;
-          const resolver = pending.get(resolution.id);
-          if (!resolver) continue;
-          pending.delete(resolution.id);
-          try {
-            if (resolution.status === "resolved") {
-              resolver.resolve(
-                restoreValue(fromTaggedJson(resolution.value), pending),
-              );
-            } else if (resolution.status === "rejected") {
-              resolver.reject(
-                deserializeError(
-                  restoreValue(
-                    fromTaggedJson(resolution.error),
-                    pending,
-                  ) as Record<string, unknown>,
-                ),
-              );
-            } else {
-              throw new Error("Invalid promise resolution status");
-            }
-          } catch (error) {
-            resolver.reject(error);
-          }
+          applyResolution(JSON.parse(line) as PromiseResolution, pending);
         }
         if (pending.size) {
           throw new Error(
@@ -767,11 +783,11 @@ function registeredNames(): string[] {
   ].sort();
 }
 
-export async function serializeHydrationData(
+function hydrationFields(
   hydrationData: HydrationData,
-): Promise<SerializedHydrationData> {
-  const { errors, publicEnv, ...rest } = hydrationData;
-  const data = {
+): Record<string, unknown> {
+  const { errors, publicEnv: _publicEnv, ...rest } = hydrationData;
+  return {
     ...rest,
     errors: errors && Object.fromEntries(
       Object.entries(errors).map((
@@ -779,15 +795,124 @@ export async function serializeHydrationData(
       ) => [id, sanitizeServerError(error)]),
     ),
   };
-  const processed: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(data)) {
-    defineOwnValue(processed, key, await processValue(value));
-  }
+}
+
+function hydrationPayload(
+  processed: Record<string, unknown>,
+  publicEnv: HydrationData["publicEnv"],
+): SerializedHydrationData {
   defineOwnValue(processed, "publicEnv", publicEnv);
   if (isDevelopment()) {
     defineOwnValue(processed, "registeredNames", registeredNames());
   }
   return { version: 3, data: toTaggedJson(processed) };
+}
+
+/** Serializes hydration data after every promise in it settles; SSR uses `prepareHydrationData` instead. */
+export async function serializeHydrationData(
+  hydrationData: HydrationData,
+): Promise<SerializedHydrationData> {
+  const processed: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(hydrationFields(hydrationData))) {
+    defineOwnValue(processed, key, await processValue(value));
+  }
+  return hydrationPayload(processed, hydrationData.publicEnv);
+}
+
+/**
+ * A promise from the document's hydration data, settling into the resolution
+ * line the browser applies and the promises nested in its value.
+ */
+export interface DeferredHydration {
+  id: string;
+  settled: Promise<{
+    resolution: PromiseResolution;
+    nested: DeferredHydration[];
+  }>;
+}
+
+function observeDeferred(pending: PendingPromises): DeferredHydration[] {
+  return pending.entries.splice(0).map((entry) => {
+    const settled = settlePending(entry).then((resolution) => ({
+      resolution: encodeResolution(resolution, pending),
+      nested: observeDeferred(pending),
+    }));
+    settled.catch(() => {});
+    return { id: entry.id, settled };
+  });
+}
+
+/**
+ * Serializes hydration data without waiting on its promises: each becomes a
+ * pending placeholder, and `deferred` settles into the resolution lines that
+ * `deserializeHydrationData` later applies in the browser.
+ */
+export function prepareHydrationData(
+  hydrationData: HydrationData,
+): { serialized: SerializedHydrationData; deferred: DeferredHydration[] } {
+  const pending: PendingPromises = { nextId: 0, entries: [] };
+  try {
+    const processed: Record<string, unknown> = {};
+    for (
+      const [key, value] of Object.entries(hydrationFields(hydrationData))
+    ) {
+      defineOwnValue(processed, key, processValueForStreaming(value, pending));
+    }
+    return {
+      serialized: hydrationPayload(processed, hydrationData.publicEnv),
+      deferred: observeDeferred(pending),
+    };
+  } catch (error) {
+    discardPending(pending);
+    throw error;
+  }
+}
+
+const deferredListeners = new WeakMap<
+  unknown[],
+  Set<(resolution: unknown) => void>
+>();
+
+function observeQueue(queue: unknown[]): Set<(resolution: unknown) => void> {
+  const existing = deferredListeners.get(queue);
+  if (existing) return existing;
+  const listeners = new Set<(resolution: unknown) => void>();
+  const push = queue.push;
+  queue.push = (...resolutions: unknown[]): number => {
+    const length = push.apply(queue, resolutions);
+    for (const resolution of resolutions) {
+      for (const listener of [...listeners]) listener(resolution);
+    }
+    return length;
+  };
+  deferredListeners.set(queue, listeners);
+  return listeners;
+}
+
+function listenForDeferredHydration(pending: PromiseResolvers): void {
+  const queue = env.getDeferredHydration();
+  const listeners = observeQueue(queue);
+  function receive(resolution: unknown): void {
+    try {
+      applyResolution(resolution as PromiseResolution, pending);
+    } catch (error) {
+      rejectAll(pending, error);
+    }
+    if (!pending.size) listeners.delete(receive);
+  }
+  for (const resolution of [...queue]) {
+    if (!pending.size) return;
+    receive(resolution);
+  }
+  if (!pending.size) return;
+  listeners.add(receive);
+  env.whenDocumentParsed(() => {
+    listeners.delete(receive);
+    rejectAll(
+      pending,
+      new Error("Unexpected end of document before all promises resolved"),
+    );
+  });
 }
 
 export function deserializeHydrationData(
@@ -803,7 +928,9 @@ export function deserializeHydrationData(
       console.error(`Missing Juniper registrations: ${missing.join(", ")}`);
     }
   }
-  const restored = restoreValue(decoded) as HydrationData;
+  const pending: PromiseResolvers = new Map();
+  const restored = restoreValue(decoded, pending) as HydrationData;
+  if (pending.size) listenForDeferredHydration(pending);
   return {
     publicEnv: restored.publicEnv,
     serializedContext: restored.serializedContext,
