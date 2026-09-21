@@ -1,3 +1,11 @@
+## [0.13.1](https://github.com/udibo/juniper/compare/0.13.0...0.13.1) (2026-09-21)
+
+### Bug Fixes
+
+- stream deferred data into SSR hydration
+  ([#137](https://github.com/udibo/juniper/issues/137))
+  ([cba0a97](https://github.com/udibo/juniper/commit/cba0a9778ef34b8b2f28a7ef0f2b5f72a25752b5))
+
 # [0.13.0](https://github.com/udibo/juniper/compare/0.12.1...0.13.0) (2026-09-21)
 
 ### Features
