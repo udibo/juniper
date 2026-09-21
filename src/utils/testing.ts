@@ -235,6 +235,7 @@ export function createRoutesStub(
       HydrateFallback: route.HydrateFallback,
       loader: route.loader,
       action: route.action,
+      shouldRevalidate: route.shouldRevalidate,
     };
   });
 

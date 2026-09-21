@@ -3,7 +3,14 @@ import "./global-jsdom.ts";
 import { assertEquals, assertExists, assertRejects } from "@std/assert";
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { delay } from "@std/async/delay";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { Link, useLocation } from "react-router";
 
 import { getEnv, isBrowser, isProduction, isServer, isTest } from "./env.ts";
 import { createRoutesStub, simulateEnvironment } from "./testing.ts";
@@ -660,4 +667,38 @@ describe("createRoutesStub", () => {
       assertEquals(element.textContent, "has context");
     });
   });
+
+  for (
+    const [title, keep] of [
+      ["revalidates a loader on a search change by default", false],
+      ["honors a shouldRevalidate export that keeps loader data", true],
+    ] as const
+  ) {
+    it(
+      title,
+      async () => {
+        let loads = 0;
+        const Stub = createRoutesStub([{
+          loader: () => ({ load: ++loads }),
+          ...(keep ? { shouldRevalidate: () => false } : {}),
+          default: ({ loaderData }: { loaderData: unknown }) => {
+            const location = useLocation();
+            return (
+              <div>
+                <p>load {(loaderData as { load: number }).load}</p>
+                <p>search {location.search}</p>
+                <Link to="/?page=2">Next page</Link>
+              </div>
+            );
+          },
+        }]);
+        render(<Stub />);
+        await screen.findByText("load 1");
+        fireEvent.click(screen.getByRole("link", { name: "Next page" }));
+        await screen.findByText("search ?page=2");
+        await waitFor(() => assertEquals(loads, keep ? 1 : 2));
+        screen.getByText(`load ${keep ? 1 : 2}`);
+      },
+    );
+  }
 });
