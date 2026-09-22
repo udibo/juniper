@@ -14,12 +14,19 @@ import { waitFor } from "@testing-library/react";
 import globalJsdom from "global-jsdom";
 import { act, useEffect } from "react";
 import { renderToString } from "react-dom/server";
+import { unstable_IdlePriority, unstable_scheduleCallback } from "scheduler";
 
 import { Client } from "@udibo/juniper/client";
 import type { DeferredDataOptions, RootRouteModule } from "@udibo/juniper";
 
 import { App, registerRouter } from "./_client.tsx";
 import { simulateBrowser } from "./utils/testing.internal.ts";
+
+function reactWorkSettled(): Promise<void> {
+  return new Promise((resolve) => {
+    unstable_scheduleCallback(unstable_IdlePriority, () => resolve());
+  });
+}
 
 for (const lazy of [false, true]) {
   it(
@@ -101,6 +108,7 @@ for (const lazy of [false, true]) {
         );
         assertEquals(cleanups, 1);
       } finally {
+        await reactWorkSettled();
         if (previousIdle) globalThis.requestIdleCallback = previousIdle;
         else Reflect.deleteProperty(globalThis, "requestIdleCallback");
         registerRouter(undefined);
@@ -184,6 +192,7 @@ for (const failure of ["caught", "uncaught", "hook"] as const) {
           assertEquals(cleanups, 1);
         }
       } finally {
+        await reactWorkSettled();
         if (previousIdle) globalThis.requestIdleCallback = previousIdle;
         else Reflect.deleteProperty(globalThis, "requestIdleCallback");
         registerRouter(undefined);
@@ -285,6 +294,7 @@ for (
           assertStringIncludes(document.cookie, "juniper_js=1");
         }
       } finally {
+        await reactWorkSettled();
         if (previousIdle) globalThis.requestIdleCallback = previousIdle;
         else Reflect.deleteProperty(globalThis, "requestIdleCallback");
         registerRouter(undefined);
@@ -337,6 +347,7 @@ it(
       );
       assertFalse(document.cookie.includes("juniper_js"));
     } finally {
+      await reactWorkSettled();
       if (previousIdle) globalThis.requestIdleCallback = previousIdle;
       else Reflect.deleteProperty(globalThis, "requestIdleCallback");
       registerRouter(undefined);
