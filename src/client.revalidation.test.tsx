@@ -1,6 +1,6 @@
 import { assert, assertEquals } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
-import { createMemoryRouter, Outlet } from "react-router";
+import { createMemoryRouter, Outlet, redirect } from "react-router";
 import type { ShouldRevalidateFunction } from "react-router";
 
 import { Client } from "@udibo/juniper/client";
@@ -63,9 +63,10 @@ async function loadsAfterSearchChange(
 const skipSearchOnlyChanges: ShouldRevalidateFunction = (
   { currentUrl, nextUrl, formMethod, defaultShouldRevalidate },
 ) => {
+  const isGet = formMethod === undefined || formMethod.toUpperCase() === "GET";
   const searchOnly = currentUrl.pathname === nextUrl.pathname &&
     currentUrl.search !== nextUrl.search;
-  if (!formMethod && searchOnly) return false;
+  if (isGet && searchOnly) return false;
   return defaultShouldRevalidate;
 };
 
@@ -78,25 +79,53 @@ const skipSamePathname: ShouldRevalidateFunction = (
 
 async function loadsAcrossChanges(
   shouldRevalidate: ShouldRevalidateFunction,
-): Promise<{ search: number; action: number; revalidate: number }> {
+): Promise<
+  {
+    search: number;
+    getForm: number;
+    action: number;
+    actionRedirect: number;
+    revalidate: number;
+  }
+> {
   const { module, loads } = countingRoute(shouldRevalidate);
   const client = new Client({
     path: "/",
-    main: { ...module, action: () => ({ saved: true }) },
+    main: {
+      ...module,
+      action: async ({ request }) => {
+        const formData = await request.formData();
+        if (formData.has("next")) throw redirect(`/?${formData.get("next")}`);
+        return { saved: true };
+      },
+    },
   });
   const router = await startRouter(client, "/");
   try {
     assertEquals(loads(), 1);
     await router.navigate("/?page=2");
     const search = loads();
-    await router.navigate("/?page=3", {
+    const filters = new FormData();
+    filters.set("page", "3");
+    await router.navigate("/", { formMethod: "get", formData: filters });
+    assertEquals(router.state.location.search, "?page=3");
+    const getForm = loads();
+    await router.navigate("/?page=4", {
       formMethod: "post",
       formData: new FormData(),
     });
     assertEquals(router.state.actionData, { "/": { saved: true } });
     const action = loads();
+    const redirectTo = new FormData();
+    redirectTo.set("next", "page=5");
+    await router.navigate("/?page=4", {
+      formMethod: "post",
+      formData: redirectTo,
+    });
+    assertEquals(router.state.location.search, "?page=5");
+    const actionRedirect = loads();
     await router.revalidate();
-    return { search, action, revalidate: loads() };
+    return { search, getForm, action, actionRedirect, revalidate: loads() };
   } finally {
     router.dispose();
   }
@@ -180,18 +209,22 @@ describe("shouldRevalidate route export", () => {
     assertEquals(await loadsAfterSearchChange(client, "/about", loads), 1);
   });
 
-  it("the documented search-only skip still reloads after an action and revalidate()", async () => {
+  it("the documented search-only skip keeps data on search links and GET forms but reloads after an action, its redirect, and revalidate()", async () => {
     assertEquals(await loadsAcrossChanges(skipSearchOnlyChanges), {
       search: 1,
+      getForm: 1,
       action: 2,
-      revalidate: 3,
+      actionRedirect: 3,
+      revalidate: 4,
     });
   });
 
   it("a pathname-only skip also drops the reloads after an action and revalidate()", async () => {
     assertEquals(await loadsAcrossChanges(skipSamePathname), {
       search: 1,
+      getForm: 1,
       action: 1,
+      actionRedirect: 1,
       revalidate: 1,
     });
   });

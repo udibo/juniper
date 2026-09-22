@@ -547,9 +547,10 @@ export const shouldRevalidate: ShouldRevalidateFunction = ({
   formMethod,
   defaultShouldRevalidate,
 }) => {
+  const isGet = formMethod === undefined || formMethod.toUpperCase() === "GET";
   const searchOnly = currentUrl.pathname === nextUrl.pathname &&
     currentUrl.search !== nextUrl.search;
-  if (!formMethod && searchOnly) return false;
+  if (isGet && searchOnly) return false;
   return defaultShouldRevalidate;
 };
 ```
@@ -557,9 +558,12 @@ export const shouldRevalidate: ShouldRevalidateFunction = ({
 Return `defaultShouldRevalidate` for every case you do not mean to skip. A
 condition on the pathname alone also matches form submissions to the same page
 and `revalidate()` calls, which leaves the page showing data from before the
-change. The `formMethod` check keeps the reload after a form submission, and
-comparing the search keeps the reload after `revalidate()`, which does not
-change the URL.
+change. The `formMethod` check keeps the reload after a form submission that
+runs an action, and comparing the search keeps the reload after `revalidate()`,
+which does not change the URL. A GET `<Form>`, such as a filter form, arrives
+with `formMethod: "GET"` and is skipped like a search-only link; only a mutation
+method marks an action or its redirect, so checking `!formMethod` alone would
+reload on every filter submission.
 
 The function runs only in the browser, so it applies whichever loader the route
 uses: a `false` result skips the client loader, or the request for the server
