@@ -827,6 +827,54 @@ describe("deferred data streamed only to browsers known to run JavaScript", () =
     );
   });
 
+  it("inlines every settled section of a complete document however large the page is", async () => {
+    const shell = "Critical content. ".repeat(1000);
+    const section = "Deferred content. ".repeat(100);
+    const client = new Client({
+      path: "/",
+      main: {
+        deferredData: streamOnlyWithJavaScript,
+        default: ({ loaderData }: RouteProps<AnyParams, DeferredPageData>) => (
+          <main>
+            <p>{shell}</p>
+            {[0, 1].map((index) => (
+              <Suspense key={index} fallback={<p>Loading later</p>}>
+                <Await resolve={loaderData.later}>
+                  {() => <p>{section}</p>}
+                </Await>
+              </Suspense>
+            ))}
+          </main>
+        ),
+      },
+    });
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        loader: () => ({ now: "critical", later: delay(20) }),
+      },
+    });
+
+    for (
+      const [label, headers] of [
+        ["a browser without the JavaScript cookie", {}],
+        ["a crawler", { "User-Agent": crawler }],
+      ] as const
+    ) {
+      const html = await (await server.request("http://localhost/", {
+        headers,
+      })).text();
+      assertEquals(
+        html.split(section).length - 1,
+        2,
+        `${label} did not receive both sections inline`,
+      );
+      assertFalse(html.includes("Loading later"), `${label} got a fallback`);
+      assertFalse(html.includes('id="S:'), `${label} got a hidden segment`);
+      assertFalse(html.includes("$RC"), `${label} got a swap script`);
+    }
+  });
+
   it("still sends complete HTML to a crawler that carries the JavaScript cookie", async () => {
     const response = await slowPage(streamOnlyWithJavaScript).request(
       "http://localhost/",
