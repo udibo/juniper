@@ -650,9 +650,10 @@ export interface RouteModule<
    * search, on a navigation to the current URL, and on an explicit
    * `useRevalidator().revalidate()`. Return `false` to keep the current loader
    * data, and return `defaultShouldRevalidate` for every case you do not mean
-   * to skip. It never runs during server-side rendering or for the initial
-   * hydration, and it cannot skip the loader of a route that is newly matched
-   * by a navigation. Export it from the route's `.tsx` module; a `.ts` server
+   * to skip. A GET `<Form>` submission arrives with `formMethod: "GET"`; only a
+   * mutation method marks an action or its redirect. It never runs during
+   * server-side rendering or for the initial hydration, and it cannot skip the
+   * loader of a route that is newly matched by a navigation. Export it from the route's `.tsx` module; a `.ts` server
    * module's `shouldRevalidate` export is ignored.
    *
    * @example
@@ -661,9 +662,11 @@ export interface RouteModule<
    * export const shouldRevalidate: ShouldRevalidateFunction = (
    *   { currentUrl, nextUrl, formMethod, defaultShouldRevalidate },
    * ) => {
+   *   const isGet = formMethod === undefined ||
+   *     formMethod.toUpperCase() === "GET";
    *   const searchOnly = currentUrl.pathname === nextUrl.pathname &&
    *     currentUrl.search !== nextUrl.search;
-   *   if (!formMethod && searchOnly) return false;
+   *   if (isGet && searchOnly) return false;
    *   return defaultShouldRevalidate;
    * };
    * ```
