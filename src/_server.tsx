@@ -459,6 +459,10 @@ async function renderDocument(
             // hydration script alone would still leave `unsafe-inline`
             // load-bearing.
             nonce,
+            // React outlines a settled boundary once the flushed bytes pass this size.
+            progressiveChunkSize: waitForAllReady
+              ? Number.POSITIVE_INFINITY
+              : undefined,
             bootstrapModules: ["/build/main.js"],
             bootstrapScripts,
             signal: renderSignal,

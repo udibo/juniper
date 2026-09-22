@@ -445,6 +445,12 @@ JavaScript. Without that cookie, the server waits for deferred promises and
 sends the complete HTML. This covers the first document of a browser session, a
 browser with JavaScript disabled, and a browser that blocks cookies.
 
+A complete document renders each settled section in place, however large the
+page is. The exception is a section that renders a stylesheet with `precedence`:
+React always sends that section after its fallback and reveals it with a script
+once the stylesheet loads, so a browser without JavaScript keeps the fallback.
+Load stylesheets outside deferred sections, for example in the root layout.
+
 The trade-off is that first document: it waits for deferred data before any HTML
 arrives, so its time to first byte is as slow as the slowest deferred promise.
 Later document requests in the same browser session stream as usual. Client-side
