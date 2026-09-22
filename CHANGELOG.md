@@ -1,3 +1,11 @@
+## [0.14.1](https://github.com/udibo/juniper/compare/0.14.0...0.14.1) (2026-09-22)
+
+### Bug Fixes
+
+- inline settled sections in complete documents
+  ([#140](https://github.com/udibo/juniper/issues/140))
+  ([e426f2e](https://github.com/udibo/juniper/commit/e426f2e9445561a3f336b01789576a6d75040a2c))
+
 # [0.14.0](https://github.com/udibo/juniper/compare/0.13.1...0.14.0) (2026-09-22)
 
 ### Features
