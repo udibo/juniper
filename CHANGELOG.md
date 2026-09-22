@@ -1,3 +1,17 @@
+# [0.15.0](https://github.com/udibo/juniper/compare/0.14.1...0.15.0) (2026-09-22)
+
+- feat!: remove the deferredData cookie option
+  ([#141](https://github.com/udibo/juniper/issues/141))
+  ([4f13c97](https://github.com/udibo/juniper/commit/4f13c976234531ebdc2815cf9af342adc60cf2db))
+
+### BREAKING CHANGES
+
+- the root `deferredData` export and the `DeferredDataOptions` type are removed.
+  Browsers without JavaScript receive streamed documents, so data they must read
+  should be awaited in the loader.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## [0.14.1](https://github.com/udibo/juniper/compare/0.14.0...0.14.1) (2026-09-22)
 
 ### Bug Fixes
