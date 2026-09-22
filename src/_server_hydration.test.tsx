@@ -6,10 +6,12 @@ import {
   assertInstanceOf,
   assertRejects,
   assertStringIncludes,
+  assertThrows,
 } from "@std/assert";
 import { delay } from "@std/async/delay";
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { FakeTime } from "@std/testing/time";
 import { Suspense } from "react";
 import { Await, createContext } from "react-router";
 import { Hono } from "hono";
@@ -21,7 +23,11 @@ import {
   registerError,
   registerType,
 } from "@udibo/juniper";
-import type { AnyParams, RouteProps } from "@udibo/juniper";
+import type {
+  AnyParams,
+  DeferredDataOptions,
+  RouteProps,
+} from "@udibo/juniper";
 import { createServer } from "@udibo/juniper/server";
 import { simulateEnvironment } from "@udibo/juniper/utils/testing";
 import {
@@ -363,10 +369,14 @@ interface DeferredPageData {
   later: Promise<unknown>;
 }
 
-function serverWithDeferredPage(loaderData: () => unknown) {
+function serverWithDeferredPage(
+  loaderData: () => unknown,
+  deferredData?: DeferredDataOptions,
+) {
   const client = new Client({
     path: "/",
     main: {
+      deferredData,
       default: ({ loaderData }: RouteProps<AnyParams, DeferredPageData>) => (
         <main>
           <p>{loaderData.now}</p>
@@ -718,5 +728,444 @@ describe("deferred data under a clobbered queue global", () => {
       .loaderData?.["/"] as { later: Promise<{ inner: Promise<string> }> };
     assertEquals(browserScope(global).runNewScripts(html), 2);
     assertEquals(await (await later).inner, "clobber-proof");
+  });
+});
+
+describe("deferred data streamed only to browsers known to run JavaScript", () => {
+  beforeEach(resetRegistries);
+  afterEach(resetRegistries);
+
+  const streamOnlyWithJavaScript = { streamOnlyWithJavaScript: true };
+  const ARRIVED =
+    "<p>Later: <!-- -->{&quot;text&quot;:&quot;arrived&quot;}</p>";
+  const crawler =
+    "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+
+  function slowPage(deferredData?: DeferredDataOptions) {
+    return serverWithDeferredPage(() => ({
+      now: "critical",
+      later: delay(20).then(() => ({ text: "arrived" })),
+    }), deferredData);
+  }
+
+  function assertCompleteDocument(html: string): void {
+    assertStringIncludes(html, ARRIVED);
+    assertFalse(html.includes("Loading later"), "a fallback was sent");
+    assertFalse(html.includes('id="S:'), "a hidden segment was streamed");
+    assertFalse(html.includes("$RC"), "a boundary swap script was streamed");
+  }
+
+  async function assertStreamedDocument(response: Response): Promise<void> {
+    const document = documentReader(response);
+    await document.readUntil(hasHydrationScript);
+    assertStringIncludes(document.html, "Loading later");
+    assertFalse(document.html.includes("Later: "));
+    const html = await document.readToEnd();
+    assertStringIncludes(html, 'id="S:');
+    assertStringIncludes(html, ARRIVED);
+  }
+
+  function sortedVary(response: Response): string[] {
+    return (response.headers.get("Vary") ?? "").toLowerCase().split(/,\s*/)
+      .sort();
+  }
+
+  it("sends complete HTML to a document request without the JavaScript cookie", async () => {
+    const response = await slowPage(streamOnlyWithJavaScript).request(
+      "http://localhost/",
+    );
+    const html = await response.text();
+    assertCompleteDocument(html);
+
+    const browser = browserScope();
+    using _queue = stub(env, "getDeferredHydration", browser.queue);
+    using _parsed = stub(env, "whenDocumentParsed", () => {});
+    browser.runNewScripts(html);
+    const { later } = deserializeHydrationData(assertEscapedDocument(html, 4))
+      .loaderData?.["/"] as DeferredPageData;
+    assertEquals(await later, { text: "arrived" });
+  });
+
+  it("streams the fallback first to a document request with the JavaScript cookie", async () => {
+    const response = await slowPage(streamOnlyWithJavaScript).request(
+      "http://localhost/",
+      { headers: { Cookie: "theme=dark; juniper_js=1" } },
+    );
+    await assertStreamedDocument(response);
+  });
+
+  for (
+    const [label, cookie] of [
+      ["another cookie", "theme=dark"],
+      ["an unexpected cookie value", "juniper_js=0"],
+      ["a cookie whose name only ends like it", "not_juniper_js=1"],
+    ]
+  ) {
+    it(`sends complete HTML to a document request carrying only ${label}`, async () => {
+      const response = await slowPage(streamOnlyWithJavaScript).request(
+        "http://localhost/",
+        { headers: { Cookie: cookie } },
+      );
+      assertCompleteDocument(await response.text());
+    });
+  }
+
+  it("reads the JavaScript cookie under the configured name", async () => {
+    const server = slowPage({
+      streamOnlyWithJavaScript: true,
+      cookieName: "js",
+    });
+    await assertStreamedDocument(
+      await server.request("http://localhost/", {
+        headers: { Cookie: "js=1" },
+      }),
+    );
+    assertCompleteDocument(
+      await (await server.request("http://localhost/", {
+        headers: { Cookie: "juniper_js=1" },
+      })).text(),
+    );
+  });
+
+  it("still sends complete HTML to a crawler that carries the JavaScript cookie", async () => {
+    const response = await slowPage(streamOnlyWithJavaScript).request(
+      "http://localhost/",
+      { headers: { Cookie: "juniper_js=1", "User-Agent": crawler } },
+    );
+    assertCompleteDocument(await response.text());
+  });
+
+  for (
+    const [label, deferredData] of [
+      ["absent", undefined],
+      ["disabled", { streamOnlyWithJavaScript: false }],
+    ] as const
+  ) {
+    it(`streams to a cookieless document request and does not vary by Cookie when the option is ${label}`, async () => {
+      const response = await slowPage(deferredData).request(
+        "http://localhost/",
+      );
+      assertEquals(sortedVary(response), ["accept", "x-juniper-route-id"]);
+      await assertStreamedDocument(response);
+    });
+  }
+
+  it("varies documents by Cookie, keeping the app's own Vary, and leaves route data alone", async () => {
+    const client = new Client({
+      path: "/",
+      main: {
+        deferredData: streamOnlyWithJavaScript,
+        default: () => <p>Home</p>,
+      },
+    });
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        default: new Hono().use(async (c, next) => {
+          c.header("Vary", "Origin, Accept-Language");
+          await next();
+        }),
+        loader: () => "root data",
+      },
+    });
+
+    for (const cookie of [undefined, "juniper_js=1"]) {
+      const response = await server.request("http://localhost/", {
+        headers: cookie ? { Cookie: cookie } : {},
+      });
+      await response.arrayBuffer();
+      assertEquals(sortedVary(response), [
+        "accept",
+        "accept-language",
+        "cookie",
+        "origin",
+        "x-juniper-route-id",
+      ]);
+    }
+
+    const data = await server.request("http://localhost/", {
+      headers: { "X-Juniper-Route-Id": "/" },
+    });
+    await data.arrayBuffer();
+    assertEquals(sortedVary(data), [
+      "accept",
+      "accept-language",
+      "origin",
+      "x-juniper-route-id",
+    ]);
+  });
+
+  it("varies an error document by Cookie", async () => {
+    const client = new Client({
+      path: "/",
+      main: {
+        deferredData: streamOnlyWithJavaScript,
+        default: () => <p>Home</p>,
+        ErrorBoundary: () => <p>Denied page</p>,
+      },
+    });
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        default: new Hono().use(() => {
+          throw new HttpError(403);
+        }),
+      },
+    });
+    using _log = stub(console, "error");
+    const response = await server.request("http://localhost/");
+    assertEquals(response.status, 403);
+    assertStringIncludes(await response.text(), "Denied page");
+    assertEquals(sortedVary(response), [
+      "accept",
+      "cookie",
+      "x-juniper-route-id",
+    ]);
+  });
+
+  it("streams navigation data requests that carry no JavaScript cookie", async () => {
+    const later = Promise.withResolvers<string>();
+    const response = await serverWithDeferredPage(() => ({
+      now: "critical",
+      later: later.promise,
+    }), streamOnlyWithJavaScript).request("http://localhost/", {
+      headers: { "X-Juniper-Route-Id": "/" },
+    });
+    assertEquals(response.headers.get("Content-Type"), "application/x-ndjson");
+    const reader = response.body!.pipeThrough(new TextDecoderStream())
+      .getReader();
+    assertEquals(JSON.parse((await reader.read()).value!), {
+      now: "critical",
+      later: { $t: "pending", v: "p0" },
+    });
+    later.resolve("done");
+    assertEquals(JSON.parse((await reader.read()).value!), {
+      id: "p0",
+      status: "resolved",
+      value: "done",
+    });
+    assert((await reader.read()).done);
+    reader.releaseLock();
+  });
+
+  it("rejects a cookie name that is not a cookie token", () => {
+    for (const cookieName of ["", "js=1", "js;", "j s"]) {
+      assertThrows(
+        () =>
+          new Client({
+            path: "/",
+            main: {
+              deferredData: { streamOnlyWithJavaScript: true, cookieName },
+              default: () => <p>Home</p>,
+            },
+          }),
+        TypeError,
+        "deferredData.cookieName",
+      );
+    }
+  });
+
+  it("rejects a cookie lifetime or complete-document timeout that is out of range", () => {
+    for (
+      const [field, value] of [
+        ["cookieMaxAge", -1],
+        ["cookieMaxAge", 0],
+        ["cookieMaxAge", 1.5],
+        ["cookieMaxAge", Number.NaN],
+        ["completeTimeoutMs", 0],
+        ["completeTimeoutMs", -5],
+        ["completeTimeoutMs", Number.NaN],
+        ["completeTimeoutMs", Number.POSITIVE_INFINITY],
+        ["completeTimeoutMs", 2 ** 31],
+      ] as const
+    ) {
+      assertThrows(
+        () =>
+          new Client({
+            path: "/",
+            main: {
+              deferredData: { streamOnlyWithJavaScript: true, [field]: value },
+              default: () => <p>Home</p>,
+            },
+          }),
+        TypeError,
+        `deferredData.${field}`,
+      );
+    }
+  });
+
+  async function documentWithin(
+    server: ReturnType<typeof serverWithDeferredPage>,
+    headers: HeadersInit,
+    ms: number,
+  ): Promise<string | undefined> {
+    const request = new AbortController();
+    const timeout = new AbortController();
+    const reading = Promise.resolve(server.request("http://localhost/", {
+      headers,
+      signal: request.signal,
+    })).then((response) => response.text());
+    const html = await Promise.race([
+      reading,
+      delay(ms, { signal: timeout.signal }).then(() => undefined, () => {
+        return undefined;
+      }),
+    ]);
+    timeout.abort();
+    if (html === undefined) {
+      request.abort();
+      await reading.catch(() => {});
+    }
+    return html;
+  }
+
+  function hungPage(deferredData: DeferredDataOptions) {
+    return serverWithDeferredPage(() => ({
+      now: "critical",
+      later: new Promise<never>(() => {}),
+    }), deferredData);
+  }
+
+  function assertLoggedTimeoutOnce(
+    log: { calls: { args: unknown[] }[] },
+    timeoutMs: number,
+  ): void {
+    assertEquals(log.calls.map((call) => call.args), [[
+      `Deferred data did not settle within ${timeoutMs}ms; sending its fallbacks.`,
+    ]]);
+  }
+
+  function assertFallbackDocument(html: string | undefined): void {
+    assertExists(html, "the complete document never arrived");
+    assert(html.endsWith("</html>"), "the document did not complete");
+    assertStringIncludes(html, "<p>critical</p>");
+    assertStringIncludes(html, "Loading later");
+    assertFalse(html.includes("Later: "));
+    assertFalse(html.includes('id="S:'), "a hidden segment was streamed");
+    assertFalse(html.includes("$RC"), "a boundary swap script was streamed");
+  }
+
+  it("completes a cookieless document with fallbacks once completeTimeoutMs passes", async () => {
+    using log = stub(console, "error");
+    const html = await documentWithin(
+      hungPage({ streamOnlyWithJavaScript: true, completeTimeoutMs: 50 }),
+      {},
+      2000,
+    );
+    assertFallbackDocument(html);
+    assertLoggedTimeoutOnce(log, 50);
+  });
+
+  it("completes a crawler's document with fallbacks once completeTimeoutMs passes", async () => {
+    using log = stub(console, "error");
+    const html = await documentWithin(
+      hungPage({ completeTimeoutMs: 50 }),
+      { "User-Agent": crawler },
+      2000,
+    );
+    assertFallbackDocument(html);
+    assertLoggedTimeoutOnce(log, 50);
+  });
+
+  it("waits ten seconds for deferred data by default before sending fallbacks", async () => {
+    using log = stub(console, "error");
+    const request = new AbortController();
+    let html: string | undefined;
+    let reading: Promise<unknown>;
+    {
+      using time = new FakeTime();
+      reading = Promise.resolve(
+        hungPage(streamOnlyWithJavaScript).request("http://localhost/", {
+          signal: request.signal,
+        }),
+      ).then((response) => response.text()).then((text) => html = text);
+      const settle = async () => {
+        for (let tick = 0; tick < 100 && html === undefined; tick++) {
+          await time.tickAsync(0);
+        }
+      };
+      await time.tickAsync(9_999);
+      await settle();
+      assertEquals(html, undefined, "the document completed early");
+      await time.tickAsync(1);
+      await settle();
+    }
+    const completed = html;
+    if (completed === undefined) request.abort();
+    await reading.catch(() => {});
+    assertFallbackDocument(completed);
+    assertLoggedTimeoutOnce(log, 10_000);
+  });
+
+  it("does not cut off a streamed document at completeTimeoutMs", async () => {
+    const response = await serverWithDeferredPage(() => ({
+      now: "critical",
+      later: delay(150).then(() => ({ text: "arrived" })),
+    }), { streamOnlyWithJavaScript: true, completeTimeoutMs: 20 }).request(
+      "http://localhost/",
+      { headers: { Cookie: "juniper_js=1" } },
+    );
+    await assertStreamedDocument(response);
+  });
+
+  it("completes an error document before sending it to a cookieless request", async () => {
+    const help = delay(20).then(() => "Ask an administrator");
+    const client = new Client({
+      path: "/",
+      main: {
+        deferredData: streamOnlyWithJavaScript,
+        default: () => <p>Home</p>,
+        ErrorBoundary: () => (
+          <main>
+            <p>Denied page</p>
+            <Suspense fallback={<p>Loading help</p>}>
+              <Await resolve={help}>
+                {(text: string) => <p>Help: {text}</p>}
+              </Await>
+            </Suspense>
+          </main>
+        ),
+      },
+    });
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        loader: () => ({ later: delay(20).then(() => "root data") }),
+        default: new Hono().use(() => {
+          throw new HttpError(403);
+        }),
+      },
+    });
+    using _log = stub(console, "error");
+    const response = await server.request("http://localhost/");
+    assertEquals(response.status, 403);
+    const html = await response.text();
+    assertStringIncludes(html, "<p>Help: <!-- -->Ask an administrator</p>");
+    assertFalse(html.includes("Loading help"), "a fallback was sent");
+    assertFalse(html.includes('id="S:'), "a hidden segment was streamed");
+    assertFalse(html.includes("$RC"), "a boundary swap script was streamed");
+  });
+
+  it("leaves a Vary: * document untouched", async () => {
+    const client = new Client({
+      path: "/",
+      main: {
+        deferredData: streamOnlyWithJavaScript,
+        default: () => <p>Home</p>,
+      },
+    });
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        default: new Hono().use(async (c, next) => {
+          c.header("Vary", "*");
+          await next();
+        }),
+        loader: () => "root data",
+      },
+    });
+    const response = await server.request("http://localhost/");
+    await response.arrayBuffer();
+    assertEquals(response.headers.get("Vary"), "*");
   });
 });

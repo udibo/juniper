@@ -23,6 +23,7 @@ import {
   getBuildId,
   isRedirectResponse,
   mergeServerRoutes,
+  mergeVary,
   toRedirectEnvelope,
 } from "./_server.tsx";
 import type { AppEnv, Route } from "./_server.tsx";
@@ -41,16 +42,7 @@ function isFingerprintedBuildAsset(pathname: string): boolean {
 }
 
 function varyByRoute(headers: Headers): void {
-  const names = new Set(
-    (headers.get("Vary") ?? "").split(",").map((name) =>
-      name.trim().toLowerCase()
-    )
-      .filter(Boolean),
-  );
-  if (names.has("*")) return;
-  names.add("accept");
-  names.add("x-juniper-route-id");
-  headers.set("Vary", [...names].join(", "));
+  mergeVary(headers, ["accept", "x-juniper-route-id"]);
 }
 
 /**
@@ -159,6 +151,7 @@ export function createServer<
     route,
     serverRoutes,
     client.htmlProps,
+    client.deferredData,
   );
   const app = buildApp(
     route,

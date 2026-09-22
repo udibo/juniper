@@ -51,6 +51,7 @@
     "npm:react-error-boundary@^6.1.5": "6.1.5_@types+react@19.2.18_react@19.2.8",
     "npm:react-router@^8.3.1": "8.3.1_react@19.2.8_react-dom@19.2.8",
     "npm:react@^19.2.8": "19.2.8",
+    "npm:scheduler@0.27": "0.27.0",
     "npm:tailwindcss@^4.3.3": "4.3.3",
     "npm:zod@^4.5.4": "4.5.4"
   },
@@ -1758,7 +1759,8 @@
           "npm:react-dom@^19.2.8",
           "npm:react-error-boundary@^6.1.5",
           "npm:react-router@^8.3.1",
-          "npm:react@^19.2.8"
+          "npm:react@^19.2.8",
+          "npm:scheduler@0.27"
         ]
       },
       "templates/minimal": {

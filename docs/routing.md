@@ -189,6 +189,7 @@ A route module can export:
 | `HydrateFallback`  | Component | Shows while deferred route data is unresolved     |
 | `shouldRevalidate` | Function  | Decides if the loader reruns (client `.tsx` only) |
 | `beforeHydrate`    | Function  | Runs before React hydrates (root `main.tsx` only) |
+| `deferredData`     | Object    | Deferred data delivery (root `main.tsx` only)     |
 
 Export `publicEnvKeys` from the root **server** module, `routes/main.ts`, to
 allowlist additional environment values in hydration data. See
@@ -417,6 +418,95 @@ export default function Dashboard({ loaderData }: RouteProps) {
 On a first page load, the page hydrates without waiting for deferred promises;
 each value reaches `Await` as its promise settles on the server. See
 [How Values Travel](state-management.md#how-values-travel).
+
+#### Complete Documents Without JavaScript
+
+A streamed document shows each `Suspense` fallback first and swaps the content
+in with an inline script once the promise settles. A browser with JavaScript
+disabled never runs that script, so it keeps the fallback and never shows the
+content. Crawlers are detected by user agent and always receive the complete
+document.
+
+To serve complete documents to browsers without JavaScript as well, export
+`deferredData` from the root `routes/main.tsx`:
+
+```tsx
+// routes/main.tsx
+import type { DeferredDataOptions } from "@udibo/juniper";
+
+export const deferredData: DeferredDataOptions = {
+  streamOnlyWithJavaScript: true,
+};
+```
+
+With this option, a document request streams only when it carries a cookie that
+Juniper writes after hydration succeeds, which proves the browser runs
+JavaScript. Without that cookie, the server waits for deferred promises and
+sends the complete HTML. This covers the first document of a browser session, a
+browser with JavaScript disabled, and a browser that blocks cookies.
+
+The trade-off is that first document: it waits for deferred data before any HTML
+arrives, so its time to first byte is as slow as the slowest deferred promise.
+Later document requests in the same browser session stream as usual. Client-side
+navigations always stream their data.
+
+A complete document waits at most `completeTimeoutMs`, 10 seconds by default.
+When that passes, the promises still pending are sent as their `Suspense`
+fallbacks and the response ends, so a promise that never settles cannot hold a
+request open. The same limit applies to crawlers, and it applies even when
+`streamOnlyWithJavaScript` is off. It must be greater than `0` and at most
+`2147483647`, the longest delay a timer supports.
+
+A section that timed out does not recover in the browser. Its value is never
+sent, so when the document ends the client rejects that promise with
+`Unexpected end of document before all promises resolved`. The page then shows
+that `Await`'s `errorElement`, or the route's error boundary if the `Await` has
+none. Give every deferred section an `errorElement` so a timeout affects only
+that section:
+
+```tsx
+<Suspense fallback={<p>Loading analytics...</p>}>
+  <Await
+    resolve={loaderData.analytics}
+    errorElement={<p>Analytics are unavailable.</p>}
+  >
+    {(analytics) => <AnalyticsChart data={analytics} />}
+  </Await>
+</Suspense>;
+```
+
+```tsx
+export const deferredData: DeferredDataOptions = {
+  streamOnlyWithJavaScript: true,
+  completeTimeoutMs: 5000,
+};
+```
+
+The cookie is first-party and holds no identifier. List it in your privacy
+notice if you disclose cookies:
+
+| Attribute  | Value                                                     |
+| ---------- | --------------------------------------------------------- |
+| Name       | `juniper_js`, or the value of `cookieName`                |
+| Value      | `1`                                                       |
+| Lifetime   | Browser session, or `cookieMaxAge` seconds when it is set |
+| Purpose    | Records that this browser ran the page's JavaScript       |
+| `Path`     | `/`                                                       |
+| `SameSite` | `Lax`                                                     |
+| `Secure`   | Set when the page is served over HTTPS                    |
+| `HttpOnly` | Not set, because the browser script writes it             |
+
+Set `cookieName` to use a different name. It must be a valid cookie name. By
+default the cookie lasts only for the browser session. Set `cookieMaxAge` to a
+number of seconds, at least `1`, to let a returning browser stream its first
+document; a browser that later turns JavaScript off then keeps receiving
+streamed documents until the cookie expires.
+
+When the option is on, document responses add `Cookie` to their `Vary` header.
+Names already in `Vary` are kept, and `Vary: *` is left unchanged.
+`Vary: Cookie` asks caches to key the response on the cookie, but some CDNs
+ignore it. Send `Cache-Control: private` for per-user HTML so a shared cache
+does not store it.
 
 ### Client Loaders
 

@@ -6,6 +6,7 @@ import { HttpError } from "./mod.ts";
 import { SpanStatusCode } from "@opentelemetry/api";
 import { Hono } from "hono";
 import type { Context, Env, MiddlewareHandler, Schema } from "hono";
+import { getCookie } from "hono/cookie";
 import { createFactory } from "hono/factory";
 import { serveStatic } from "hono/deno";
 import { stream } from "hono/streaming";
@@ -30,7 +31,14 @@ import type { ClientRoute } from "./client.tsx";
 import { getEnv } from "./utils/env.ts";
 import { getInstance } from "./utils/otel.ts";
 
-import { App, generateRouteId, JuniperContextProvider } from "./_client.tsx";
+import {
+  App,
+  completeTimeoutMs,
+  generateRouteId,
+  JAVASCRIPT_COOKIE_VALUE,
+  javaScriptCookie as resolveJavaScriptCookie,
+  JuniperContextProvider,
+} from "./_client.tsx";
 import {
   createLoaderDataResponse,
   prepareHydrationData,
@@ -42,7 +50,11 @@ import {
 } from "./_serialization.ts";
 import type { DeferredHydration } from "./_serialization.ts";
 import { startActiveSpan } from "./utils/_otel.ts";
-import type { ActionFunction, LoaderFunction } from "./mod.ts";
+import type {
+  ActionFunction,
+  DeferredDataOptions,
+  LoaderFunction,
+} from "./mod.ts";
 import { isHttpErrorLike } from "@udibo/http-error";
 
 /** Builds the browser reload client for the application's dev-server port. */
@@ -349,6 +361,8 @@ interface RenderDocumentOptions {
   renderOptions: RenderOptions;
   request: Request;
   waitForAllReady?: boolean;
+  completeTimeoutMs: number;
+  varyByCookie?: boolean;
   presetError?: HttpError;
 }
 
@@ -363,6 +377,8 @@ async function renderDocument(
     renderOptions,
     request,
     waitForAllReady,
+    completeTimeoutMs,
+    varyByCookie,
     presetError,
   } = options;
   const { allPublicEnvKeys, htmlProps } = renderOptions;
@@ -387,6 +403,11 @@ async function renderDocument(
 
   let renderStream: Awaited<ReturnType<typeof renderToReadableStream>>;
   let aborted = false;
+  const completeDeadline = new AbortController();
+  const renderSignal = AbortSignal.any([
+    request.signal,
+    completeDeadline.signal,
+  ]);
   let renderAttempts = 0;
 
   async function render() {
@@ -440,8 +461,9 @@ async function renderDocument(
             nonce,
             bootstrapModules: ["/build/main.js"],
             bootstrapScripts,
-            signal: request.signal,
+            signal: renderSignal,
             onError: (renderError: unknown) => {
+              if (completeDeadline.signal.aborted) return;
               const abortError = renderError instanceof Error &&
                 renderError.name === "AbortError";
               if (aborted && abortError) return;
@@ -454,7 +476,12 @@ async function renderDocument(
         );
 
         if (waitForAllReady) {
-          await renderStream.allReady;
+          await allReadyWithin(renderStream, completeTimeoutMs, () => {
+            console.error(
+              `Deferred data did not settle within ${completeTimeoutMs}ms; sending its fallbacks.`,
+            );
+            completeDeadline.abort();
+          });
         }
       } catch (error) {
         if (
@@ -535,7 +562,7 @@ async function renderDocument(
 
   c.header("Content-Type", "text/html; charset=utf-8");
 
-  return stream(c, async (streamInstance) => {
+  const response = stream(c, async (streamInstance) => {
     return await startActiveSpan("stream.pipe", async (streamSpan) => {
       try {
         await streamInstance.pipe(renderStream);
@@ -551,6 +578,36 @@ async function renderDocument(
       }
     });
   });
+  if (varyByCookie) mergeVary(response.headers, ["cookie"]);
+  return response;
+}
+
+/**
+ * Adds `names` to the response's `Vary` header, keeping the names already
+ * listed there. A `Vary: *` response is left unchanged.
+ */
+export function mergeVary(headers: Headers, names: string[]): void {
+  const vary = new Set(
+    (headers.get("Vary") ?? "").split(",")
+      .map((name) => name.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  if (vary.has("*")) return;
+  for (const name of names) vary.add(name.toLowerCase());
+  headers.set("Vary", [...vary].join(", "));
+}
+
+async function allReadyWithin(
+  renderStream: { allReady: Promise<void> },
+  timeoutMs: number,
+  onTimeout: () => void,
+): Promise<void> {
+  const timer = setTimeout(onTimeout, timeoutMs);
+  try {
+    await renderStream.allReady;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function errorDocumentRequest(request: Request): Request {
@@ -847,6 +904,7 @@ export function createHandlers<
   route: Route<E, S, BasePath>,
   routes: RouteObject[],
   htmlProps?: React.HTMLAttributes<HTMLHtmlElement>,
+  deferredData?: DeferredDataOptions,
 ): HandlersResult {
   const factory = createFactory<AppEnv>();
   const allPublicEnvKeys = getAllPublicEnvKeys(route);
@@ -856,6 +914,15 @@ export function createHandlers<
     allPublicEnvKeys,
     htmlProps,
   };
+
+  const javaScriptCookie = resolveJavaScriptCookie(deferredData)?.name;
+  const varyByCookie = javaScriptCookie !== undefined;
+  const completeTimeout = completeTimeoutMs(deferredData);
+  function waitForAllReady(c: Context<AppEnv>): boolean {
+    if (isbot(c.req.header("user-agent"))) return true;
+    if (javaScriptCookie === undefined) return false;
+    return getCookie(c, javaScriptCookie) !== JAVASCRIPT_COOKIE_VALUE;
+  }
 
   const handlers = factory.createHandlers(
     async function handleDocumentRequest(c, next) {
@@ -887,7 +954,9 @@ export function createHandlers<
           dataRoutes,
           renderOptions,
           request: c.req.raw,
-          waitForAllReady: isbot(c.req.header("user-agent")),
+          waitForAllReady: waitForAllReady(c),
+          completeTimeoutMs: completeTimeout,
+          varyByCookie,
         });
       });
     },
@@ -978,7 +1047,9 @@ export function createHandlers<
         dataRoutes,
         renderOptions,
         request: c.req.raw,
-        waitForAllReady: isbot(c.req.header("user-agent")),
+        waitForAllReady: waitForAllReady(c),
+        completeTimeoutMs: completeTimeout,
+        varyByCookie,
         presetError: error,
       });
     } catch (renderError) {
