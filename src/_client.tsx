@@ -32,6 +32,7 @@ import {
 } from "./_serialization.ts";
 
 import type {
+  DeferredDataOptions,
   ErrorBoundaryProps,
   HydrateFallbackProps,
   MiddlewareFunction,
@@ -176,6 +177,32 @@ export function App({ children, htmlProps }: AppProps) {
       </body>
     </html>
   );
+}
+
+export const JAVASCRIPT_COOKIE_VALUE = "1";
+const DEFAULT_JAVASCRIPT_COOKIE_NAME = "juniper_js";
+const JAVASCRIPT_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+const COOKIE_NAME_TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
+export function javaScriptCookieName(
+  options: DeferredDataOptions | undefined,
+): string | undefined {
+  if (!options?.streamOnlyWithJavaScript) return undefined;
+  const name = options.cookieName ?? DEFAULT_JAVASCRIPT_COOKIE_NAME;
+  if (!COOKIE_NAME_TOKEN.test(name)) {
+    throw new TypeError(
+      `deferredData.cookieName is not a valid cookie name: ${
+        JSON.stringify(name)
+      }`,
+    );
+  }
+  return name;
+}
+
+export function writeJavaScriptCookie(document: Document, name: string): void {
+  const secure = document.location?.protocol === "https:" ? "; Secure" : "";
+  document.cookie =
+    `${name}=${JAVASCRIPT_COOKIE_VALUE}; Path=/; Max-Age=${JAVASCRIPT_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
 }
 
 const MAX_RELOAD_RETRIES = 2;

@@ -189,6 +189,7 @@ A route module can export:
 | `HydrateFallback`  | Component | Shows while deferred route data is unresolved     |
 | `shouldRevalidate` | Function  | Decides if the loader reruns (client `.tsx` only) |
 | `beforeHydrate`    | Function  | Runs before React hydrates (root `main.tsx` only) |
+| `deferredData`     | Object    | Deferred data delivery (root `main.tsx` only)     |
 
 Export `publicEnvKeys` from the root **server** module, `routes/main.ts`, to
 allowlist additional environment values in hydration data. See
@@ -417,6 +418,55 @@ export default function Dashboard({ loaderData }: RouteProps) {
 On a first page load, the page hydrates without waiting for deferred promises;
 each value reaches `Await` as its promise settles on the server. See
 [How Values Travel](state-management.md#how-values-travel).
+
+#### Complete Documents Without JavaScript
+
+A streamed document shows each `Suspense` fallback first and swaps the content
+in with an inline script once the promise settles. A browser with JavaScript
+disabled never runs that script, so it keeps the fallback and never shows the
+content. Crawlers are detected by user agent and always receive the complete
+document.
+
+To serve complete documents to browsers without JavaScript as well, export
+`deferredData` from the root `routes/main.tsx`:
+
+```tsx
+// routes/main.tsx
+import type { DeferredDataOptions } from "@udibo/juniper";
+
+export const deferredData: DeferredDataOptions = {
+  streamOnlyWithJavaScript: true,
+};
+```
+
+With this option, a document request streams only when it carries a cookie that
+Juniper writes after hydration succeeds, which proves the browser runs
+JavaScript. Without that cookie, the server waits for every deferred promise and
+sends the complete HTML. This covers a first visit, a browser with JavaScript
+disabled, and a browser that blocks cookies.
+
+The trade-off is the first visit: it waits for all deferred data before any HTML
+arrives, so its time to first byte is as slow as the slowest deferred promise.
+The page still hydrates normally. Later document requests from the same browser
+stream as usual. Client-side navigations always stream their data.
+
+The cookie is first-party and holds no identifier. List it in your privacy
+notice if you disclose cookies:
+
+| Attribute  | Value                                                |
+| ---------- | ---------------------------------------------------- |
+| Name       | `juniper_js`, or the value of `cookieName`           |
+| Value      | `1`                                                  |
+| Lifetime   | One year (`Max-Age=31536000`), renewed on each visit |
+| `Path`     | `/`                                                  |
+| `SameSite` | `Lax`                                                |
+| `Secure`   | Set when the page is served over HTTPS               |
+| `HttpOnly` | Not set, because the browser script writes it        |
+
+Set `cookieName` to use a different name. It must be a valid cookie name. When
+the option is on, document responses add `Cookie` to their `Vary` header, so a
+shared cache never serves a streamed document to a browser without JavaScript.
+Names already in `Vary` are kept.
 
 ### Client Loaders
 

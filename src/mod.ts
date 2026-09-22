@@ -678,6 +678,54 @@ export interface RouteModule<
 export type HtmlProps = React.HTMLAttributes<HTMLHtmlElement>;
 
 /**
+ * How server-rendered documents deliver deferred loader data, exported as
+ * `deferredData` from the root `routes/main.tsx`.
+ *
+ * By default a document streams: Suspense fallbacks arrive first and inline
+ * scripts swap the content in as each promise settles. A browser without
+ * JavaScript never runs those scripts and keeps the fallback. Set
+ * `streamOnlyWithJavaScript` to stream only to browsers that have proven they
+ * run JavaScript; every other document request waits for all deferred data
+ * and receives complete HTML, as crawlers already do.
+ *
+ * The proof is a first-party cookie the client writes once hydration commits:
+ * `<cookieName>=1; Path=/; Max-Age=31536000; SameSite=Lax`, plus `Secure` on
+ * HTTPS pages. It is readable by scripts and carries no identifier. Documents
+ * also send `Vary: Cookie` so a shared cache never hands a streamed document to
+ * a browser without JavaScript. A first visit waits for all deferred data
+ * before any HTML is sent. Client-side navigation data requests always stream.
+ *
+ * @example
+ * ```tsx
+ * // routes/main.tsx
+ * import type { DeferredDataOptions } from "@udibo/juniper";
+ * export const deferredData: DeferredDataOptions = {
+ *   streamOnlyWithJavaScript: true,
+ * };
+ * ```
+ */
+export interface DeferredDataOptions {
+  /**
+   * When `true`, stream deferred data only to document requests carrying the
+   * JavaScript cookie; send complete HTML to all others. Defaults to `false`.
+   */
+  streamOnlyWithJavaScript?: boolean;
+  /**
+   * Name of the cookie the client writes after hydration to prove it runs
+   * JavaScript. Must be a valid cookie name token. Defaults to `"juniper_js"`.
+   *
+   * @example
+   * ```ts
+   * export const deferredData = {
+   *   streamOnlyWithJavaScript: true,
+   *   cookieName: "js",
+   * };
+   * ```
+   */
+  cookieName?: string;
+}
+
+/**
  * Exports for the eagerly loaded root `routes/main.tsx` layout.
  *
  * Extends {@linkcode RouteModule} with document attributes and the browser-only
@@ -713,6 +761,17 @@ export interface RootRouteModule<
    * ```
    */
   htmlProps?: HtmlProps;
+  /**
+   * Controls whether documents stream deferred data to browsers that have not
+   * shown they run JavaScript. See {@linkcode DeferredDataOptions}.
+   *
+   * @example
+   * ```tsx
+   * // routes/main.tsx
+   * export const deferredData = { streamOnlyWithJavaScript: true };
+   * ```
+   */
+  deferredData?: DeferredDataOptions;
   /**
    * Runs synchronously in the browser immediately before React hydration,
    * after route loading and the idle delay. Use it to capture served DOM state

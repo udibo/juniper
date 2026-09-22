@@ -370,13 +370,15 @@ settles, as one line of the same shape as the NDJSON lines described below.
 Rejections carry the same error privacy as data responses. Every inline script
 Juniper writes carries the request's CSP nonce when the app sets one, and the
 document stays open until every deferred promise settles or the request is
-aborted. Crawlers receive the complete document at once. Every `<`, U+2028, and
-U+2029 in these scripts is written as a `\u` escape. Deploy server code and
-browser assets from the same build. If their hydration formats do not match,
-Juniper uses a guarded document reload. A document whose hydration value holds
-pending placeholders carries format version 4 and any other carries version 3,
-so a browser build that predates deferred document data reloads instead of
-failing on a placeholder.
+aborted. Crawlers receive the complete document at once, and so can browsers
+without JavaScript; see
+[Complete Documents Without JavaScript](routing.md#complete-documents-without-javascript).
+Every `<`, U+2028, and U+2029 in these scripts is written as a `\u` escape.
+Deploy server code and browser assets from the same build. If their hydration
+formats do not match, Juniper uses a guarded document reload. A document whose
+hydration value holds pending placeholders carries format version 4 and any
+other carries version 3, so a browser build that predates deferred document data
+reloads instead of failing on a placeholder.
 
 Client navigations and fetchers receive settled data as `application/json` with
 a UTF-8 `Content-Length`. Deferred data uses `application/x-ndjson`: the first

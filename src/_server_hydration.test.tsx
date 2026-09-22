@@ -6,6 +6,7 @@ import {
   assertInstanceOf,
   assertRejects,
   assertStringIncludes,
+  assertThrows,
 } from "@std/assert";
 import { delay } from "@std/async/delay";
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
@@ -21,7 +22,11 @@ import {
   registerError,
   registerType,
 } from "@udibo/juniper";
-import type { AnyParams, RouteProps } from "@udibo/juniper";
+import type {
+  AnyParams,
+  DeferredDataOptions,
+  RouteProps,
+} from "@udibo/juniper";
 import { createServer } from "@udibo/juniper/server";
 import { simulateEnvironment } from "@udibo/juniper/utils/testing";
 import {
@@ -363,10 +368,14 @@ interface DeferredPageData {
   later: Promise<unknown>;
 }
 
-function serverWithDeferredPage(loaderData: () => unknown) {
+function serverWithDeferredPage(
+  loaderData: () => unknown,
+  deferredData?: DeferredDataOptions,
+) {
   const client = new Client({
     path: "/",
     main: {
+      deferredData,
       default: ({ loaderData }: RouteProps<AnyParams, DeferredPageData>) => (
         <main>
           <p>{loaderData.now}</p>
@@ -718,5 +727,240 @@ describe("deferred data under a clobbered queue global", () => {
       .loaderData?.["/"] as { later: Promise<{ inner: Promise<string> }> };
     assertEquals(browserScope(global).runNewScripts(html), 2);
     assertEquals(await (await later).inner, "clobber-proof");
+  });
+});
+
+describe("deferred data streamed only to browsers known to run JavaScript", () => {
+  beforeEach(resetRegistries);
+  afterEach(resetRegistries);
+
+  const streamOnlyWithJavaScript = { streamOnlyWithJavaScript: true };
+  const ARRIVED =
+    "<p>Later: <!-- -->{&quot;text&quot;:&quot;arrived&quot;}</p>";
+  const crawler =
+    "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+
+  function slowPage(deferredData?: DeferredDataOptions) {
+    return serverWithDeferredPage(() => ({
+      now: "critical",
+      later: delay(20).then(() => ({ text: "arrived" })),
+    }), deferredData);
+  }
+
+  function assertCompleteDocument(html: string): void {
+    assertStringIncludes(html, ARRIVED);
+    assertFalse(html.includes("Loading later"), "a fallback was sent");
+    assertFalse(html.includes('id="S:'), "a hidden segment was streamed");
+    assertFalse(html.includes("$RC"), "a boundary swap script was streamed");
+  }
+
+  async function assertStreamedDocument(response: Response): Promise<void> {
+    const document = documentReader(response);
+    await document.readUntil(hasHydrationScript);
+    assertStringIncludes(document.html, "Loading later");
+    assertFalse(document.html.includes("Later: "));
+    const html = await document.readToEnd();
+    assertStringIncludes(html, 'id="S:');
+    assertStringIncludes(html, ARRIVED);
+  }
+
+  function sortedVary(response: Response): string[] {
+    return (response.headers.get("Vary") ?? "").toLowerCase().split(/,\s*/)
+      .sort();
+  }
+
+  it("sends complete HTML to a document request without the JavaScript cookie", async () => {
+    const response = await slowPage(streamOnlyWithJavaScript).request(
+      "http://localhost/",
+    );
+    const html = await response.text();
+    assertCompleteDocument(html);
+
+    const browser = browserScope();
+    using _queue = stub(env, "getDeferredHydration", browser.queue);
+    using _parsed = stub(env, "whenDocumentParsed", () => {});
+    browser.runNewScripts(html);
+    const { later } = deserializeHydrationData(assertEscapedDocument(html, 4))
+      .loaderData?.["/"] as DeferredPageData;
+    assertEquals(await later, { text: "arrived" });
+  });
+
+  it("streams the fallback first to a document request with the JavaScript cookie", async () => {
+    const response = await slowPage(streamOnlyWithJavaScript).request(
+      "http://localhost/",
+      { headers: { Cookie: "theme=dark; juniper_js=1" } },
+    );
+    await assertStreamedDocument(response);
+  });
+
+  for (
+    const [label, cookie] of [
+      ["another cookie", "theme=dark"],
+      ["an unexpected cookie value", "juniper_js=0"],
+      ["a cookie whose name only ends like it", "not_juniper_js=1"],
+    ]
+  ) {
+    it(`sends complete HTML to a document request carrying only ${label}`, async () => {
+      const response = await slowPage(streamOnlyWithJavaScript).request(
+        "http://localhost/",
+        { headers: { Cookie: cookie } },
+      );
+      assertCompleteDocument(await response.text());
+    });
+  }
+
+  it("reads the JavaScript cookie under the configured name", async () => {
+    const server = slowPage({
+      streamOnlyWithJavaScript: true,
+      cookieName: "js",
+    });
+    await assertStreamedDocument(
+      await server.request("http://localhost/", {
+        headers: { Cookie: "js=1" },
+      }),
+    );
+    assertCompleteDocument(
+      await (await server.request("http://localhost/", {
+        headers: { Cookie: "juniper_js=1" },
+      })).text(),
+    );
+  });
+
+  it("still sends complete HTML to a crawler that carries the JavaScript cookie", async () => {
+    const response = await slowPage(streamOnlyWithJavaScript).request(
+      "http://localhost/",
+      { headers: { Cookie: "juniper_js=1", "User-Agent": crawler } },
+    );
+    assertCompleteDocument(await response.text());
+  });
+
+  for (
+    const [label, deferredData] of [
+      ["absent", undefined],
+      ["disabled", { streamOnlyWithJavaScript: false }],
+    ] as const
+  ) {
+    it(`streams to a cookieless document request and does not vary by Cookie when the option is ${label}`, async () => {
+      const response = await slowPage(deferredData).request(
+        "http://localhost/",
+      );
+      assertEquals(sortedVary(response), ["accept", "x-juniper-route-id"]);
+      await assertStreamedDocument(response);
+    });
+  }
+
+  it("varies documents by Cookie, keeping the app's own Vary, and leaves route data alone", async () => {
+    const client = new Client({
+      path: "/",
+      main: {
+        deferredData: streamOnlyWithJavaScript,
+        default: () => <p>Home</p>,
+      },
+    });
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        default: new Hono().use(async (c, next) => {
+          c.header("Vary", "Origin, Accept-Language");
+          await next();
+        }),
+        loader: () => "root data",
+      },
+    });
+
+    for (const cookie of [undefined, "juniper_js=1"]) {
+      const response = await server.request("http://localhost/", {
+        headers: cookie ? { Cookie: cookie } : {},
+      });
+      await response.arrayBuffer();
+      assertEquals(sortedVary(response), [
+        "accept",
+        "accept-language",
+        "cookie",
+        "origin",
+        "x-juniper-route-id",
+      ]);
+    }
+
+    const data = await server.request("http://localhost/", {
+      headers: { "X-Juniper-Route-Id": "/" },
+    });
+    await data.arrayBuffer();
+    assertEquals(sortedVary(data), [
+      "accept",
+      "accept-language",
+      "origin",
+      "x-juniper-route-id",
+    ]);
+  });
+
+  it("varies an error document by Cookie", async () => {
+    const client = new Client({
+      path: "/",
+      main: {
+        deferredData: streamOnlyWithJavaScript,
+        default: () => <p>Home</p>,
+        ErrorBoundary: () => <p>Denied page</p>,
+      },
+    });
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        default: new Hono().use(() => {
+          throw new HttpError(403);
+        }),
+      },
+    });
+    using _log = stub(console, "error");
+    const response = await server.request("http://localhost/");
+    assertEquals(response.status, 403);
+    assertStringIncludes(await response.text(), "Denied page");
+    assertEquals(sortedVary(response), [
+      "accept",
+      "cookie",
+      "x-juniper-route-id",
+    ]);
+  });
+
+  it("streams navigation data requests that carry no JavaScript cookie", async () => {
+    const later = Promise.withResolvers<string>();
+    const response = await serverWithDeferredPage(() => ({
+      now: "critical",
+      later: later.promise,
+    }), streamOnlyWithJavaScript).request("http://localhost/", {
+      headers: { "X-Juniper-Route-Id": "/" },
+    });
+    assertEquals(response.headers.get("Content-Type"), "application/x-ndjson");
+    const reader = response.body!.pipeThrough(new TextDecoderStream())
+      .getReader();
+    assertEquals(JSON.parse((await reader.read()).value!), {
+      now: "critical",
+      later: { $t: "pending", v: "p0" },
+    });
+    later.resolve("done");
+    assertEquals(JSON.parse((await reader.read()).value!), {
+      id: "p0",
+      status: "resolved",
+      value: "done",
+    });
+    assert((await reader.read()).done);
+    reader.releaseLock();
+  });
+
+  it("rejects a cookie name that is not a cookie token", () => {
+    for (const cookieName of ["", "js=1", "js;", "j s"]) {
+      assertThrows(
+        () =>
+          new Client({
+            path: "/",
+            main: {
+              deferredData: { streamOnlyWithJavaScript: true, cookieName },
+              default: () => <p>Home</p>,
+            },
+          }),
+        TypeError,
+        "deferredData.cookieName",
+      );
+    }
   });
 });
