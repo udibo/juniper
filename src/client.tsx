@@ -25,11 +25,12 @@ import {
   createRoute,
   deserializeHydrationData,
   generateRouteId,
-  javaScriptCookieName,
+  javaScriptCookie as resolveJavaScriptCookie,
   JuniperContextProvider,
   registerRouter,
   reloadUnsupportedHydration,
   setClientBuildId,
+  validateDeferredData,
   writeJavaScriptCookie,
 } from "./_client.tsx";
 import type { HydrationData, LazyRoute, ServerFlags } from "./_client.tsx";
@@ -127,7 +128,7 @@ export class Client {
    * {@linkcode Client.hydrate}.
    *
    * @param rootRoute - The root client route, typically the generated `main.tsx`.
-   * @throws {TypeError} If the root's `deferredData.cookieName` is not a valid cookie name.
+   * @throws {TypeError} If the root's `deferredData` holds an invalid cookie name, cookie lifetime, or timeout.
    */
   constructor(rootRoute: RootClientRoute) {
     this.rootRoute = rootRoute;
@@ -140,7 +141,7 @@ export class Client {
       this.#rootModule = rootRoute.main;
       this.htmlProps = rootRoute.main.htmlProps;
       this.deferredData = rootRoute.main.deferredData;
-      javaScriptCookieName(this.deferredData);
+      validateDeferredData(this.deferredData);
     }
 
     const parentPathStack: string[] = ["/"];
@@ -353,7 +354,7 @@ export class Client {
     registerRouter(router);
 
     const htmlProps = this.htmlProps;
-    const javaScriptCookie = javaScriptCookieName(this.deferredData);
+    const javaScriptCookie = resolveJavaScriptCookie(this.deferredData);
     const beforeHydrate = this.#rootModule?.beforeHydrate;
     function HydratedApp() {
       const [routerContext] = useState(() => context);

@@ -200,13 +200,19 @@ for (
       label: "enabled over HTTP",
       url: "http://localhost:8000/",
       deferredData: { streamOnlyWithJavaScript: true },
-      expected: ["juniper_js=1; Path=/; Max-Age=31536000; SameSite=Lax"],
+      expected: ["juniper_js=1; Path=/; SameSite=Lax"],
+    },
+    {
+      label: "enabled with a configured lifetime",
+      url: "http://localhost:8000/",
+      deferredData: { streamOnlyWithJavaScript: true, cookieMaxAge: 3600 },
+      expected: ["juniper_js=1; Path=/; Max-Age=3600; SameSite=Lax"],
     },
     {
       label: "enabled over HTTPS under a configured name",
       url: "https://example.com/",
       deferredData: { streamOnlyWithJavaScript: true, cookieName: "js" },
-      expected: ["js=1; Path=/; Max-Age=31536000; SameSite=Lax; Secure"],
+      expected: ["js=1; Path=/; SameSite=Lax; Secure"],
     },
     {
       label: "disabled",

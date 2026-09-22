@@ -33,9 +33,10 @@ import { getInstance } from "./utils/otel.ts";
 
 import {
   App,
+  completeTimeoutMs,
   generateRouteId,
   JAVASCRIPT_COOKIE_VALUE,
-  javaScriptCookieName,
+  javaScriptCookie as resolveJavaScriptCookie,
   JuniperContextProvider,
 } from "./_client.tsx";
 import {
@@ -360,6 +361,7 @@ interface RenderDocumentOptions {
   renderOptions: RenderOptions;
   request: Request;
   waitForAllReady?: boolean;
+  completeTimeoutMs: number;
   varyByCookie?: boolean;
   presetError?: HttpError;
 }
@@ -375,6 +377,7 @@ async function renderDocument(
     renderOptions,
     request,
     waitForAllReady,
+    completeTimeoutMs,
     varyByCookie,
     presetError,
   } = options;
@@ -400,6 +403,11 @@ async function renderDocument(
 
   let renderStream: Awaited<ReturnType<typeof renderToReadableStream>>;
   let aborted = false;
+  const completeDeadline = new AbortController();
+  const renderSignal = AbortSignal.any([
+    request.signal,
+    completeDeadline.signal,
+  ]);
   let renderAttempts = 0;
 
   async function render() {
@@ -453,8 +461,9 @@ async function renderDocument(
             nonce,
             bootstrapModules: ["/build/main.js"],
             bootstrapScripts,
-            signal: request.signal,
+            signal: renderSignal,
             onError: (renderError: unknown) => {
+              if (completeDeadline.signal.aborted) return;
               const abortError = renderError instanceof Error &&
                 renderError.name === "AbortError";
               if (aborted && abortError) return;
@@ -467,7 +476,12 @@ async function renderDocument(
         );
 
         if (waitForAllReady) {
-          await renderStream.allReady;
+          await allReadyWithin(renderStream, completeTimeoutMs, () => {
+            console.error(
+              `Deferred data did not settle within ${completeTimeoutMs}ms; sending its fallbacks.`,
+            );
+            completeDeadline.abort();
+          });
         }
       } catch (error) {
         if (
@@ -581,6 +595,19 @@ export function mergeVary(headers: Headers, names: string[]): void {
   if (vary.has("*")) return;
   for (const name of names) vary.add(name.toLowerCase());
   headers.set("Vary", [...vary].join(", "));
+}
+
+async function allReadyWithin(
+  renderStream: { allReady: Promise<void> },
+  timeoutMs: number,
+  onTimeout: () => void,
+): Promise<void> {
+  const timer = setTimeout(onTimeout, timeoutMs);
+  try {
+    await renderStream.allReady;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function errorDocumentRequest(request: Request): Request {
@@ -888,8 +915,9 @@ export function createHandlers<
     htmlProps,
   };
 
-  const javaScriptCookie = javaScriptCookieName(deferredData);
+  const javaScriptCookie = resolveJavaScriptCookie(deferredData)?.name;
   const varyByCookie = javaScriptCookie !== undefined;
+  const completeTimeout = completeTimeoutMs(deferredData);
   function waitForAllReady(c: Context<AppEnv>): boolean {
     if (isbot(c.req.header("user-agent"))) return true;
     if (javaScriptCookie === undefined) return false;
@@ -927,6 +955,7 @@ export function createHandlers<
           renderOptions,
           request: c.req.raw,
           waitForAllReady: waitForAllReady(c),
+          completeTimeoutMs: completeTimeout,
           varyByCookie,
         });
       });
@@ -1019,6 +1048,7 @@ export function createHandlers<
         renderOptions,
         request: c.req.raw,
         waitForAllReady: waitForAllReady(c),
+        completeTimeoutMs: completeTimeout,
         varyByCookie,
         presetError: error,
       });

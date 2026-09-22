@@ -685,15 +685,18 @@ export type HtmlProps = React.HTMLAttributes<HTMLHtmlElement>;
  * scripts swap the content in as each promise settles. A browser without
  * JavaScript never runs those scripts and keeps the fallback. Set
  * `streamOnlyWithJavaScript` to stream only to browsers that have proven they
- * run JavaScript; every other document request waits for all deferred data
- * and receives complete HTML, as crawlers already do.
+ * run JavaScript; every other document request waits for deferred data and
+ * receives complete HTML, as crawlers already do. That wait is bounded by
+ * `completeTimeoutMs`; promises still pending then are sent as their fallbacks.
  *
- * The proof is a first-party cookie the client writes once hydration commits:
- * `<cookieName>=1; Path=/; Max-Age=31536000; SameSite=Lax`, plus `Secure` on
- * HTTPS pages. It is readable by scripts and carries no identifier. Documents
- * also send `Vary: Cookie` so a shared cache never hands a streamed document to
- * a browser without JavaScript. A first visit waits for all deferred data
- * before any HTML is sent. Client-side navigation data requests always stream.
+ * The proof is a first-party session cookie the client writes once hydration
+ * commits: `<cookieName>=1; Path=/; SameSite=Lax`, plus `Secure` on HTTPS
+ * pages. It is readable by scripts and carries no identifier. Documents also
+ * send `Vary: Cookie`, which asks caches to key the response on the cookie.
+ * Some CDNs ignore `Vary: Cookie`, so send `Cache-Control: private` for HTML
+ * that must not be shared. The first document of each browser session waits
+ * for deferred data before any HTML is sent. Client-side navigation data
+ * requests always stream.
  *
  * @example
  * ```tsx
@@ -723,6 +726,37 @@ export interface DeferredDataOptions {
    * ```
    */
   cookieName?: string;
+  /**
+   * Lifetime of the JavaScript cookie in whole seconds. Omit it for a session
+   * cookie, which a browser drops when it ends its session. A lifetime lets a
+   * returning browser stream its first document, but keeps the proof after
+   * the browser stops running JavaScript until it expires.
+   *
+   * @example
+   * ```ts
+   * export const deferredData = {
+   *   streamOnlyWithJavaScript: true,
+   *   cookieMaxAge: 60 * 60 * 24,
+   * };
+   * ```
+   */
+  cookieMaxAge?: number;
+  /**
+   * Longest time, in milliseconds, a complete document waits for deferred
+   * data before sending the fallbacks of promises still pending and ending the
+   * response. Applies to every complete document: requests without the
+   * JavaScript cookie and crawlers, including when `streamOnlyWithJavaScript`
+   * is off. Must be a positive finite number. Defaults to `10000`.
+   *
+   * @example
+   * ```ts
+   * export const deferredData = {
+   *   streamOnlyWithJavaScript: true,
+   *   completeTimeoutMs: 5000,
+   * };
+   * ```
+   */
+  completeTimeoutMs?: number;
 }
 
 /**

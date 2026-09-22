@@ -181,12 +181,21 @@ export function App({ children, htmlProps }: AppProps) {
 
 export const JAVASCRIPT_COOKIE_VALUE = "1";
 const DEFAULT_JAVASCRIPT_COOKIE_NAME = "juniper_js";
-const JAVASCRIPT_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+const DEFAULT_COMPLETE_TIMEOUT_MS = 10_000;
 const COOKIE_NAME_TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
-export function javaScriptCookieName(
+export interface JavaScriptCookie {
+  name: string;
+  maxAge?: number;
+}
+
+function outOfRange(field: string, value: unknown): TypeError {
+  return new TypeError(`deferredData.${field} is out of range: ${value}`);
+}
+
+export function javaScriptCookie(
   options: DeferredDataOptions | undefined,
-): string | undefined {
+): JavaScriptCookie | undefined {
   if (!options?.streamOnlyWithJavaScript) return undefined;
   const name = options.cookieName ?? DEFAULT_JAVASCRIPT_COOKIE_NAME;
   if (!COOKIE_NAME_TOKEN.test(name)) {
@@ -196,13 +205,39 @@ export function javaScriptCookieName(
       }`,
     );
   }
-  return name;
+  const maxAge = options.cookieMaxAge;
+  if (maxAge === undefined) return { name };
+  if (!(Number.isSafeInteger(maxAge) && maxAge >= 0)) {
+    throw outOfRange("cookieMaxAge", maxAge);
+  }
+  return { name, maxAge };
 }
 
-export function writeJavaScriptCookie(document: Document, name: string): void {
+export function completeTimeoutMs(
+  options: DeferredDataOptions | undefined,
+): number {
+  const timeout = options?.completeTimeoutMs ?? DEFAULT_COMPLETE_TIMEOUT_MS;
+  if (!(Number.isFinite(timeout) && timeout > 0)) {
+    throw outOfRange("completeTimeoutMs", timeout);
+  }
+  return timeout;
+}
+
+export function validateDeferredData(
+  options: DeferredDataOptions | undefined,
+): void {
+  javaScriptCookie(options);
+  completeTimeoutMs(options);
+}
+
+export function writeJavaScriptCookie(
+  document: Document,
+  { name, maxAge }: JavaScriptCookie,
+): void {
+  const lifetime = maxAge === undefined ? "" : `; Max-Age=${maxAge}`;
   const secure = document.location?.protocol === "https:" ? "; Secure" : "";
   document.cookie =
-    `${name}=${JAVASCRIPT_COOKIE_VALUE}; Path=/; Max-Age=${JAVASCRIPT_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
+    `${name}=${JAVASCRIPT_COOKIE_VALUE}; Path=/${lifetime}; SameSite=Lax${secure}`;
 }
 
 const MAX_RELOAD_RETRIES = 2;
