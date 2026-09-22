@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { startTransition, StrictMode, useEffect, useState } from "react";
+import { startTransition, StrictMode, useState } from "react";
 import { hydrateRoot } from "react-dom/client";
 import {
   createBrowserRouter,
@@ -12,12 +12,7 @@ import {
 } from "react-router";
 import type { RouteObject } from "react-router";
 import { HttpError } from "@udibo/http-error";
-import type {
-  DeferredDataOptions,
-  HtmlProps,
-  RootRouteModule,
-  RouteModule,
-} from "./mod.ts";
+import type { HtmlProps, RootRouteModule, RouteModule } from "./mod.ts";
 
 import {
   App,
@@ -25,13 +20,10 @@ import {
   createRoute,
   deserializeHydrationData,
   generateRouteId,
-  javaScriptCookie as resolveJavaScriptCookie,
   JuniperContextProvider,
   registerRouter,
   reloadUnsupportedHydration,
   setClientBuildId,
-  validateDeferredData,
-  writeJavaScriptCookie,
 } from "./_client.tsx";
 import type { HydrationData, LazyRoute, ServerFlags } from "./_client.tsx";
 import { deserializeAllContext } from "./_serialization.ts";
@@ -118,8 +110,6 @@ export class Client {
   routeObjectMap: Map<string, RouteObject>;
   /** Props to apply to the `<html>` element, from root route's htmlProps export. */
   htmlProps?: HtmlProps;
-  /** Deferred data delivery, from the root route's `deferredData` export. */
-  deferredData?: DeferredDataOptions;
 
   #rootModule?: RootRouteModule;
 
@@ -128,7 +118,6 @@ export class Client {
    * {@linkcode Client.hydrate}.
    *
    * @param rootRoute - The root client route, typically the generated `main.tsx`.
-   * @throws {TypeError} If the root's `deferredData` holds an invalid cookie name, cookie lifetime, or timeout.
    */
   constructor(rootRoute: RootClientRoute) {
     this.rootRoute = rootRoute;
@@ -140,8 +129,6 @@ export class Client {
     if (rootRoute.main && typeof rootRoute.main !== "function") {
       this.#rootModule = rootRoute.main;
       this.htmlProps = rootRoute.main.htmlProps;
-      this.deferredData = rootRoute.main.deferredData;
-      validateDeferredData(this.deferredData);
     }
 
     const parentPathStack: string[] = ["/"];
@@ -319,10 +306,6 @@ export class Client {
    * failures are logged and handed to the router's error boundary. Call once
    * per document; generated entrypoints already do so.
    *
-   * When the root exports `deferredData` with `streamOnlyWithJavaScript`, the
-   * JavaScript cookie described by {@linkcode DeferredDataOptions} is written
-   * once hydration commits.
-   *
    * @returns A promise for scheduling hydration; it stays pending during recovery.
    * @throws {Error} If the document has no Juniper hydration data.
    */
@@ -354,13 +337,9 @@ export class Client {
     registerRouter(router);
 
     const htmlProps = this.htmlProps;
-    const javaScriptCookie = resolveJavaScriptCookie(this.deferredData);
     const beforeHydrate = this.#rootModule?.beforeHydrate;
     function HydratedApp() {
       const [routerContext] = useState(() => context);
-      useEffect(() => {
-        if (javaScriptCookie) writeJavaScriptCookie(document, javaScriptCookie);
-      }, []);
       return (
         <StrictMode>
           <App htmlProps={htmlProps}>
