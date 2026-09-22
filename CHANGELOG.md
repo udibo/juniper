@@ -1,3 +1,11 @@
+# [0.14.0](https://github.com/udibo/juniper/compare/0.13.1...0.14.0) (2026-09-22)
+
+### Features
+
+- stream deferred data only with JavaScript
+  ([#139](https://github.com/udibo/juniper/issues/139))
+  ([db38308](https://github.com/udibo/juniper/commit/db3830881f0f73117a750a8e5c2c5360e4f50f61))
+
 ## [0.13.1](https://github.com/udibo/juniper/compare/0.13.0...0.13.1) (2026-09-21)
 
 ### Bug Fixes
