@@ -969,12 +969,14 @@ describe("deferred data streamed only to browsers known to run JavaScript", () =
     for (
       const [field, value] of [
         ["cookieMaxAge", -1],
+        ["cookieMaxAge", 0],
         ["cookieMaxAge", 1.5],
         ["cookieMaxAge", Number.NaN],
         ["completeTimeoutMs", 0],
         ["completeTimeoutMs", -5],
         ["completeTimeoutMs", Number.NaN],
         ["completeTimeoutMs", Number.POSITIVE_INFINITY],
+        ["completeTimeoutMs", 2 ** 31],
       ] as const
     ) {
       assertThrows(
@@ -1024,6 +1026,15 @@ describe("deferred data streamed only to browsers known to run JavaScript", () =
     }), deferredData);
   }
 
+  function assertLoggedTimeoutOnce(
+    log: { calls: { args: unknown[] }[] },
+    timeoutMs: number,
+  ): void {
+    assertEquals(log.calls.map((call) => call.args), [[
+      `Deferred data did not settle within ${timeoutMs}ms; sending its fallbacks.`,
+    ]]);
+  }
+
   function assertFallbackDocument(html: string | undefined): void {
     assertExists(html, "the complete document never arrived");
     assert(html.endsWith("</html>"), "the document did not complete");
@@ -1035,27 +1046,29 @@ describe("deferred data streamed only to browsers known to run JavaScript", () =
   }
 
   it("completes a cookieless document with fallbacks once completeTimeoutMs passes", async () => {
-    using _log = stub(console, "error");
+    using log = stub(console, "error");
     const html = await documentWithin(
       hungPage({ streamOnlyWithJavaScript: true, completeTimeoutMs: 50 }),
       {},
       2000,
     );
     assertFallbackDocument(html);
+    assertLoggedTimeoutOnce(log, 50);
   });
 
   it("completes a crawler's document with fallbacks once completeTimeoutMs passes", async () => {
-    using _log = stub(console, "error");
+    using log = stub(console, "error");
     const html = await documentWithin(
       hungPage({ completeTimeoutMs: 50 }),
       { "User-Agent": crawler },
       2000,
     );
     assertFallbackDocument(html);
+    assertLoggedTimeoutOnce(log, 50);
   });
 
   it("waits ten seconds for deferred data by default before sending fallbacks", async () => {
-    using _log = stub(console, "error");
+    using log = stub(console, "error");
     const request = new AbortController();
     let html: string | undefined;
     let reading: Promise<unknown>;
@@ -1081,6 +1094,7 @@ describe("deferred data streamed only to browsers known to run JavaScript", () =
     if (completed === undefined) request.abort();
     await reading.catch(() => {});
     assertFallbackDocument(completed);
+    assertLoggedTimeoutOnce(log, 10_000);
   });
 
   it("does not cut off a streamed document at completeTimeoutMs", async () => {

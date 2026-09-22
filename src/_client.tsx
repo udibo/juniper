@@ -182,6 +182,7 @@ export function App({ children, htmlProps }: AppProps) {
 export const JAVASCRIPT_COOKIE_VALUE = "1";
 const DEFAULT_JAVASCRIPT_COOKIE_NAME = "juniper_js";
 const DEFAULT_COMPLETE_TIMEOUT_MS = 10_000;
+const MAX_TIMER_DELAY_MS = 2 ** 31 - 1;
 const COOKIE_NAME_TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
 export interface JavaScriptCookie {
@@ -207,7 +208,7 @@ export function javaScriptCookie(
   }
   const maxAge = options.cookieMaxAge;
   if (maxAge === undefined) return { name };
-  if (!(Number.isSafeInteger(maxAge) && maxAge >= 0)) {
+  if (!(Number.isSafeInteger(maxAge) && maxAge > 0)) {
     throw outOfRange("cookieMaxAge", maxAge);
   }
   return { name, maxAge };
@@ -217,7 +218,7 @@ export function completeTimeoutMs(
   options: DeferredDataOptions | undefined,
 ): number {
   const timeout = options?.completeTimeoutMs ?? DEFAULT_COMPLETE_TIMEOUT_MS;
-  if (!(Number.isFinite(timeout) && timeout > 0)) {
+  if (!(timeout > 0 && timeout <= MAX_TIMER_DELAY_MS)) {
     throw outOfRange("completeTimeoutMs", timeout);
   }
   return timeout;

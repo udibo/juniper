@@ -688,6 +688,9 @@ export type HtmlProps = React.HTMLAttributes<HTMLHtmlElement>;
  * run JavaScript; every other document request waits for deferred data and
  * receives complete HTML, as crawlers already do. That wait is bounded by
  * `completeTimeoutMs`; promises still pending then are sent as their fallbacks.
+ * In the browser, such a promise rejects once the document ends, so give every
+ * deferred `<Await>` an `errorElement`; without one the route's error boundary
+ * renders instead.
  *
  * The proof is a first-party session cookie the client writes once hydration
  * commits: `<cookieName>=1; Path=/; SameSite=Lax`, plus `Secure` on HTTPS
@@ -727,7 +730,7 @@ export interface DeferredDataOptions {
    */
   cookieName?: string;
   /**
-   * Lifetime of the JavaScript cookie in whole seconds. Omit it for a session
+   * Lifetime of the JavaScript cookie in whole seconds, at least `1`. Omit it for a session
    * cookie, which a browser drops when it ends its session. A lifetime lets a
    * returning browser stream its first document, but keeps the proof after
    * the browser stops running JavaScript until it expires.
@@ -746,7 +749,10 @@ export interface DeferredDataOptions {
    * data before sending the fallbacks of promises still pending and ending the
    * response. Applies to every complete document: requests without the
    * JavaScript cookie and crawlers, including when `streamOnlyWithJavaScript`
-   * is off. Must be a positive finite number. Defaults to `10000`.
+   * is off. A promise still pending then rejects in the browser at the end of
+   * the document, showing its `<Await>`'s `errorElement`, or the route's error
+   * boundary if it has none. Must be greater than `0` and at most
+   * `2147483647`, the longest timer delay. Defaults to `10000`.
    *
    * @example
    * ```ts

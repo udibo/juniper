@@ -447,14 +447,33 @@ browser with JavaScript disabled, and a browser that blocks cookies.
 
 The trade-off is that first document: it waits for deferred data before any HTML
 arrives, so its time to first byte is as slow as the slowest deferred promise.
-The page still hydrates normally. Later document requests in the same browser
-session stream as usual. Client-side navigations always stream their data.
+Later document requests in the same browser session stream as usual. Client-side
+navigations always stream their data.
 
 A complete document waits at most `completeTimeoutMs`, 10 seconds by default.
 When that passes, the promises still pending are sent as their `Suspense`
 fallbacks and the response ends, so a promise that never settles cannot hold a
 request open. The same limit applies to crawlers, and it applies even when
-`streamOnlyWithJavaScript` is off.
+`streamOnlyWithJavaScript` is off. It must be greater than `0` and at most
+`2147483647`, the longest delay a timer supports.
+
+A section that timed out does not recover in the browser. Its value is never
+sent, so when the document ends the client rejects that promise with
+`Unexpected end of document before all promises resolved`. The page then shows
+that `Await`'s `errorElement`, or the route's error boundary if the `Await` has
+none. Give every deferred section an `errorElement` so a timeout affects only
+that section:
+
+```tsx
+<Suspense fallback={<p>Loading analytics...</p>}>
+  <Await
+    resolve={loaderData.analytics}
+    errorElement={<p>Analytics are unavailable.</p>}
+  >
+    {(analytics) => <AnalyticsChart data={analytics} />}
+  </Await>
+</Suspense>;
+```
 
 ```tsx
 export const deferredData: DeferredDataOptions = {
@@ -479,9 +498,9 @@ notice if you disclose cookies:
 
 Set `cookieName` to use a different name. It must be a valid cookie name. By
 default the cookie lasts only for the browser session. Set `cookieMaxAge` to a
-number of seconds to let a returning browser stream its first document; a
-browser that later turns JavaScript off then keeps receiving streamed documents
-until the cookie expires.
+number of seconds, at least `1`, to let a returning browser stream its first
+document; a browser that later turns JavaScript off then keeps receiving
+streamed documents until the cookie expires.
 
 When the option is on, document responses add `Cookie` to their `Vary` header.
 Names already in `Vary` are kept, and `Vary: *` is left unchanged.
