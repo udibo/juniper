@@ -370,9 +370,8 @@ settles, as one line of the same shape as the NDJSON lines described below.
 Rejections carry the same error privacy as data responses. Every inline script
 Juniper writes carries the request's CSP nonce when the app sets one, and the
 document stays open until every deferred promise settles or the request is
-aborted. Crawlers receive the complete document at once, and so can browsers
-without JavaScript; see
-[Complete Documents Without JavaScript](routing.md#complete-documents-without-javascript).
+aborted. Crawlers receive the complete document at once; see
+[Crawlers and Browsers Without JavaScript](routing.md#crawlers-and-browsers-without-javascript).
 Every `<`, U+2028, and U+2029 in these scripts is written as a `\u` escape.
 Deploy server code and browser assets from the same build. If their hydration
 formats do not match, Juniper uses a guarded document reload. A document whose

@@ -6,7 +6,6 @@ import { HttpError } from "./mod.ts";
 import { SpanStatusCode } from "@opentelemetry/api";
 import { Hono } from "hono";
 import type { Context, Env, MiddlewareHandler, Schema } from "hono";
-import { getCookie } from "hono/cookie";
 import { createFactory } from "hono/factory";
 import { serveStatic } from "hono/deno";
 import { stream } from "hono/streaming";
@@ -31,14 +30,7 @@ import type { ClientRoute } from "./client.tsx";
 import { getEnv } from "./utils/env.ts";
 import { getInstance } from "./utils/otel.ts";
 
-import {
-  App,
-  completeTimeoutMs,
-  generateRouteId,
-  JAVASCRIPT_COOKIE_VALUE,
-  javaScriptCookie as resolveJavaScriptCookie,
-  JuniperContextProvider,
-} from "./_client.tsx";
+import { App, generateRouteId, JuniperContextProvider } from "./_client.tsx";
 import {
   createLoaderDataResponse,
   prepareHydrationData,
@@ -50,11 +42,7 @@ import {
 } from "./_serialization.ts";
 import type { DeferredHydration } from "./_serialization.ts";
 import { startActiveSpan } from "./utils/_otel.ts";
-import type {
-  ActionFunction,
-  DeferredDataOptions,
-  LoaderFunction,
-} from "./mod.ts";
+import type { ActionFunction, LoaderFunction } from "./mod.ts";
 import { isHttpErrorLike } from "@udibo/http-error";
 
 /** Builds the browser reload client for the application's dev-server port. */
@@ -354,6 +342,8 @@ interface RenderOptions {
   htmlProps?: React.HTMLAttributes<HTMLHtmlElement>;
 }
 
+const COMPLETE_DOCUMENT_TIMEOUT_MS = 10_000;
+
 interface RenderDocumentOptions {
   context: StaticHandlerContext;
   requestContext: RouterContextProvider;
@@ -361,8 +351,6 @@ interface RenderDocumentOptions {
   renderOptions: RenderOptions;
   request: Request;
   waitForAllReady?: boolean;
-  completeTimeoutMs: number;
-  varyByCookie?: boolean;
   presetError?: HttpError;
 }
 
@@ -377,8 +365,6 @@ async function renderDocument(
     renderOptions,
     request,
     waitForAllReady,
-    completeTimeoutMs,
-    varyByCookie,
     presetError,
   } = options;
   const { allPublicEnvKeys, htmlProps } = renderOptions;
@@ -480,12 +466,16 @@ async function renderDocument(
         );
 
         if (waitForAllReady) {
-          await allReadyWithin(renderStream, completeTimeoutMs, () => {
-            console.error(
-              `Deferred data did not settle within ${completeTimeoutMs}ms; sending its fallbacks.`,
-            );
-            completeDeadline.abort();
-          });
+          await allReadyWithin(
+            renderStream,
+            COMPLETE_DOCUMENT_TIMEOUT_MS,
+            () => {
+              console.error(
+                `Deferred data did not settle within ${COMPLETE_DOCUMENT_TIMEOUT_MS}ms; sending its fallbacks.`,
+              );
+              completeDeadline.abort();
+            },
+          );
         }
       } catch (error) {
         if (
@@ -582,7 +572,6 @@ async function renderDocument(
       }
     });
   });
-  if (varyByCookie) mergeVary(response.headers, ["cookie"]);
   return response;
 }
 
@@ -908,7 +897,6 @@ export function createHandlers<
   route: Route<E, S, BasePath>,
   routes: RouteObject[],
   htmlProps?: React.HTMLAttributes<HTMLHtmlElement>,
-  deferredData?: DeferredDataOptions,
 ): HandlersResult {
   const factory = createFactory<AppEnv>();
   const allPublicEnvKeys = getAllPublicEnvKeys(route);
@@ -918,15 +906,6 @@ export function createHandlers<
     allPublicEnvKeys,
     htmlProps,
   };
-
-  const javaScriptCookie = resolveJavaScriptCookie(deferredData)?.name;
-  const varyByCookie = javaScriptCookie !== undefined;
-  const completeTimeout = completeTimeoutMs(deferredData);
-  function waitForAllReady(c: Context<AppEnv>): boolean {
-    if (isbot(c.req.header("user-agent"))) return true;
-    if (javaScriptCookie === undefined) return false;
-    return getCookie(c, javaScriptCookie) !== JAVASCRIPT_COOKIE_VALUE;
-  }
 
   const handlers = factory.createHandlers(
     async function handleDocumentRequest(c, next) {
@@ -958,9 +937,7 @@ export function createHandlers<
           dataRoutes,
           renderOptions,
           request: c.req.raw,
-          waitForAllReady: waitForAllReady(c),
-          completeTimeoutMs: completeTimeout,
-          varyByCookie,
+          waitForAllReady: isbot(c.req.header("user-agent")),
         });
       });
     },
@@ -1051,9 +1028,7 @@ export function createHandlers<
         dataRoutes,
         renderOptions,
         request: c.req.raw,
-        waitForAllReady: waitForAllReady(c),
-        completeTimeoutMs: completeTimeout,
-        varyByCookie,
+        waitForAllReady: isbot(c.req.header("user-agent")),
         presetError: error,
       });
     } catch (renderError) {

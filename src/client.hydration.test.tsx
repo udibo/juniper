@@ -1,23 +1,16 @@
 import "@udibo/juniper/utils/global-jsdom";
 
-import {
-  assert,
-  assertEquals,
-  assertExists,
-  assertFalse,
-  assertStringIncludes,
-  assertThrows,
-} from "@std/assert";
+import { assert, assertEquals, assertExists, assertThrows } from "@std/assert";
 import { it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { waitFor } from "@testing-library/react";
 import globalJsdom from "global-jsdom";
-import { act, useEffect } from "react";
+import { act } from "react";
 import { renderToString } from "react-dom/server";
 import { unstable_IdlePriority, unstable_scheduleCallback } from "scheduler";
 
 import { Client } from "@udibo/juniper/client";
-import type { DeferredDataOptions, RootRouteModule } from "@udibo/juniper";
+import type { RootRouteModule } from "@udibo/juniper";
 
 import { App, registerRouter } from "./_client.tsx";
 import { simulateBrowser } from "./utils/testing.internal.ts";
@@ -202,157 +195,3 @@ for (const failure of ["caught", "uncaught", "hook"] as const) {
     }),
   );
 }
-
-for (
-  const { label, url, deferredData, expected } of [
-    {
-      label: "enabled over HTTP",
-      url: "http://localhost:8000/",
-      deferredData: { streamOnlyWithJavaScript: true },
-      expected: ["juniper_js=1; Path=/; SameSite=Lax"],
-    },
-    {
-      label: "enabled with a configured lifetime",
-      url: "http://localhost:8000/",
-      deferredData: { streamOnlyWithJavaScript: true, cookieMaxAge: 3600 },
-      expected: ["juniper_js=1; Path=/; Max-Age=3600; SameSite=Lax"],
-    },
-    {
-      label: "enabled over HTTPS under a configured name",
-      url: "https://example.com/",
-      deferredData: { streamOnlyWithJavaScript: true, cookieName: "js" },
-      expected: ["js=1; Path=/; SameSite=Lax; Secure"],
-    },
-    {
-      label: "disabled",
-      url: "http://localhost:8000/",
-      deferredData: { streamOnlyWithJavaScript: false },
-      expected: [],
-    },
-    {
-      label: "absent",
-      url: "http://localhost:8000/",
-      deferredData: undefined,
-      expected: [],
-    },
-  ] satisfies {
-    label: string;
-    url: string;
-    deferredData?: DeferredDataOptions;
-    expected: string[];
-  }[]
-) {
-  it(
-    `writes the JavaScript cookie only once hydration commits when the option is ${label}`,
-    simulateBrowser({ matches: [{ id: "/" }] }, async () => {
-      const cleanup = globalJsdom(undefined, { url });
-      let scheduled: IdleRequestCallback | undefined;
-      const previousIdle = globalThis.requestIdleCallback;
-      globalThis.requestIdleCallback = (callback) => {
-        scheduled = callback;
-        return 1;
-      };
-      const cookie = Object.getOwnPropertyDescriptor(
-        document.defaultView!.Document.prototype,
-        "cookie",
-      )!;
-      const writes: string[] = [];
-      Object.defineProperty(document, "cookie", {
-        configurable: true,
-        get: () => cookie.get!.call(document),
-        set: (value: string) => {
-          writes.push(value);
-          cookie.set!.call(document, value);
-        },
-      });
-      let mounted = 0;
-      const route = {
-        default: () => {
-          useEffect(() => {
-            mounted++;
-          }, []);
-          return <p>Served</p>;
-        },
-        deferredData,
-      } satisfies RootRouteModule;
-      const client = new Client({ path: "/", main: route });
-      document.documentElement.innerHTML = renderToString(
-        <App>
-          <p>Served</p>
-        </App>,
-      ).replace(/^<html[^>]*>|<\/html>$/g, "");
-      try {
-        await client.hydrate();
-        assertExists(scheduled);
-        assertEquals(writes, [], "the cookie was written before hydration");
-        await act(() =>
-          scheduled!({ didTimeout: false, timeRemaining: () => 50 })
-        );
-        await waitFor(() => assert(mounted > 0, "hydration never committed"));
-        assertEquals([...new Set(writes)], expected);
-        if (expected.length > 0 && url.startsWith("http:")) {
-          assertStringIncludes(document.cookie, "juniper_js=1");
-        }
-      } finally {
-        await reactWorkSettled();
-        if (previousIdle) globalThis.requestIdleCallback = previousIdle;
-        else Reflect.deleteProperty(globalThis, "requestIdleCallback");
-        registerRouter(undefined);
-        document.defaultView!.close();
-        cleanup();
-      }
-    }),
-  );
-}
-
-it(
-  "does not write the JavaScript cookie when hydration fails",
-  simulateBrowser({ matches: [{ id: "/" }] }, async () => {
-    const cleanup = globalJsdom(undefined, { url: "http://localhost:8000/" });
-    using errors = stub(console, "error", () => {});
-    let scheduled: IdleRequestCallback | undefined;
-    const previousIdle = globalThis.requestIdleCallback;
-    globalThis.requestIdleCallback = (callback) => {
-      scheduled = callback;
-      return 1;
-    };
-    const client = new Client({
-      path: "/",
-      main: {
-        default: () => <p>Served</p>,
-        deferredData: { streamOnlyWithJavaScript: true },
-      },
-    });
-    client.htmlProps = {
-      get lang(): string {
-        throw new Error("document props failed");
-      },
-    };
-    document.documentElement.innerHTML = renderToString(
-      <App>
-        <p>Served</p>
-      </App>,
-    ).replace(/^<html[^>]*>|<\/html>$/g, "");
-    try {
-      await client.hydrate();
-      assertExists(scheduled);
-      scheduled({ didTimeout: false, timeRemaining: () => 50 });
-      await waitFor(() =>
-        assert(
-          errors.calls.some((call) =>
-            call.args[0] === "hydrate onUncaughtError"
-          ),
-          "hydration did not fail",
-        )
-      );
-      assertFalse(document.cookie.includes("juniper_js"));
-    } finally {
-      await reactWorkSettled();
-      if (previousIdle) globalThis.requestIdleCallback = previousIdle;
-      else Reflect.deleteProperty(globalThis, "requestIdleCallback");
-      registerRouter(undefined);
-      document.defaultView!.close();
-      cleanup();
-    }
-  }),
-);

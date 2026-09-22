@@ -678,94 +678,6 @@ export interface RouteModule<
 export type HtmlProps = React.HTMLAttributes<HTMLHtmlElement>;
 
 /**
- * How server-rendered documents deliver deferred loader data, exported as
- * `deferredData` from the root `routes/main.tsx`.
- *
- * By default a document streams: Suspense fallbacks arrive first and inline
- * scripts swap the content in as each promise settles. A browser without
- * JavaScript never runs those scripts and keeps the fallback. Set
- * `streamOnlyWithJavaScript` to stream only to browsers that have proven they
- * run JavaScript; every other document request waits for deferred data and
- * receives complete HTML, as crawlers already do. That wait is bounded by
- * `completeTimeoutMs`; promises still pending then are sent as their fallbacks.
- * In the browser, such a promise rejects once the document ends, so give every
- * deferred `<Await>` an `errorElement`; without one the route's error boundary
- * renders instead.
- *
- * The proof is a first-party session cookie the client writes once hydration
- * commits: `<cookieName>=1; Path=/; SameSite=Lax`, plus `Secure` on HTTPS
- * pages. It is readable by scripts and carries no identifier. Documents also
- * send `Vary: Cookie`, which asks caches to key the response on the cookie.
- * Some CDNs ignore `Vary: Cookie`, so send `Cache-Control: private` for HTML
- * that must not be shared. The first document of each browser session waits
- * for deferred data before any HTML is sent. Client-side navigation data
- * requests always stream.
- *
- * @example
- * ```tsx
- * // routes/main.tsx
- * import type { DeferredDataOptions } from "@udibo/juniper";
- * export const deferredData: DeferredDataOptions = {
- *   streamOnlyWithJavaScript: true,
- * };
- * ```
- */
-export interface DeferredDataOptions {
-  /**
-   * When `true`, stream deferred data only to document requests carrying the
-   * JavaScript cookie; send complete HTML to all others. Defaults to `false`.
-   */
-  streamOnlyWithJavaScript?: boolean;
-  /**
-   * Name of the cookie the client writes after hydration to prove it runs
-   * JavaScript. Must be a valid cookie name token. Defaults to `"juniper_js"`.
-   *
-   * @example
-   * ```ts
-   * export const deferredData = {
-   *   streamOnlyWithJavaScript: true,
-   *   cookieName: "js",
-   * };
-   * ```
-   */
-  cookieName?: string;
-  /**
-   * Lifetime of the JavaScript cookie in whole seconds, at least `1`. Omit it for a session
-   * cookie, which a browser drops when it ends its session. A lifetime lets a
-   * returning browser stream its first document, but keeps the proof after
-   * the browser stops running JavaScript until it expires.
-   *
-   * @example
-   * ```ts
-   * export const deferredData = {
-   *   streamOnlyWithJavaScript: true,
-   *   cookieMaxAge: 60 * 60 * 24,
-   * };
-   * ```
-   */
-  cookieMaxAge?: number;
-  /**
-   * Longest time, in milliseconds, a complete document waits for deferred
-   * data before sending the fallbacks of promises still pending and ending the
-   * response. Applies to every complete document: requests without the
-   * JavaScript cookie and crawlers, including when `streamOnlyWithJavaScript`
-   * is off. A promise still pending then rejects in the browser at the end of
-   * the document, showing its `<Await>`'s `errorElement`, or the route's error
-   * boundary if it has none. Must be greater than `0` and at most
-   * `2147483647`, the longest timer delay. Defaults to `10000`.
-   *
-   * @example
-   * ```ts
-   * export const deferredData = {
-   *   streamOnlyWithJavaScript: true,
-   *   completeTimeoutMs: 5000,
-   * };
-   * ```
-   */
-  completeTimeoutMs?: number;
-}
-
-/**
  * Exports for the eagerly loaded root `routes/main.tsx` layout.
  *
  * Extends {@linkcode RouteModule} with document attributes and the browser-only
@@ -801,17 +713,6 @@ export interface RootRouteModule<
    * ```
    */
   htmlProps?: HtmlProps;
-  /**
-   * Controls whether documents stream deferred data to browsers that have not
-   * shown they run JavaScript. See {@linkcode DeferredDataOptions}.
-   *
-   * @example
-   * ```tsx
-   * // routes/main.tsx
-   * export const deferredData = { streamOnlyWithJavaScript: true };
-   * ```
-   */
-  deferredData?: DeferredDataOptions;
   /**
    * Runs synchronously in the browser immediately before React hydration,
    * after route loading and the idle delay. Use it to capture served DOM state

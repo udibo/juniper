@@ -151,7 +151,6 @@ export function createServer<
     route,
     serverRoutes,
     client.htmlProps,
-    client.deferredData,
   );
   const app = buildApp(
     route,

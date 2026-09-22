@@ -32,7 +32,6 @@ import {
 } from "./_serialization.ts";
 
 import type {
-  DeferredDataOptions,
   ErrorBoundaryProps,
   HydrateFallbackProps,
   MiddlewareFunction,
@@ -177,68 +176,6 @@ export function App({ children, htmlProps }: AppProps) {
       </body>
     </html>
   );
-}
-
-export const JAVASCRIPT_COOKIE_VALUE = "1";
-const DEFAULT_JAVASCRIPT_COOKIE_NAME = "juniper_js";
-const DEFAULT_COMPLETE_TIMEOUT_MS = 10_000;
-const MAX_TIMER_DELAY_MS = 2 ** 31 - 1;
-const COOKIE_NAME_TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
-
-export interface JavaScriptCookie {
-  name: string;
-  maxAge?: number;
-}
-
-function outOfRange(field: string, value: unknown): TypeError {
-  return new TypeError(`deferredData.${field} is out of range: ${value}`);
-}
-
-export function javaScriptCookie(
-  options: DeferredDataOptions | undefined,
-): JavaScriptCookie | undefined {
-  if (!options?.streamOnlyWithJavaScript) return undefined;
-  const name = options.cookieName ?? DEFAULT_JAVASCRIPT_COOKIE_NAME;
-  if (!COOKIE_NAME_TOKEN.test(name)) {
-    throw new TypeError(
-      `deferredData.cookieName is not a valid cookie name: ${
-        JSON.stringify(name)
-      }`,
-    );
-  }
-  const maxAge = options.cookieMaxAge;
-  if (maxAge === undefined) return { name };
-  if (!(Number.isSafeInteger(maxAge) && maxAge > 0)) {
-    throw outOfRange("cookieMaxAge", maxAge);
-  }
-  return { name, maxAge };
-}
-
-export function completeTimeoutMs(
-  options: DeferredDataOptions | undefined,
-): number {
-  const timeout = options?.completeTimeoutMs ?? DEFAULT_COMPLETE_TIMEOUT_MS;
-  if (!(timeout > 0 && timeout <= MAX_TIMER_DELAY_MS)) {
-    throw outOfRange("completeTimeoutMs", timeout);
-  }
-  return timeout;
-}
-
-export function validateDeferredData(
-  options: DeferredDataOptions | undefined,
-): void {
-  javaScriptCookie(options);
-  completeTimeoutMs(options);
-}
-
-export function writeJavaScriptCookie(
-  document: Document,
-  { name, maxAge }: JavaScriptCookie,
-): void {
-  const lifetime = maxAge === undefined ? "" : `; Max-Age=${maxAge}`;
-  const secure = document.location?.protocol === "https:" ? "; Secure" : "";
-  document.cookie =
-    `${name}=${JAVASCRIPT_COOKIE_VALUE}; Path=/${lifetime}; SameSite=Lax${secure}`;
 }
 
 const MAX_RELOAD_RETRIES = 2;
