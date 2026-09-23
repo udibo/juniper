@@ -677,8 +677,9 @@ export async function deserializeStreamingLoaderData<T = unknown>(
 
 /**
  * Serializes every registered context, keyed by registration name. A context
- * whose value is unset or whose `serialize` throws is silently omitted, as is
- * an `undefined` result.
+ * whose read throws (unset with no default value) or whose `serialize` throws
+ * is silently omitted, as is an `undefined` result; an unset context with a
+ * default value serializes that default.
  */
 export function serializeAllContext(
   routerContext: RouterContextProvider,
