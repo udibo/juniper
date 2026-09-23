@@ -1,3 +1,11 @@
+## [0.16.2](https://github.com/udibo/juniper/compare/0.16.1...0.16.2) (2026-09-23)
+
+### Bug Fixes
+
+- keep data redirects out of shared caches
+  ([#150](https://github.com/udibo/juniper/issues/150))
+  ([567895a](https://github.com/udibo/juniper/commit/567895a367b38ca3892f195c8948038c2a0a57e2))
+
 ## [0.16.1](https://github.com/udibo/juniper/compare/0.16.0...0.16.1) (2026-09-23)
 
 ### Bug Fixes
