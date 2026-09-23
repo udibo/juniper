@@ -52,7 +52,9 @@ function varyByRoute(headers: Headers): void {
  * modules instead of editing generated files. Each request gets a fresh router
  * context. Hono middleware runs before SSR or route-data handlers. Errors denied
  * by middleware render without invoking loaders. Responses vary by `Accept` and
- * `X-Juniper-Route-Id` while retaining application cache variation.
+ * `X-Juniper-Route-Id` while retaining application cache variation. Route data
+ * responses default to `Cache-Control: private, no-cache`, plus `no-transform`
+ * when deferred; a policy route middleware sets before `next()` replaces it.
  *
  * @param moduleUrl - File URL of the application entrypoint; its directory owns `public/`.
  * @param client - Matching client route definitions from the same build.

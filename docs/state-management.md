@@ -389,10 +389,13 @@ stream respects consumer back-pressure and stops on request cancellation.
 
 Both response kinds, including data-request errors, carry `X-Juniper: data`. Use
 this marker to identify framework data in middleware; JSON content type also
-occurs on ordinary API responses and redirect envelopes. Deferred streams carry
-`Cache-Control: no-transform` and must remain uncompressed at the origin so
-buffering does not delay individual resolutions. Settled JSON can use normal
-HTTP compression. The client uses one text-line decoder for both response kinds.
+occurs on ordinary API responses and redirect envelopes. Both are private and
+revalidated by default; see
+[Caching Loader Data](routing.md#caching-loader-data) for the policy and how to
+change it. Deferred streams also carry `no-transform` and must remain
+uncompressed at the origin so buffering does not delay individual resolutions.
+Settled JSON can use normal HTTP compression. The client uses one text-line
+decoder for both response kinds.
 
 ## React Context
 

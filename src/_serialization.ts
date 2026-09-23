@@ -566,6 +566,8 @@ export function createStreamingLoaderData(
   return createDataStream(processed, pending, signal);
 }
 
+const DATA_CACHE_CONTROL = "private, no-cache";
+
 export function createLoaderDataResponse(
   data: unknown,
   signal?: AbortSignal,
@@ -576,7 +578,7 @@ export function createLoaderDataResponse(
       headers: {
         "Content-Type": "application/x-ndjson",
         "X-Juniper": "data",
-        "Cache-Control": "no-transform",
+        "Cache-Control": `${DATA_CACHE_CONTROL}, no-transform`,
       },
     });
   }
@@ -588,6 +590,7 @@ export function createLoaderDataResponse(
       "Content-Type": "application/json",
       "Content-Length": String(bytes.length),
       "X-Juniper": "data",
+      "Cache-Control": DATA_CACHE_CONTROL,
     },
   });
 }
