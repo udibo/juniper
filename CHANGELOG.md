@@ -1,3 +1,12 @@
+## [0.16.3](https://github.com/udibo/juniper/compare/0.16.2...0.16.3) (2026-09-23)
+
+### Bug Fixes
+
+- keep a route response's headers under cors
+  ([#152](https://github.com/udibo/juniper/issues/152))
+  ([ff7d412](https://github.com/udibo/juniper/commit/ff7d412fa2c2ebe74e0c367d390d72db08263a7e)),
+  closes [#145](https://github.com/udibo/juniper/issues/145)
+
 ## [0.16.2](https://github.com/udibo/juniper/compare/0.16.1...0.16.2) (2026-09-23)
 
 ### Bug Fixes
