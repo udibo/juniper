@@ -192,8 +192,3 @@ before submitting a pull request.
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
-
-## Changelog
-
-- **2026-09-09** — Corrected matching server/client route filenames and made the
-  introductory loader example self-contained and typed; added guide navigation.

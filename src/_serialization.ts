@@ -18,10 +18,6 @@ import { HttpError, isHttpErrorLike } from "@udibo/http-error";
 import { isDevelopment } from "./utils/env.ts";
 import { env } from "./utils/_env.ts";
 
-/**
- * Internal interface for custom type serializers.
- * @internal
- */
 export interface TypeSerializer<T, S = unknown> {
   name: string;
   is: (value: unknown) => value is T;
@@ -29,10 +25,6 @@ export interface TypeSerializer<T, S = unknown> {
   deserialize: (data: S) => T;
 }
 
-/**
- * Internal interface for error serializers.
- * @internal
- */
 export interface ErrorSerializer<E extends Error> {
   name: string;
   is: (error: unknown) => error is E;
@@ -40,10 +32,6 @@ export interface ErrorSerializer<E extends Error> {
   deserialize: (data: Record<string, unknown>) => E;
 }
 
-/**
- * Internal interface for context serializers.
- * @internal
- */
 export interface ContextSerializer<T, S = unknown> {
   name: string;
   context: RouterContext<T>;
@@ -63,12 +51,6 @@ const builtInErrorSerializers = new Set<ErrorSerializer<Error>>();
 // deno-lint-ignore no-explicit-any
 const contextRegistry = new Map<string, ContextSerializer<any, any>>();
 
-/**
- * Internal function to add a type serializer to the registry.
- * Called by registerType in mod.ts.
- *
- * @internal
- */
 export function _addTypeSerializer<T, S = unknown>(
   serializer: TypeSerializer<T, S>,
 ): void {
@@ -79,12 +61,6 @@ export function _addTypeSerializer<T, S = unknown>(
   typeSerializers.push(serializer);
 }
 
-/**
- * Internal function to add an error serializer to the registry.
- * Called by registerError in mod.ts.
- *
- * @internal
- */
 export function _addErrorSerializer<E extends Error>(
   serializer: ErrorSerializer<E>,
 ): void {
@@ -95,12 +71,6 @@ export function _addErrorSerializer<E extends Error>(
   errorSerializers.push(serializer);
 }
 
-/**
- * Internal function to add a context serializer to the registry.
- * Called by registerContext in mod.ts.
- *
- * @internal
- */
 export function _addContextSerializer<T, S = unknown>(
   serializer: ContextSerializer<T, S>,
 ): void {
@@ -706,10 +676,10 @@ export async function deserializeStreamingLoaderData<T = unknown>(
 }
 
 /**
- * Serialize all registered context from RouterContextProvider.
- *
- * @param routerContext - The router context provider
- * @returns An object with serialized context values keyed by name
+ * Serializes every registered context, keyed by registration name. A context
+ * whose read throws (unset with no default value) or whose `serialize` throws
+ * is silently omitted, as is an `undefined` result; an unset context with a
+ * default value serializes that default.
  */
 export function serializeAllContext(
   routerContext: RouterContextProvider,
@@ -733,10 +703,8 @@ export function serializeAllContext(
 }
 
 /**
- * Deserialize all registered context into RouterContextProvider.
- *
- * @param serializedContext - The serialized context object
- * @param routerContext - The router context provider to populate
+ * Sets every registered context on `routerContext`; a name missing from
+ * `serializedContext` reaches its decoder as `undefined`.
  */
 export function deserializeAllContext(
   serializedContext: Record<string, unknown> | undefined,
@@ -760,7 +728,9 @@ export interface SerializedHydrationData {
   data: TaggedJson;
 }
 /**
- * Hydration data structure.
+ * The route state the server embeds in a document for `Client.hydrate`:
+ * matched route ids, loader/action data, route errors, public environment, and
+ * registered context.
  */
 export interface HydrationData {
   /** Public environment variables shared with the client */

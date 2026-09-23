@@ -64,10 +64,15 @@ server module with `routes/blog/create.tsx` for router submissions.
 Actions receive these arguments:
 
 ```typescript
-interface RouteActionArgs {
+interface RouteActionArgs<
+  Params extends AnyParams = AnyParams,
+  ActionData = unknown,
+> {
   request: Request; // The form submission request
-  params: Record<string, string>; // Route parameters
-  context: RouterContextProvider; // Shared context
+  params: Params; // Route parameters (Record<string, string | undefined>)
+  context: RequestContext; // Shared context
+  // Calls the paired server action from a client action; throws on the server
+  serverAction: () => ActionData | Response | Promise<ActionData | Response>;
 }
 ```
 

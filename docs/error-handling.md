@@ -152,7 +152,7 @@ context:
 
 ```typescript
 interface ErrorBoundaryProps<
-  Params = Record<string, string | undefined>,
+  Params extends AnyParams = AnyParams, // Record<string, string | undefined>
   LoaderData = unknown,
   ActionData = unknown,
 > {
@@ -167,7 +167,7 @@ interface ErrorBoundaryProps<
   /** The action data (if available before the error) */
   actionData: ActionData;
   /** The router context */
-  context: RouterContextProvider;
+  context: RequestContext;
 }
 ```
 
@@ -421,11 +421,13 @@ throw new HttpError(500, "Internal error details", {
 
 ### Error Handling in Middleware
 
-Middleware errors are caught by error boundaries. See
+Errors thrown by client middleware are caught by error boundaries. Client
+middleware is exported from a `.tsx` route module; a `.ts` server module has no
+`middleware` export, so enforce server-side access in Hono middleware. See
 [Middleware](middleware.md) for more details:
 
 ```typescript
-// routes/admin/main.ts
+// routes/admin/main.tsx
 import { HttpError } from "@udibo/juniper";
 import type { MiddlewareFunction } from "@udibo/juniper";
 import { redirect } from "react-router";

@@ -144,7 +144,7 @@ transformation are placed outside `public/` and added as build entrypoints.
 ```json
 {
   "imports": {
-    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.4.0"
+    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.4.2"
   }
 }
 ```
@@ -202,7 +202,7 @@ Or add TailwindCSS to an existing project:
   "imports": {
     "tailwindcss": "npm:tailwindcss@^4",
     "@tailwindcss/postcss": "npm:@tailwindcss/postcss@^4",
-    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.4.0"
+    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.4.2"
   }
 }
 ```
@@ -303,15 +303,17 @@ This is useful for:
 
 ### CSS Modules
 
-CSS Modules provide scoped class names to avoid style conflicts. Enable them
-with the `modules` option:
+CSS Modules provide scoped class names to avoid style conflicts. The plugin's
+`modules` option defaults to `true`, which processes files with `.module` in
+their name as CSS Modules; pass an object to configure it or `false` to disable
+it:
 
 **1. Add the dependency:**
 
 ```json
 {
   "imports": {
-    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.4.0"
+    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.4.2"
   }
 }
 ```
@@ -409,8 +411,9 @@ Use Sass for variables, nesting, mixins, and other preprocessor features:
 ```json
 {
   "imports": {
-    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.4.0",
-    "@udibo/esbuild-plugin-postcss/sass": "jsr:@udibo/esbuild-plugin-postcss@^0.4.0/sass"
+    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.4.2",
+    "@udibo/esbuild-plugin-postcss/sass": "jsr:@udibo/esbuild-plugin-postcss@^0.4.2/sass",
+    "sass": "npm:sass@^1"
   }
 }
 ```
@@ -423,6 +426,7 @@ import * as path from "@std/path";
 import { Builder } from "@udibo/juniper/build";
 import { postCSSPlugin } from "@udibo/esbuild-plugin-postcss";
 import { sassPreprocessor } from "@udibo/esbuild-plugin-postcss/sass";
+import * as sass from "sass";
 
 const projectRoot = path.dirname(path.fromFileUrl(import.meta.url));
 export const builder = new Builder({
@@ -430,7 +434,7 @@ export const builder = new Builder({
   configPath: "./deno.json",
   plugins: [
     postCSSPlugin({
-      preprocessors: [sassPreprocessor()],
+      preprocessors: [sassPreprocessor(sass)],
     }),
   ],
   entryPoints: ["./main.scss"],
@@ -490,8 +494,9 @@ Use Less for variables, nesting, and mixins:
 ```json
 {
   "imports": {
-    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.4.0",
-    "@udibo/esbuild-plugin-postcss/less": "jsr:@udibo/esbuild-plugin-postcss@^0.4.0/less"
+    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.4.2",
+    "@udibo/esbuild-plugin-postcss/less": "jsr:@udibo/esbuild-plugin-postcss@^0.4.2/less",
+    "less": "npm:less@^4"
   }
 }
 ```
@@ -504,6 +509,7 @@ import * as path from "@std/path";
 import { Builder } from "@udibo/juniper/build";
 import { postCSSPlugin } from "@udibo/esbuild-plugin-postcss";
 import { lessPreprocessor } from "@udibo/esbuild-plugin-postcss/less";
+import less from "less";
 
 const projectRoot = path.dirname(path.fromFileUrl(import.meta.url));
 export const builder = new Builder({
@@ -511,7 +517,7 @@ export const builder = new Builder({
   configPath: "./deno.json",
   plugins: [
     postCSSPlugin({
-      preprocessors: [lessPreprocessor()],
+      preprocessors: [lessPreprocessor(less)],
     }),
   ],
   entryPoints: ["./main.less"],
@@ -539,8 +545,9 @@ Use Stylus for expressive CSS:
 ```json
 {
   "imports": {
-    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.4.0",
-    "@udibo/esbuild-plugin-postcss/stylus": "jsr:@udibo/esbuild-plugin-postcss@^0.4.0/stylus"
+    "@udibo/esbuild-plugin-postcss": "jsr:@udibo/esbuild-plugin-postcss@^0.4.2",
+    "@udibo/esbuild-plugin-postcss/stylus": "jsr:@udibo/esbuild-plugin-postcss@^0.4.2/stylus",
+    "stylus": "npm:stylus@^0"
   }
 }
 ```
@@ -553,6 +560,7 @@ import * as path from "@std/path";
 import { Builder } from "@udibo/juniper/build";
 import { postCSSPlugin } from "@udibo/esbuild-plugin-postcss";
 import { stylusPreprocessor } from "@udibo/esbuild-plugin-postcss/stylus";
+import stylus from "stylus";
 
 const projectRoot = path.dirname(path.fromFileUrl(import.meta.url));
 export const builder = new Builder({
@@ -560,7 +568,7 @@ export const builder = new Builder({
   configPath: "./deno.json",
   plugins: [
     postCSSPlugin({
-      preprocessors: [stylusPreprocessor()],
+      preprocessors: [stylusPreprocessor(stylus)],
     }),
   ],
   entryPoints: ["./main.styl"],
@@ -831,8 +839,8 @@ revalidate it on every page load and get `304 Not Modified` when nothing
 changed, so styles update immediately after a deployment without repeated
 downloads. Custom CSS entry points get the same treatment.
 
-If an earlier release served the stylesheet with a long lifetime, visitors keep
-their cached copy until it expires. See
+If the stylesheet URL was once served with a long lifetime, visitors keep their
+cached copy until it expires. See
 [Migrating Previously Cached Stable URLs](static-files.md#migrating-previously-cached-stable-urls)
 for the one-time URL change that clears it.
 

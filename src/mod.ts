@@ -385,9 +385,14 @@ export interface RouteMiddlewareArgs<
  * Browser middleware around a navigation's loaders and actions.
  *
  * Await `next()` to wrap downstream work, or omit it for a before-only check.
- * Throw to stop processing. These functions do not run during SSR. Lazy route
- * modules do not install middleware; put browser middleware in the eagerly loaded
- * root `routes/main.tsx` and enforce authorization in server Hono middleware.
+ * Throw to stop processing. These functions do not run during SSR, so enforce
+ * authorization in server Hono middleware. Declare the export as
+ * `export const middleware` in a `main.tsx`, named, or `[param].tsx` route: the
+ * builder imports those modules eagerly so the router can install their
+ * middleware. A form it cannot detect, such as `export { middleware }` or
+ * `export function middleware`, leaves the module lazy and the middleware is
+ * dropped. Middleware in `index.tsx` or `[...].tsx` is not supported. Middleware
+ * in `routes/main.tsx` runs for every browser navigation.
  *
  * @example
  * ```ts
@@ -639,7 +644,7 @@ export interface RouteModule<
   loader?: LoaderFunction<Params, LoaderData>;
   /** The action function. */
   action?: ActionFunction<Params, ActionData>;
-  /** The middleware functions that run before loaders and actions. */
+  /** Browser-only middleware around this route's loaders and actions; see {@linkcode MiddlewareFunction}. */
   middleware?: MiddlewareFunction<Params>[];
   /**
    * Decides whether this route's loader runs again after a navigation,

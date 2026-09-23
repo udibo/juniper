@@ -632,7 +632,7 @@ Use the service in your routes:
 import type { RouteLoaderArgs } from "@udibo/juniper";
 import { postService } from "@/services/post.ts";
 
-export async function loader({ params }: RouteLoaderArgs) {
+export async function loader({ params }: RouteLoaderArgs<{ id: string }>) {
   const post = await postService.get(params.id);
   return { post };
 }

@@ -151,12 +151,10 @@ export type AppEnv = Env & {
 const buildIds = new Map<string, Promise<string | undefined>>();
 
 /**
- * Identifier of the client build under `projectRoot`: a content hash of
- * `public/build/main.js`, computed once per root for the life of the process —
- * a deployment's build output never changes, and deriving it from content
- * means every instance of one deployment agrees. Resolves `undefined` when
- * there is no build output to identify, which leaves version-skew detection
- * inert.
+ * Identifies the client build under `projectRoot` by a content hash of
+ * `public/build/main.js`, so every instance of one deployment agrees. Cached per
+ * root for the process lifetime, so a rebuild in a running process is not seen.
+ * Resolves `undefined` without build output, which disables version-skew detection.
  */
 export function getBuildId(projectRoot: string): Promise<string | undefined> {
   let id = buildIds.get(projectRoot);
@@ -693,13 +691,9 @@ function wrapLazyWithServerFallback(
 }
 
 /**
- * Merges server routes with client route objects. When a server loader/action exists,
- * it replaces the client version. When no server loader/action exists, the client
- * loader/action is preserved and will run on the server during SSR.
- *
- * @param serverRoute - The server route configuration
- * @param clientRoutes - The client route objects from React Router
- * @returns The merged route objects with server loaders/actions
+ * Returns copies of the client route objects prepared for SSR. A server
+ * loader/action replaces the client one; without one, the client loader/action
+ * runs on the server. Browser `middleware` is removed, so it never runs during SSR.
  */
 export function mergeServerRoutes<
   E extends AppEnv = AppEnv,

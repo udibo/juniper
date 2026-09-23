@@ -13,7 +13,7 @@ export interface DevServerOptions {
   /**
    * The builder to use for the dev server.
    *
-   * Defaults to a new builder using the default optionsc.
+   * Defaults to a new builder using the default options.
    */
   builder?: Builder;
   /**
@@ -139,9 +139,6 @@ export class DevServer {
     }
   }
 
-  /**
-   * Notifies all connected clients to reload
-   */
   async notifyClientsToReload(): Promise<void> {
     if (this.connectedClients.size === 0) return;
 
@@ -198,9 +195,6 @@ export class DevServer {
     await this.builder.dispose();
   }
 
-  /**
-   * Determines if a file is a valid route file
-   */
   isValidRouteFile(relativePath: string): boolean {
     const posixPath = relativePath.replace(/\\/g, "/");
     return VALID_ROUTE_FILE_REGEX.test(posixPath);
@@ -226,9 +220,6 @@ export class DevServer {
     return true;
   }
 
-  /**
-   * Handles file system events
-   */
   handleFileEvents(events: Deno.FsEvent[]): void {
     const relativePaths = new Set(
       events
@@ -280,9 +271,7 @@ export class DevServer {
     }
   }
 
-  /**
-   * Starts the application in a child process
-   */
+  /** Runs the project's `serve` task as a child process; throws if one is already running. */
   async startApp(): Promise<void> {
     if (this.appProcess) {
       throw new Error("App already running");
@@ -366,9 +355,6 @@ export class DevServer {
     });
   }
 
-  /**
-   * Restarts the application
-   */
   async restartApp(): Promise<void> {
     console.log("🔄 Restarting application...");
 
