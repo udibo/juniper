@@ -1,3 +1,11 @@
+## [0.16.1](https://github.com/udibo/juniper/compare/0.16.0...0.16.1) (2026-09-23)
+
+### Bug Fixes
+
+- install client middleware from index and catch-all routes
+  ([#149](https://github.com/udibo/juniper/issues/149))
+  ([552881d](https://github.com/udibo/juniper/commit/552881df2dfa0d2abd2498708274398a3c6f2f16))
+
 # [0.16.0](https://github.com/udibo/juniper/compare/0.15.0...0.16.0) (2026-09-23)
 
 ### Features
