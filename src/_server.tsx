@@ -33,6 +33,7 @@ import { getInstance } from "./utils/otel.ts";
 import { App, generateRouteId, JuniperContextProvider } from "./_client.tsx";
 import {
   createLoaderDataResponse,
+  DATA_CACHE_CONTROL,
   prepareHydrationData,
   sanitizeServerData,
   sanitizeServerError,
@@ -847,7 +848,9 @@ export function isRedirectResponse(response: Response): boolean {
  * difference between the two redirect kinds. The reload marker and `Location`
  * never leak as response headers (the intent travels in the body); all other
  * headers pass through, with `Set-Cookie` copied via `getSetCookie()` to avoid
- * the comma-merge corruption of `Headers.entries()`.
+ * the comma-merge corruption of `Headers.entries()`. A redirect without a
+ * `Cache-Control` gets the data default, since a 200 is heuristically
+ * cacheable where the 3xx it replaces is not.
  *
  * Used for redirects from both React Router loaders/actions and Hono
  * handlers/middleware, so the two paths produce one identical envelope.
@@ -868,6 +871,9 @@ export function toRedirectEnvelope(response: Response): Response {
   }
   headers.set("Content-Type", "application/json; charset=UTF-8");
   headers.set("X-Juniper", "redirect");
+  if (!headers.has("Cache-Control")) {
+    headers.set("Cache-Control", DATA_CACHE_CONTROL);
+  }
 
   return new Response(
     JSON.stringify(
@@ -898,12 +904,13 @@ function newDataResponse(
   c: Context,
   body: ReadableStream<Uint8Array> | null,
   init: { status: StatusCode; headers: Headers },
+  ownPolicy: string | null = null,
 ): Response {
   const headers = new Headers(init.headers);
   const defaultPolicy = headers.get("Cache-Control") ?? "";
   headers.delete("Cache-Control");
   const response = c.newResponse(body, { ...init, headers });
-  const policy = dataCachePolicy(
+  const policy = ownPolicy ?? dataCachePolicy(
     response.headers.get("Cache-Control"),
     defaultPolicy,
   );
@@ -982,10 +989,16 @@ export function createHandlers<
         });
 
         if (dataOrResponse instanceof Response) {
-          const response = isRedirectResponse(dataOrResponse)
-            ? toRedirectEnvelope(dataOrResponse)
-            : dataOrResponse;
-          return c.newResponse(response.body, response);
+          if (!isRedirectResponse(dataOrResponse)) {
+            return c.newResponse(dataOrResponse.body, dataOrResponse);
+          }
+          const envelope = toRedirectEnvelope(dataOrResponse);
+          return newDataResponse(
+            c,
+            envelope.body,
+            { status: 200, headers: envelope.headers },
+            dataOrResponse.headers.get("Cache-Control"),
+          );
         }
 
         const response = createLoaderDataResponse(
@@ -1028,11 +1041,12 @@ export function createHandlers<
           headers.append("Set-Cookie", cookie);
         }
       }
-      const init = { status: error.status as StatusCode, headers };
-      const errorPolicy = error.headers?.get("Cache-Control");
-      if (errorPolicy == null) return newDataResponse(c, response.body, init);
-      c.header("Cache-Control", errorPolicy);
-      return c.newResponse(response.body, init);
+      return newDataResponse(
+        c,
+        response.body,
+        { status: error.status as StatusCode, headers },
+        error.headers?.get("Cache-Control") ?? null,
+      );
     }
 
     if (error.status === 404) {
