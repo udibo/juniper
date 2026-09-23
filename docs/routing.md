@@ -457,6 +457,64 @@ that section:
 </Suspense>;
 ```
 
+### Caching Loader Data
+
+After the first page load, the browser gets loader and action data from data
+requests. Loader data is often specific to the signed-in user, so Juniper marks
+data responses as private by default:
+
+| Response                     | Default `Cache-Control`           |
+| ---------------------------- | --------------------------------- |
+| Settled data and data errors | `private, no-cache`               |
+| Deferred data stream         | `private, no-cache, no-transform` |
+
+- `private` tells shared caches, such as a CDN or a proxy, not to store the
+  response, so they do not serve one user's data to another.
+- `no-cache` lets the browser keep a copy, but it must check with the server
+  before each reuse.
+- `no-transform` stops intermediaries from compressing or rewriting a deferred
+  stream, which could hold back values that are already ready.
+
+Data responses vary on `Accept` and `X-Juniper-Route-Id`, not on cookies. Only
+make data public when it is the same for every visitor.
+
+To use a different policy, set `Cache-Control` in route middleware before
+calling `next()`. Your policy replaces the default. On a deferred stream,
+Juniper adds `no-transform` to your policy when it is missing:
+
+```typescript
+// routes/blog/main.ts
+import { Hono } from "hono";
+
+const app = new Hono();
+
+// Blog data is the same for every visitor.
+app.use(async (c, next) => {
+  c.header("Cache-Control", "public, max-age=60");
+  await next();
+});
+
+export default app;
+```
+
+Route middleware also runs for document requests. A data request carries the
+`X-Juniper-Route-Id` request header, so check for it when the policy is only for
+data.
+
+A few other cases:
+
+- A policy that middleware sets after `next()` replaces the header exactly as
+  written, so add `no-transform` yourself if the response might be a deferred
+  stream.
+- A `Cache-Control` header on a thrown `HttpError` is used for that error
+  response, instead of the middleware policy or the default.
+- A `Response` that a loader or action returns keeps its own headers. Juniper
+  adds no default policy to it.
+- A redirect is also sent with its own headers and no default policy. A data
+  request receives it as a `200` response that carries the redirect location,
+  and caches may store a `200` even without a policy. If a redirect depends on
+  the user, set `Cache-Control` on it, for example `private, no-cache`.
+
 ### Client Loaders
 
 Export a loader from `.tsx` when it needs to participate in client navigation.

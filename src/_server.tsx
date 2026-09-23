@@ -883,6 +883,42 @@ export function toRedirectEnvelope(response: Response): Response {
   );
 }
 
+function hasCacheDirective(policy: string, directive: string): boolean {
+  return policy.split(",").some((part) =>
+    part.trim().toLowerCase() === directive
+  );
+}
+
+function dataCachePolicy(
+  appPolicy: string | null,
+  defaultPolicy: string,
+): string {
+  if (appPolicy === null) return defaultPolicy;
+  return hasCacheDirective(defaultPolicy, "no-transform") &&
+      !hasCacheDirective(appPolicy, "no-transform")
+    ? `${appPolicy}, no-transform`
+    : appPolicy;
+}
+
+function newDataResponse(
+  c: Context,
+  body: ReadableStream<Uint8Array> | null,
+  init: { status: StatusCode; headers: Headers },
+): Response {
+  const headers = new Headers(init.headers);
+  const defaultPolicy = headers.get("Cache-Control") ?? "";
+  headers.delete("Cache-Control");
+  const response = c.newResponse(body, { ...init, headers });
+  const policy = dataCachePolicy(
+    response.headers.get("Cache-Control"),
+    defaultPolicy,
+  );
+  response.headers.set("Cache-Control", policy);
+  // Hono re-applies an already-read `c.res`'s headers over the returned response.
+  c.header("Cache-Control", policy);
+  return response;
+}
+
 /**
  * Builds the Hono handlers for the client routes — server-rendered documents
  * and data requests — plus the error handler `createServer` installs alongside
@@ -962,7 +998,10 @@ export function createHandlers<
           dataOrResponse,
           c.req.raw.signal,
         );
-        return c.newResponse(response.body, response);
+        return newDataResponse(c, response.body, {
+          status: response.status as StatusCode,
+          headers: response.headers,
+        });
       });
     },
   );
@@ -995,10 +1034,11 @@ export function createHandlers<
           headers.append("Set-Cookie", cookie);
         }
       }
-      return c.newResponse(response.body, {
-        status: error.status as StatusCode,
-        headers,
-      });
+      const init = { status: error.status as StatusCode, headers };
+      const errorPolicy = error.headers?.get("Cache-Control");
+      if (errorPolicy == null) return newDataResponse(c, response.body, init);
+      c.header("Cache-Control", errorPolicy);
+      return c.newResponse(response.body, init);
     }
 
     if (error.status === 404) {

@@ -14,6 +14,8 @@ import { FakeTime } from "@std/testing/time";
 import { Suspense } from "react";
 import { Await, createContext } from "react-router";
 import { Hono } from "hono";
+import type { MiddlewareHandler } from "hono";
+import { cors } from "hono/cors";
 import { NONCE, secureHeaders } from "hono/secure-headers";
 import { Client } from "@udibo/juniper/client";
 import {
@@ -263,7 +265,10 @@ describe("tagged JSON data requests", () => {
         "application/x-ndjson",
       );
       assertEquals(response.headers.get("X-Juniper"), "data");
-      assertEquals(response.headers.get("Cache-Control"), "no-transform");
+      assertEquals(
+        response.headers.get("Cache-Control"),
+        "private, no-cache, no-transform",
+      );
       assertEquals(response.headers.get("Content-Encoding"), null);
       assertEquals(response.headers.get("Content-Length"), null);
       const reader = response.body!.pipeThrough(new TextDecoderStream())
@@ -355,6 +360,193 @@ describe("tagged JSON data requests", () => {
       await assertRejects(() => restored.exposed, HttpError, "Not permitted");
     }),
   );
+});
+
+describe("the cache policy of data responses", () => {
+  function serverWithRouteData(
+    load: () => unknown,
+    ...middleware: MiddlewareHandler[]
+  ) {
+    const client = new Client({
+      path: "/",
+      main: { default: () => <div>Home</div> },
+    });
+    return createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        ...(middleware.length
+          ? { default: new Hono().use(...middleware) }
+          : {}),
+        loader: load,
+        action: load,
+      },
+    });
+  }
+
+  async function dataCacheControl(
+    server: ReturnType<typeof serverWithRouteData>,
+    method = "GET",
+  ): Promise<string | null> {
+    const response = await server.request("http://localhost/", {
+      method,
+      headers: { "X-Juniper-Route-Id": "/" },
+    });
+    await response.arrayBuffer();
+    assertEquals(response.headers.get("X-Juniper"), "data");
+    return response.headers.get("Cache-Control");
+  }
+
+  const setBeforeNext =
+    (policy: string): MiddlewareHandler => async (c, next) => {
+      c.header("Cache-Control", policy);
+      await next();
+    };
+
+  for (const method of ["GET", "POST"]) {
+    it(`keeps streamed ${method} data out of shared caches, revalidated on every use and untransformed`, async () => {
+      const server = serverWithRouteData(() => ({ later: Promise.resolve(1) }));
+      assertEquals(
+        await dataCacheControl(server, method),
+        "private, no-cache, no-transform",
+      );
+    });
+
+    it(`keeps settled ${method} data out of shared caches and revalidated on every use`, async () => {
+      const server = serverWithRouteData(() => ({ now: 1 }));
+      assertEquals(await dataCacheControl(server, method), "private, no-cache");
+    });
+  }
+
+  it("keeps a data error out of shared caches and revalidated on every use", async () => {
+    using _log = stub(console, "error");
+    const server = serverWithRouteData(() => {
+      throw new HttpError(404, "Missing");
+    });
+    assertEquals(await dataCacheControl(server), "private, no-cache");
+  });
+
+  it("uses the policy app middleware sets before next() for settled data", async () => {
+    const server = serverWithRouteData(
+      () => ({ now: 1 }),
+      setBeforeNext("public, max-age=60"),
+    );
+    assertEquals(await dataCacheControl(server), "public, max-age=60");
+  });
+
+  it("adds no-transform to the policy app middleware sets before next() for streamed data", async () => {
+    const server = serverWithRouteData(
+      () => ({ later: Promise.resolve(1) }),
+      setBeforeNext("public, max-age=60"),
+    );
+    assertEquals(
+      await dataCacheControl(server),
+      "public, max-age=60, no-transform",
+    );
+  });
+
+  it("does not repeat a no-transform directive the app's policy already has, in any case", async () => {
+    const server = serverWithRouteData(
+      () => ({ later: Promise.resolve(1) }),
+      setBeforeNext("public, No-Transform, max-age=60"),
+    );
+    assertEquals(
+      await dataCacheControl(server),
+      "public, No-Transform, max-age=60",
+    );
+  });
+
+  it("sends the policy app middleware sets after next() unchanged", async () => {
+    const server = serverWithRouteData(
+      () => ({ later: Promise.resolve(1) }),
+      async (c, next) => {
+        await next();
+        c.header("Cache-Control", "no-store");
+      },
+    );
+    assertEquals(await dataCacheControl(server), "no-store");
+  });
+
+  it("uses the policy app middleware sets before next() for a data error", async () => {
+    using _log = stub(console, "error");
+    const server = serverWithRouteData(
+      () => {
+        throw new HttpError(404, "Missing");
+      },
+      setBeforeNext("public, max-age=60"),
+    );
+    assertEquals(await dataCacheControl(server), "public, max-age=60");
+  });
+
+  it("prefers the policy a thrown error carries over the app's and the default", async () => {
+    using _log = stub(console, "error");
+    const server = serverWithRouteData(
+      () => {
+        throw new HttpError(429, {
+          message: "Slow down",
+          headers: { "Cache-Control": "no-store" },
+        });
+      },
+      setBeforeNext("public, max-age=60"),
+    );
+    assertEquals(await dataCacheControl(server), "no-store");
+  });
+
+  it("leaves a response the loader returns to set its own policy", async () => {
+    const server = serverWithRouteData(() => new Response("raw"));
+    const response = await server.request("http://localhost/", {
+      headers: { "X-Juniper-Route-Id": "/" },
+    });
+    assertEquals(await response.text(), "raw");
+    assertEquals(response.headers.get("Cache-Control"), null);
+  });
+
+  describe("after middleware has already read the response", () => {
+    it("still adds no-transform to the app's policy for streamed data", async () => {
+      const server = serverWithRouteData(
+        () => ({ later: Promise.resolve(1) }),
+        cors(),
+        setBeforeNext("public, max-age=60"),
+      );
+      assertEquals(
+        await dataCacheControl(server),
+        "public, max-age=60, no-transform",
+      );
+    });
+
+    it("still prefers the policy a thrown error carries over the app's", async () => {
+      using _log = stub(console, "error");
+      const server = serverWithRouteData(
+        () => {
+          throw new HttpError(429, {
+            message: "Slow down",
+            headers: { "Cache-Control": "no-store" },
+          });
+        },
+        cors(),
+        setBeforeNext("public, max-age=60"),
+      );
+      assertEquals(await dataCacheControl(server), "no-store");
+    });
+  });
+
+  for (
+    const [kind, load] of [
+      ["settled", () => ({ now: 1 })],
+      ["streamed", () => ({ later: Promise.resolve(1) })],
+    ] as const
+  ) {
+    it(`answers ${kind} data with 200 whatever status middleware set before next()`, async () => {
+      const server = serverWithRouteData(load, async (c, next) => {
+        c.status(404);
+        await next();
+      });
+      const response = await server.request("http://localhost/", {
+        headers: { "X-Juniper-Route-Id": "/" },
+      });
+      await response.arrayBuffer();
+      assertEquals(response.status, 200);
+    });
+  }
 });
 
 const DEFERRED_QUEUE = "__juniperDeferredHydration";
