@@ -900,6 +900,23 @@ function dataCachePolicy(
     : appPolicy;
 }
 
+function commitResponse(c: Context, response: Response): Response {
+  if (c.finalized && !c.error) return response;
+  // Hono copies an already-read `c.res`'s headers over the response a handler returns.
+  for (const [name, value] of response.headers) {
+    if (name !== "set-cookie") c.header(name, value);
+  }
+  c.header("Set-Cookie", undefined);
+  for (const cookie of response.headers.getSetCookie()) {
+    c.header("Set-Cookie", cookie, { append: true });
+  }
+  return response;
+}
+
+function newResponse(c: Context, response: Response): Response {
+  return commitResponse(c, c.newResponse(response.body, response));
+}
+
 function newDataResponse(
   c: Context,
   body: ReadableStream<Uint8Array> | null,
@@ -915,9 +932,7 @@ function newDataResponse(
     defaultPolicy,
   );
   response.headers.set("Cache-Control", policy);
-  // Hono re-applies an already-read `c.res`'s headers over the returned response.
-  c.header("Cache-Control", policy);
-  return response;
+  return commitResponse(c, response);
 }
 
 /**
@@ -960,7 +975,7 @@ export function createHandlers<
         );
 
         if (contextOrResponse instanceof Response) {
-          return c.newResponse(contextOrResponse.body, contextOrResponse);
+          return newResponse(c, contextOrResponse);
         }
 
         Object.entries(contextOrResponse.errors ?? {}).forEach(
@@ -990,7 +1005,7 @@ export function createHandlers<
 
         if (dataOrResponse instanceof Response) {
           if (!isRedirectResponse(dataOrResponse)) {
-            return c.newResponse(dataOrResponse.body, dataOrResponse);
+            return newResponse(c, dataOrResponse);
           }
           const envelope = toRedirectEnvelope(dataOrResponse);
           return newDataResponse(
