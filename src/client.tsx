@@ -49,14 +49,14 @@ export interface ClientRoute {
   main?: RouteModule | RouteModuleLoader;
   /**
    * The route's index module.
-   * Must resolve to a `RouteModule`.
+   * Provide a `RouteModule` directly or a lazy loader that resolves to one.
    */
-  index?: RouteModuleLoader;
+  index?: RouteModule | RouteModuleLoader;
   /**
    * The route's catchall module.
-   * Must resolve to a `RouteModule`.
+   * Provide a `RouteModule` directly or a lazy loader that resolves to one.
    */
-  catchall?: RouteModuleLoader;
+  catchall?: RouteModule | RouteModuleLoader;
   /**
    * Flags indicating whether the route has server-side loader/action.
    * Set by the build system when server route files export loader/action.
@@ -81,6 +81,32 @@ export interface RootClientRoute extends ClientRoute {
    * Provide a `RootRouteModule` or lazy loader.
    */
   main?: RootRouteModule | RootRouteModuleLoader;
+}
+
+function assignRouteModule(
+  routeObject: RouteObject,
+  routeModule: RouteModule,
+  serverFlags: ServerFlags | undefined,
+  routeId: string,
+): void {
+  const {
+    Component,
+    ErrorBoundary,
+    HydrateFallback,
+    loader,
+    action,
+    middleware,
+    shouldRevalidate,
+  } = createRoute(routeModule, serverFlags, routeId);
+  routeObject.Component = Component;
+  routeObject.ErrorBoundary = ErrorBoundary;
+  routeObject.HydrateFallback = HydrateFallback;
+  routeObject.loader = loader;
+  routeObject.action = action;
+  routeObject.shouldRevalidate = shouldRevalidate;
+  if (middleware) {
+    (routeObject as { middleware: unknown }).middleware = middleware;
+  }
 }
 
 /**
@@ -154,39 +180,28 @@ export class Client {
           routeId,
         );
       } else if (route.main) {
-        const {
-          Component,
-          ErrorBoundary,
-          HydrateFallback,
-          loader,
-          action,
-          middleware,
-          shouldRevalidate,
-        } = createRoute(route.main, route.server, routeId);
-        routeObject.Component = Component;
-        routeObject.ErrorBoundary = ErrorBoundary;
-        routeObject.HydrateFallback = HydrateFallback;
-        routeObject.loader = loader;
-        routeObject.action = action;
-        routeObject.shouldRevalidate = shouldRevalidate;
-        if (middleware) {
-          (routeObject as { middleware: unknown }).middleware = middleware;
-        }
+        assignRouteModule(routeObject, route.main, route.server, routeId);
       }
 
       const routeObjectChildren: RouteObject[] = [];
 
       if (route.index) {
         const indexRouteId = generateRouteId(currentPath, "", "index");
-        const indexRouteObject: RouteObject = {
-          id: indexRouteId,
-          index: true,
-          lazy: createLazyRoute(
+        const indexRouteObject: RouteObject = { id: indexRouteId, index: true };
+        if (typeof route.index === "function") {
+          indexRouteObject.lazy = createLazyRoute(
             route.index,
             route.serverIndex,
             indexRouteId,
-          ),
-        };
+          );
+        } else {
+          assignRouteModule(
+            indexRouteObject,
+            route.index,
+            route.serverIndex,
+            indexRouteId,
+          );
+        }
         routeObjectChildren.push(indexRouteObject);
 
         this.routeFileMap.set(indexRouteId, route.index);
@@ -214,12 +229,21 @@ export class Client {
         const catchallRouteObject: RouteObject = {
           id: catchallRouteId,
           path: "*",
-          lazy: createLazyRoute(
+        };
+        if (typeof route.catchall === "function") {
+          catchallRouteObject.lazy = createLazyRoute(
             route.catchall,
             route.serverCatchall,
             catchallRouteId,
-          ),
-        };
+          );
+        } else {
+          assignRouteModule(
+            catchallRouteObject,
+            route.catchall,
+            route.serverCatchall,
+            catchallRouteId,
+          );
+        }
         routeObjectChildren.push(catchallRouteObject);
 
         this.routeFileMap.set(catchallRouteId, route.catchall);

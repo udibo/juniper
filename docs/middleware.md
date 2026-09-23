@@ -258,14 +258,13 @@ navigation.
 
 ### Creating Client Middleware
 
-Export a `middleware` array from a `main.tsx`, named, or `[param].tsx` route
-module, declared as `export const middleware`. Route modules are normally loaded
-lazily, and React Router cannot discover middleware from a lazy module in time,
-so the builder imports those modules eagerly. A `middleware` export the builder
+Export a `middleware` array from any `.tsx` route module, declared as
+`export const middleware`. Route modules are normally loaded lazily, and React
+Router cannot discover middleware from a lazy module in time, so the builder
+imports a module with that export eagerly. A `middleware` export the builder
 cannot detect, such as one re-exported with `export { middleware }`, stays in a
-lazy module and is dropped. Middleware in `index.tsx` or `[...].tsx` is not
-supported; put it in the directory's `main.tsx` instead. Middleware in
-`routes/main.tsx` runs for every client navigation.
+lazy module and is dropped. Middleware in `routes/main.tsx` runs for every
+client navigation.
 
 ```tsx
 // routes/dashboard/main.tsx

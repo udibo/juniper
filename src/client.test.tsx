@@ -224,6 +224,63 @@ describe("Client", () => {
   });
 });
 
+describe("Client route middleware", () => {
+  it("runs middleware exported by eagerly imported index and catchall modules", async () => {
+    const calls: string[] = [];
+    const client = new Client({
+      path: "/",
+      main: { default: () => <Outlet /> },
+      index: {
+        default: () => <div>Index</div>,
+        loader: () => "index",
+        middleware: [async (_args, next) => {
+          calls.push("index");
+          await next();
+        }],
+      },
+      children: [{
+        path: "docs",
+        main: { default: () => <Outlet /> },
+        catchall: {
+          default: () => <div>Catchall</div>,
+          loader: () => "catchall",
+          middleware: [async (_args, next) => {
+            calls.push("catchall");
+            await next();
+          }],
+        },
+      }],
+    });
+
+    const router = createMemoryRouter(client.routeObjects, {
+      initialEntries: ["/"],
+    });
+    try {
+      await deadline(
+        new Promise<void>((resolve) => {
+          if (router.state.initialized) return resolve();
+          const unsubscribe = router.subscribe((state) => {
+            if (!state.initialized) return;
+            unsubscribe();
+            resolve();
+          });
+        }),
+        1000,
+      );
+      assertEquals(router.state.errors, null);
+      assertEquals(router.state.loaderData["/index"], "index");
+      assertEquals(calls, ["index"]);
+
+      await router.navigate("/docs/missing");
+      assertEquals(router.state.errors, null);
+      assertEquals(router.state.loaderData["/docs/[...]"], "catchall");
+      assertEquals(calls, ["index", "catchall"]);
+    } finally {
+      router.dispose();
+    }
+  });
+});
+
 describe("createRoute", () => {
   let routeFile: RouteModule;
   beforeEach(() => {
