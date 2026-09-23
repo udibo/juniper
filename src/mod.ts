@@ -390,8 +390,9 @@ export interface RouteMiddlewareArgs<
  * `export const middleware` in any `.tsx` route: the builder imports that
  * module eagerly so the router can install its middleware. A form it cannot
  * detect, such as `export { middleware }` or `export function middleware`,
- * leaves the module lazy and the middleware is dropped. Middleware in
- * `routes/main.tsx` runs for every browser navigation.
+ * leaves any route module except `routes/main.tsx` lazy, and its middleware is
+ * dropped. `routes/main.tsx` is always imported eagerly, and its middleware
+ * runs for every browser navigation.
  *
  * @example
  * ```ts

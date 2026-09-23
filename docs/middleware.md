@@ -262,8 +262,9 @@ Export a `middleware` array from any `.tsx` route module, declared as
 `export const middleware`. Route modules are normally loaded lazily, and React
 Router cannot discover middleware from a lazy module in time, so the builder
 imports a module with that export eagerly. A `middleware` export the builder
-cannot detect, such as one re-exported with `export { middleware }`, stays in a
-lazy module and is dropped. Middleware in `routes/main.tsx` runs for every
+cannot detect, such as one re-exported with `export { middleware }`, leaves any
+route module except `routes/main.tsx` lazy, and its middleware is dropped.
+`routes/main.tsx` is always imported eagerly, and its middleware runs for every
 client navigation.
 
 ```tsx
