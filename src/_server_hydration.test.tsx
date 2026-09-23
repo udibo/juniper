@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import { Suspense } from "react";
-import { Await, createContext } from "react-router";
+import { Await, createContext, redirect } from "react-router";
 import { Hono } from "hono";
 import type { MiddlewareHandler } from "hono";
 import { cors } from "hono/cors";
@@ -36,6 +36,7 @@ import {
   type SerializedHydrationData,
   serializeHydrationData,
 } from "./_serialization.ts";
+import { toRedirectEnvelope } from "./_server.tsx";
 import { env } from "./utils/_env.ts";
 
 const HYDRATION_ASSIGNMENT =
@@ -547,6 +548,171 @@ describe("the cache policy of data responses", () => {
       assertEquals(response.status, 200);
     });
   }
+
+  describe("for a redirect answering a data request", () => {
+    async function redirectCacheControl(
+      server: ReturnType<typeof serverWithRouteData>,
+      method = "GET",
+    ): Promise<string | null> {
+      const response = await server.request("http://localhost/", {
+        method,
+        headers: { "X-Juniper-Route-Id": "/" },
+      });
+      assertEquals(response.status, 200);
+      assertEquals(response.headers.get("X-Juniper"), "redirect");
+      assertEquals(await response.json(), { location: "/sign-in" });
+      return response.headers.get("Cache-Control");
+    }
+
+    const redirectFromMiddleware: MiddlewareHandler = (c) =>
+      Promise.resolve(c.redirect("/sign-in"));
+
+    const ownPolicy = { headers: { "Cache-Control": "no-store" } };
+
+    for (const method of ["GET", "POST"]) {
+      it(`keeps a redirect a ${method} handler returns out of shared caches and revalidated on every use`, async () => {
+        const server = serverWithRouteData(() => redirect("/sign-in"));
+        assertEquals(
+          await redirectCacheControl(server, method),
+          "private, no-cache",
+        );
+      });
+
+      it(`keeps a redirect a ${method} handler throws out of shared caches and revalidated on every use`, async () => {
+        const server = serverWithRouteData(() => {
+          throw redirect("/sign-in");
+        });
+        assertEquals(
+          await redirectCacheControl(server, method),
+          "private, no-cache",
+        );
+      });
+    }
+
+    it("keeps a redirect from Hono middleware out of shared caches and revalidated on every use", async () => {
+      const server = serverWithRouteData(
+        () => ({ now: 1 }),
+        redirectFromMiddleware,
+      );
+      assertEquals(await redirectCacheControl(server), "private, no-cache");
+    });
+
+    it("keeps a redirect response Hono middleware returns out of shared caches and revalidated on every use", async () => {
+      const server = serverWithRouteData(
+        () => ({ now: 1 }),
+        () =>
+          Promise.resolve(
+            new Response(null, {
+              status: 302,
+              headers: { Location: "/sign-in" },
+            }),
+          ),
+      );
+      assertEquals(await redirectCacheControl(server), "private, no-cache");
+    });
+
+    it("uses the policy app middleware sets before next() for a loader's redirect", async () => {
+      const server = serverWithRouteData(
+        () => redirect("/sign-in"),
+        setBeforeNext("public, max-age=60"),
+      );
+      assertEquals(await redirectCacheControl(server), "public, max-age=60");
+    });
+
+    it("uses the policy app middleware sets before next() for a middleware redirect", async () => {
+      const server = serverWithRouteData(
+        () => ({ now: 1 }),
+        setBeforeNext("public, max-age=60"),
+        redirectFromMiddleware,
+      );
+      assertEquals(await redirectCacheControl(server), "public, max-age=60");
+    });
+
+    it("sends the policy app middleware sets after next() unchanged", async () => {
+      const server = serverWithRouteData(
+        () => redirect("/sign-in"),
+        async (c, next) => {
+          await next();
+          c.header("Cache-Control", "no-store");
+        },
+      );
+      assertEquals(await redirectCacheControl(server), "no-store");
+    });
+
+    for (
+      const [how, load] of [
+        ["returns", () => redirect("/sign-in", ownPolicy)],
+        ["throws", () => {
+          throw redirect("/sign-in", ownPolicy);
+        }],
+      ] as const
+    ) {
+      it(`prefers the policy a redirect the loader ${how} carries over the app's and the default`, async () => {
+        const server = serverWithRouteData(
+          load,
+          setBeforeNext("public, max-age=60"),
+        );
+        assertEquals(await redirectCacheControl(server), "no-store");
+      });
+    }
+
+    it("prefers the policy a middleware redirect carries over the default", async () => {
+      const server = serverWithRouteData(
+        () => ({ now: 1 }),
+        (c) => {
+          c.header("Cache-Control", "no-store");
+          return Promise.resolve(c.redirect("/sign-in"));
+        },
+      );
+      assertEquals(await redirectCacheControl(server), "no-store");
+    });
+
+    it("builds an envelope that keeps the policy the redirect carries", () => {
+      const envelope = toRedirectEnvelope(
+        redirect("/sign-in", { headers: { "Cache-Control": "no-store" } }),
+      );
+      assertEquals(envelope.headers.get("Cache-Control"), "no-store");
+    });
+
+    describe("after middleware has already read the response", () => {
+      it("still uses the default for a loader's redirect", async () => {
+        const server = serverWithRouteData(
+          () => redirect("/sign-in"),
+          cors(),
+        );
+        assertEquals(await redirectCacheControl(server), "private, no-cache");
+      });
+
+      it("still uses the app's policy for a loader's redirect", async () => {
+        const server = serverWithRouteData(
+          () => redirect("/sign-in"),
+          cors(),
+          setBeforeNext("public, max-age=60"),
+        );
+        assertEquals(await redirectCacheControl(server), "public, max-age=60");
+      });
+
+      it("still prefers the policy a thrown redirect carries over the app's", async () => {
+        const server = serverWithRouteData(
+          () => {
+            throw redirect("/sign-in", ownPolicy);
+          },
+          cors(),
+          setBeforeNext("public, max-age=60"),
+        );
+        assertEquals(await redirectCacheControl(server), "no-store");
+      });
+
+      it("still uses the default for a middleware redirect", async () => {
+        const server = serverWithRouteData(
+          () => ({ now: 1 }),
+          cors(),
+          redirectFromMiddleware,
+        );
+        assertEquals(await redirectCacheControl(server), "private, no-cache");
+      });
+    });
+  });
 });
 
 const DEFERRED_QUEUE = "__juniperDeferredHydration";

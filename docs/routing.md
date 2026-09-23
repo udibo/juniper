@@ -463,10 +463,11 @@ After the first page load, the browser gets loader and action data from data
 requests. Loader data is often specific to the signed-in user, so Juniper marks
 data responses as private by default:
 
-| Response                     | Default `Cache-Control`           |
-| ---------------------------- | --------------------------------- |
-| Settled data and data errors | `private, no-cache`               |
-| Deferred data stream         | `private, no-cache, no-transform` |
+| Response                        | Default `Cache-Control`           |
+| ------------------------------- | --------------------------------- |
+| Settled data and data errors    | `private, no-cache`               |
+| Redirects sent to data requests | `private, no-cache`               |
+| Deferred data stream            | `private, no-cache, no-transform` |
 
 - `private` tells shared caches, such as a CDN or a proxy, not to store the
   response, so they do not serve one user's data to another.
@@ -474,6 +475,13 @@ data responses as private by default:
   before each reuse.
 - `no-transform` stops intermediaries from compressing or rewriting a deferred
   stream, which could hold back values that are already ready.
+
+A data request receives a redirect as a `200` response that carries the redirect
+location, so the client can navigate to it. Caches may store a `200` even when
+it has no policy, and a redirect often depends on the user, such as a sign-in
+redirect that carries a return path. That is why redirects get the same default
+as data. This applies to redirects from loaders and actions and to redirects
+from Hono middleware.
 
 Data responses vary on `Accept` and `X-Juniper-Route-Id`, not on cookies. Only
 make data public when it is the same for every visitor.
@@ -508,12 +516,11 @@ A few other cases:
   stream.
 - A `Cache-Control` header on a thrown `HttpError` is used for that error
   response, instead of the middleware policy or the default.
-- A `Response` that a loader or action returns keeps its own headers. Juniper
-  adds no default policy to it.
-- A redirect is also sent with its own headers and no default policy. A data
-  request receives it as a `200` response that carries the redirect location,
-  and caches may store a `200` even without a policy. If a redirect depends on
-  the user, set `Cache-Control` on it, for example `private, no-cache`.
+- A `Cache-Control` header on a redirect is used for that redirect, instead of
+  the middleware policy or the default. This holds whether a loader or action
+  throws the redirect or returns it.
+- A `Response` other than a redirect that a loader or action returns keeps its
+  own headers. Juniper adds no default policy to it.
 
 ### Client Loaders
 

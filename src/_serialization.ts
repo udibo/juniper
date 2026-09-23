@@ -536,7 +536,7 @@ export function createStreamingLoaderData(
   return createDataStream(processed, pending, signal);
 }
 
-const DATA_CACHE_CONTROL = "private, no-cache";
+export const DATA_CACHE_CONTROL = "private, no-cache";
 
 export function createLoaderDataResponse(
   data: unknown,
