@@ -387,12 +387,12 @@ export interface RouteMiddlewareArgs<
  * Await `next()` to wrap downstream work, or omit it for a before-only check.
  * Throw to stop processing. These functions do not run during SSR, so enforce
  * authorization in server Hono middleware. Declare the export as
- * `export const middleware` in a `main.tsx`, named, or `[param].tsx` route: the
- * builder imports those modules eagerly so the router can install their
- * middleware. A form it cannot detect, such as `export { middleware }` or
- * `export function middleware`, leaves the module lazy and the middleware is
- * dropped. Middleware in `index.tsx` or `[...].tsx` is not supported. Middleware
- * in `routes/main.tsx` runs for every browser navigation.
+ * `export const middleware` in any `.tsx` route: the builder imports that
+ * module eagerly so the router can install its middleware. A form it cannot
+ * detect, such as `export { middleware }` or `export function middleware`,
+ * leaves any route module except `routes/main.tsx` lazy, and its middleware is
+ * dropped. `routes/main.tsx` is always imported eagerly, and its middleware
+ * runs for every browser navigation.
  *
  * @example
  * ```ts

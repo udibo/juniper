@@ -224,6 +224,126 @@ describe("Client", () => {
   });
 });
 
+describe("Client route middleware", () => {
+  it("runs middleware exported by eagerly imported index and catchall modules", async () => {
+    const calls: string[] = [];
+    const client = new Client({
+      path: "/",
+      main: { default: () => <Outlet /> },
+      index: {
+        default: () => <div>Index</div>,
+        loader: () => "index",
+        middleware: [async (_args, next) => {
+          calls.push("index");
+          await next();
+        }],
+      },
+      children: [{
+        path: "docs",
+        main: { default: () => <Outlet /> },
+        catchall: {
+          default: () => <div>Catchall</div>,
+          loader: () => "catchall",
+          middleware: [async (_args, next) => {
+            calls.push("catchall");
+            await next();
+          }],
+        },
+      }],
+    });
+
+    const router = createMemoryRouter(client.routeObjects, {
+      initialEntries: ["/"],
+    });
+    try {
+      await deadline(
+        new Promise<void>((resolve) => {
+          if (router.state.initialized) return resolve();
+          const unsubscribe = router.subscribe((state) => {
+            if (!state.initialized) return;
+            unsubscribe();
+            resolve();
+          });
+        }),
+        1000,
+      );
+      assertEquals(router.state.errors, null);
+      assertEquals(router.state.loaderData["/index"], "index");
+      assertEquals(calls, ["index"]);
+
+      await router.navigate("/docs/missing");
+      assertEquals(router.state.errors, null);
+      assertEquals(router.state.loaderData["/docs/[...]"], "catchall");
+      assertEquals(calls, ["index", "catchall"]);
+    } finally {
+      router.dispose();
+    }
+  });
+});
+
+describe("Client eager route server flags", () => {
+  it("routes eagerly imported index and catchall loaders through their server loaders", async () => {
+    using fetchStub = stub(
+      globalThis,
+      "fetch",
+      (_input, init) => {
+        const routeId = new Headers(init?.headers).get("X-Juniper-Route-Id");
+        return Promise.resolve(
+          createLoaderDataResponse({ from: `server ${routeId}` }),
+        );
+      },
+    );
+    const client = new Client({
+      path: "/",
+      main: { default: () => <Outlet /> },
+      index: { default: () => <div>Index</div> },
+      serverIndex: { loader: true },
+      children: [
+        { path: "about", main: { default: () => <div>About</div> } },
+        {
+          path: "docs",
+          main: { default: () => <Outlet /> },
+          catchall: { default: () => <div>Catchall</div> },
+          serverCatchall: { loader: true },
+        },
+      ],
+    });
+
+    const router = createMemoryRouter(client.routeObjects, {
+      initialEntries: ["/about"],
+    });
+    try {
+      await deadline(
+        new Promise<void>((resolve) => {
+          if (router.state.initialized) return resolve();
+          const unsubscribe = router.subscribe((state) => {
+            if (!state.initialized) return;
+            unsubscribe();
+            resolve();
+          });
+        }),
+        1000,
+      );
+      assertSpyCalls(fetchStub, 0);
+
+      await router.navigate("/");
+      assertEquals(router.state.errors, null);
+      assertEquals(router.state.loaderData["/index"], {
+        from: "server /index",
+      });
+
+      await router.navigate("/docs/missing");
+      assertEquals(router.state.errors, null);
+      assertEquals(router.state.loaderData["/docs/[...]"], {
+        from: "server /docs/[...]",
+      });
+      assertSpyCalls(fetchStub, 2);
+    } finally {
+      router.dispose();
+    }
+  });
+});
+
 describe("createRoute", () => {
   let routeFile: RouteModule;
   beforeEach(() => {
