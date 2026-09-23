@@ -2,6 +2,7 @@ import {
   assertEquals,
   assertExists,
   assertFalse,
+  assertInstanceOf,
   assertNotEquals,
   assertStringIncludes,
 } from "@std/assert";
@@ -9,6 +10,7 @@ import { describe, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import * as path from "@std/path";
 import {
+  data,
   Outlet,
   redirect,
   redirectDocument,
@@ -34,6 +36,7 @@ import {
   mergeServerRoutes,
 } from "./_server.tsx";
 import {
+  deserializeError,
   deserializeHydrationData,
   deserializeLoaderData,
 } from "./_serialization.ts";
@@ -1465,6 +1468,265 @@ describe("the headers a loader or action response sets itself", () => {
         });
         await response.arrayBuffer();
         assertEquals(response.status, 401);
+        assertOwnHeadersKept(response);
+      });
+
+      for (const method of ["GET", "POST"]) {
+        const dataRequest = {
+          method,
+          headers: { "X-Juniper-Route-Id": "/" },
+        };
+
+        it(`sends a Response a ${method} handler throws on a data request as a data error with its status and headers`, async () => {
+          using _log = stub(console, "error");
+          const server = serverWithRoute(readsResponseFirst, () => {
+            throw new Response("Gone for good", {
+              status: 410,
+              headers: [...ownHeaders, ["Cache-Control", "no-store"]],
+            });
+          });
+          const response = await server.request(
+            "http://localhost/",
+            dataRequest,
+          );
+          assertEquals(response.status, 410);
+          assertEquals(response.headers.get("X-Juniper"), "data");
+          const error = deserializeError(
+            deserializeLoaderData(await response.text()),
+          );
+          assertInstanceOf(error, HttpError);
+          assertEquals(error.status, 410);
+          assertEquals(error.message, "Gone for good");
+          assertEquals(response.headers.get("Cache-Control"), "no-store");
+          assertOwnHeadersKept(response);
+        });
+
+        it(`sends data() a ${method} handler throws on a data request as a data error with its status and headers`, async () => {
+          using _log = stub(console, "error");
+          const server = serverWithRoute(readsResponseFirst, () => {
+            throw data("Gone for good", {
+              status: 410,
+              headers: [...ownHeaders, ["Cache-Control", "no-store"]],
+            });
+          });
+          const response = await server.request(
+            "http://localhost/",
+            dataRequest,
+          );
+          assertEquals(response.status, 410);
+          assertEquals(response.headers.get("X-Juniper"), "data");
+          const error = deserializeError(
+            deserializeLoaderData(await response.text()),
+          );
+          assertInstanceOf(error, HttpError);
+          assertEquals(error.status, 410);
+          assertEquals(error.message, "Gone for good");
+          assertEquals(response.headers.get("Cache-Control"), "no-store");
+          assertOwnHeadersKept(response);
+        });
+
+        for (const status of [201, 204, 404]) {
+          it(`sends data() with a ${status} status a ${method} handler returns on a data request as data with its headers`, async () => {
+            const server = serverWithRoute(
+              readsResponseFirst,
+              () =>
+                data({ saved: new Date(0) }, {
+                  status,
+                  headers: [...ownHeaders, ["Cache-Control", "no-store"]],
+                }),
+            );
+            const response = await server.request(
+              "http://localhost/",
+              dataRequest,
+            );
+            assertEquals(response.status, 200);
+            assertEquals(response.headers.get("X-Juniper"), "data");
+            assertEquals(
+              deserializeLoaderData(await response.text()),
+              { saved: new Date(0) },
+            );
+            assertEquals(response.headers.get("Cache-Control"), "no-store");
+            assertOwnHeadersKept(response);
+          });
+        }
+
+        it(`applies the app's cache policy to data() a ${method} handler returns without one`, async () => {
+          const server = serverWithRoute(
+            readsResponseFirst,
+            () => data({ saved: true }, { headers: ownHeaders }),
+          );
+          const response = await server.request(
+            "http://localhost/",
+            dataRequest,
+          );
+          assertEquals(response.status, 200);
+          assertEquals(deserializeLoaderData(await response.text()), {
+            saved: true,
+          });
+          assertEquals(
+            response.headers.get("Cache-Control"),
+            "public, max-age=60",
+          );
+          assertOwnHeadersKept(response);
+        });
+
+        it(`sends a problem details Response a ${method} handler throws on a data request with its own status and headers`, async () => {
+          using _log = stub(console, "error");
+          const server = serverWithRoute(readsResponseFirst, () => {
+            throw new Response(
+              JSON.stringify({
+                status: 400,
+                title: "Unprocessable",
+                detail: "Bad input",
+              }),
+              {
+                status: 422,
+                headers: [
+                  ...ownHeaders,
+                  ["Content-Type", "application/problem+json"],
+                ],
+              },
+            );
+          });
+          const response = await server.request(
+            "http://localhost/",
+            dataRequest,
+          );
+          assertEquals(response.status, 422);
+          const error = deserializeError(
+            deserializeLoaderData(await response.text()),
+          );
+          assertInstanceOf(error, HttpError);
+          assertEquals(error.status, 422);
+          assertEquals(error.message, "Bad input");
+          assertOwnHeadersKept(response);
+        });
+
+        it(`adds no-transform to the cache policy of deferred data() a ${method} handler returns`, async () => {
+          const server = serverWithRoute(
+            readsResponseFirst,
+            () =>
+              data({ later: Promise.resolve("ready") }, {
+                headers: { "Cache-Control": "private, max-age=5" },
+              }),
+          );
+          const response = await server.request(
+            "http://localhost/",
+            dataRequest,
+          );
+          await response.arrayBuffer();
+          assertEquals(
+            response.headers.get("Content-Type"),
+            "application/x-ndjson",
+          );
+          assertEquals(
+            response.headers.get("Cache-Control"),
+            "private, max-age=5, no-transform",
+          );
+        });
+
+        it(`sends data() with a 3xx status React Router does not redirect for, that a ${method} handler returns, as data`, async () => {
+          const server = serverWithRoute(
+            readsResponseFirst,
+            () =>
+              data({ saved: true }, {
+                status: 305,
+                headers: [...ownHeaders, ["Location", "/proxy"]],
+              }),
+          );
+          const response = await server.request(
+            "http://localhost/",
+            dataRequest,
+          );
+          assertEquals(response.status, 200);
+          assertEquals(response.headers.get("X-Juniper"), "data");
+          assertEquals(deserializeLoaderData(await response.text()), {
+            saved: true,
+          });
+          assertOwnHeadersKept(response);
+        });
+
+        it(`sends data() with a redirect status a ${method} handler returns on a data request as a redirect`, async () => {
+          const server = serverWithRoute(
+            readsResponseFirst,
+            () =>
+              data(null, {
+                status: 302,
+                headers: [...ownHeaders, ["Location", "/sign-in"]],
+              }),
+          );
+          const response = await server.request(
+            "http://localhost/",
+            dataRequest,
+          );
+          assertEquals(response.status, 200);
+          assertEquals(response.headers.get("X-Juniper"), "redirect");
+          assertEquals(await response.json(), { location: "/sign-in" });
+          assertOwnHeadersKept(response);
+        });
+
+        it(`keeps every header of an HttpError a ${method} handler throws on a document request, after the app's`, async () => {
+          using _log = stub(console, "error");
+          const server = serverWithRoute(readsResponseFirst, () => {
+            throw new HttpError(401, {
+              message: "Signed out",
+              headers: new Headers([
+                ...ownHeaders,
+                ["Cache-Control", "no-store"],
+              ]),
+            });
+          });
+          const response = await server.request("http://localhost/", {
+            method,
+          });
+          assertStringIncludes(await response.text(), "<html");
+          assertEquals(response.status, 401);
+          assertEquals(
+            response.headers.get("Content-Type"),
+            "text/html; charset=utf-8",
+          );
+          assertEquals(response.headers.get("Cache-Control"), "no-store");
+          assertOwnHeadersKept(response);
+        });
+
+        it(`keeps the body headers an HttpError a ${method} handler throws off the error document`, async () => {
+          using _log = stub(console, "error");
+          const server = serverWithRoute(readsResponseFirst, () => {
+            throw new HttpError(401, {
+              message: "Signed out",
+              headers: new Headers([
+                ...ownHeaders,
+                ["Content-Length", "12"],
+                ["Content-Encoding", "gzip"],
+              ]),
+            });
+          });
+          const response = await server.request("http://localhost/", {
+            method,
+          });
+          await response.arrayBuffer();
+          assertEquals(response.status, 401);
+          assertEquals(response.headers.get("Content-Length"), null);
+          assertEquals(response.headers.get("Content-Encoding"), null);
+          assertOwnHeadersKept(response);
+        });
+      }
+
+      it("sends a thrown Response without an error status as a server error", async () => {
+        using _log = stub(console, "error");
+        const server = serverWithRoute(readsResponseFirst, () => {
+          throw new Response("Not an error", { headers: ownHeaders });
+        });
+        const response = await server.request("http://localhost/", {
+          headers: { "X-Juniper-Route-Id": "/" },
+        });
+        assertEquals(response.status, 500);
+        assertEquals(response.headers.get("X-Juniper"), "data");
+        const error = deserializeError(
+          deserializeLoaderData(await response.text()),
+        );
+        assertInstanceOf(error, HttpError);
+        assertEquals(error.status, 500);
         assertOwnHeadersKept(response);
       });
     });
