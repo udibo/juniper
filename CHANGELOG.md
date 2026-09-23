@@ -1,3 +1,12 @@
+# [0.16.0](https://github.com/udibo/juniper/compare/0.15.0...0.16.0) (2026-09-23)
+
+### Features
+
+- default data responses to a private cache policy
+  ([#145](https://github.com/udibo/juniper/issues/145))
+  ([b421eac](https://github.com/udibo/juniper/commit/b421eacada61d8733d5f2b1df719f609ae7f4f8a)),
+  closes [#146](https://github.com/udibo/juniper/issues/146)
+
 # [0.15.0](https://github.com/udibo/juniper/compare/0.14.1...0.15.0) (2026-09-22)
 
 - feat!: remove the deferredData cookie option
