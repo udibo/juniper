@@ -15,6 +15,7 @@ import { Suspense } from "react";
 import { Await, createContext } from "react-router";
 import { Hono } from "hono";
 import type { MiddlewareHandler } from "hono";
+import { cors } from "hono/cors";
 import { NONCE, secureHeaders } from "hono/secure-headers";
 import { Client } from "@udibo/juniper/client";
 import {
@@ -364,7 +365,7 @@ describe("tagged JSON data requests", () => {
 describe("the cache policy of data responses", () => {
   function serverWithRouteData(
     load: () => unknown,
-    middleware?: MiddlewareHandler,
+    ...middleware: MiddlewareHandler[]
   ) {
     const client = new Client({
       path: "/",
@@ -373,7 +374,9 @@ describe("the cache policy of data responses", () => {
     return createServer(import.meta.url, client, {
       path: "/",
       main: {
-        ...(middleware ? { default: new Hono().use(middleware) } : {}),
+        ...(middleware.length
+          ? { default: new Hono().use(...middleware) }
+          : {}),
         loader: load,
         action: load,
       },
@@ -496,6 +499,54 @@ describe("the cache policy of data responses", () => {
     assertEquals(await response.text(), "raw");
     assertEquals(response.headers.get("Cache-Control"), null);
   });
+
+  describe("after middleware has already read the response", () => {
+    it("still adds no-transform to the app's policy for streamed data", async () => {
+      const server = serverWithRouteData(
+        () => ({ later: Promise.resolve(1) }),
+        cors(),
+        setBeforeNext("public, max-age=60"),
+      );
+      assertEquals(
+        await dataCacheControl(server),
+        "public, max-age=60, no-transform",
+      );
+    });
+
+    it("still prefers the policy a thrown error carries over the app's", async () => {
+      using _log = stub(console, "error");
+      const server = serverWithRouteData(
+        () => {
+          throw new HttpError(429, {
+            message: "Slow down",
+            headers: { "Cache-Control": "no-store" },
+          });
+        },
+        cors(),
+        setBeforeNext("public, max-age=60"),
+      );
+      assertEquals(await dataCacheControl(server), "no-store");
+    });
+  });
+
+  for (
+    const [kind, load] of [
+      ["settled", () => ({ now: 1 })],
+      ["streamed", () => ({ later: Promise.resolve(1) })],
+    ] as const
+  ) {
+    it(`answers ${kind} data with 200 whatever status middleware set before next()`, async () => {
+      const server = serverWithRouteData(load, async (c, next) => {
+        c.status(404);
+        await next();
+      });
+      const response = await server.request("http://localhost/", {
+        headers: { "X-Juniper-Route-Id": "/" },
+      });
+      await response.arrayBuffer();
+      assertEquals(response.status, 200);
+    });
+  }
 });
 
 const DEFERRED_QUEUE = "__juniperDeferredHydration";

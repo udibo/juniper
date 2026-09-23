@@ -468,8 +468,8 @@ data responses as private by default:
 | Settled data and data errors | `private, no-cache`               |
 | Deferred data stream         | `private, no-cache, no-transform` |
 
-- `private` stops shared caches, such as a CDN or a proxy, from storing the
-  response, so one user's data is never served to another.
+- `private` tells shared caches, such as a CDN or a proxy, not to store the
+  response, so they do not serve one user's data to another.
 - `no-cache` lets the browser keep a copy, but it must check with the server
   before each reuse.
 - `no-transform` stops intermediaries from compressing or rewriting a deferred
@@ -508,8 +508,12 @@ A few other cases:
   stream.
 - A `Cache-Control` header on a thrown `HttpError` is used for that error
   response, instead of the middleware policy or the default.
-- A `Response` that a loader or action returns, including a redirect, keeps its
-  own headers. Juniper adds no default policy to it.
+- A `Response` that a loader or action returns keeps its own headers. Juniper
+  adds no default policy to it.
+- A redirect is also sent with its own headers and no default policy. A data
+  request receives it as a `200` response that carries the redirect location,
+  and caches may store a `200` even without a policy. If a redirect depends on
+  the user, set `Cache-Control` on it, for example `private, no-cache`.
 
 ### Client Loaders
 

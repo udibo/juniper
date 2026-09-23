@@ -889,25 +889,33 @@ function hasCacheDirective(policy: string, directive: string): boolean {
   );
 }
 
+function dataCachePolicy(
+  appPolicy: string | null,
+  defaultPolicy: string,
+): string {
+  if (appPolicy === null) return defaultPolicy;
+  return hasCacheDirective(defaultPolicy, "no-transform") &&
+      !hasCacheDirective(appPolicy, "no-transform")
+    ? `${appPolicy}, no-transform`
+    : appPolicy;
+}
+
 function newDataResponse(
   c: Context,
   body: ReadableStream<Uint8Array> | null,
-  init: { status?: StatusCode; headers: Headers },
+  init: { status: StatusCode; headers: Headers },
 ): Response {
   const headers = new Headers(init.headers);
-  const defaultPolicy = headers.get("Cache-Control");
+  const defaultPolicy = headers.get("Cache-Control") ?? "";
   headers.delete("Cache-Control");
   const response = c.newResponse(body, { ...init, headers });
-  if (defaultPolicy === null) return response;
-  const appPolicy = response.headers.get("Cache-Control");
-  if (appPolicy === null) {
-    response.headers.set("Cache-Control", defaultPolicy);
-  } else if (
-    hasCacheDirective(defaultPolicy, "no-transform") &&
-    !hasCacheDirective(appPolicy, "no-transform")
-  ) {
-    response.headers.set("Cache-Control", `${appPolicy}, no-transform`);
-  }
+  const policy = dataCachePolicy(
+    response.headers.get("Cache-Control"),
+    defaultPolicy,
+  );
+  response.headers.set("Cache-Control", policy);
+  // Hono re-applies an already-read `c.res`'s headers over the returned response.
+  c.header("Cache-Control", policy);
   return response;
 }
 
@@ -991,6 +999,7 @@ export function createHandlers<
           c.req.raw.signal,
         );
         return newDataResponse(c, response.body, {
+          status: response.status as StatusCode,
           headers: response.headers,
         });
       });
@@ -1026,9 +1035,10 @@ export function createHandlers<
         }
       }
       const init = { status: error.status as StatusCode, headers };
-      return error.headers?.has("Cache-Control")
-        ? c.newResponse(response.body, init)
-        : newDataResponse(c, response.body, init);
+      const errorPolicy = error.headers?.get("Cache-Control");
+      if (errorPolicy == null) return newDataResponse(c, response.body, init);
+      c.header("Cache-Control", errorPolicy);
+      return c.newResponse(response.body, init);
     }
 
     if (error.status === 404) {
