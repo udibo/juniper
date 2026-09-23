@@ -521,6 +521,11 @@ A few other cases:
   throws the redirect or returns it.
 - A `Response` other than a redirect that a loader or action returns keeps its
   own headers. Juniper adds no default policy to it.
+- `data()` from React Router that a loader or action returns arrives on a data
+  request as data with a `200` status, because the client reads any other status
+  as an error. Its headers are kept, and a `Cache-Control` header among them is
+  used instead of the middleware policy or the default. Its status applies to
+  document requests.
 
 ### Client Loaders
 

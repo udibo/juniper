@@ -55,8 +55,9 @@ function varyByRoute(headers: Headers): void {
  * `X-Juniper-Route-Id` while retaining application cache variation. Route data
  * responses and redirects sent to data requests default to `Cache-Control:
  * private, no-cache`, plus `no-transform` when deferred; a policy route
- * middleware sets before `next()` replaces it, and a policy on a redirect a
- * loader or action returns or throws replaces both.
+ * middleware sets before `next()` replaces it, and a policy on a redirect or
+ * error a loader or action returns or throws, or on the `data()` it returns,
+ * replaces both.
  *
  * @param moduleUrl - File URL of the application entrypoint; its directory owns `public/`.
  * @param client - Matching client route definitions from the same build.

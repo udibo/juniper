@@ -95,6 +95,28 @@ export function ErrorBoundary({ error }: ErrorBoundaryProps) {
 }
 ```
 
+### Error Headers
+
+Pass `headers` to send response headers with an error, such as a cookie that
+signs the user out or a cache policy:
+
+```typescript
+import { HttpError } from "@udibo/juniper";
+
+const headers = new Headers({ "Cache-Control": "no-store" });
+headers.append("Set-Cookie", "session=; Max-Age=0; Path=/");
+throw new HttpError(401, { message: "Signed out", headers });
+```
+
+When a loader or action throws the error, the error document or the data
+request's error response carries those headers. Every `Set-Cookie` value is
+kept.
+
+A loader or action can also throw a `Response` other than a redirect, or throw
+`data()` from React Router. On a data request, Juniper sends it as an
+`HttpError` with that status and those headers. A status outside 400–599 becomes
+`500`.
+
 ## Error Boundaries
 
 Error boundaries catch errors thrown during rendering, in loaders, actions, or

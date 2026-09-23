@@ -18,6 +18,8 @@ import {
 } from "react-router";
 import type {
   DataRouteObject,
+  DataStrategyFunctionArgs,
+  DataStrategyResult,
   RouterContextProvider,
   StaticHandlerContext,
 } from "react-router";
@@ -306,6 +308,48 @@ function getPublicEnv(allPublicEnvKeys: string[]): Record<string, string> {
   return publicEnv;
 }
 
+interface DataWithResponseInit {
+  type: "DataWithResponseInit";
+  data: unknown;
+  init: ResponseInit | null;
+}
+
+function isDataWithResponseInit(
+  value: unknown,
+): value is DataWithResponseInit {
+  return typeof value === "object" && value !== null &&
+    (value as { type?: unknown }).type === "DataWithResponseInit";
+}
+
+function errorStatus(status: number | undefined): number {
+  return status !== undefined && status >= 400 && status < 600 ? status : 500;
+}
+
+const BODY_HEADERS = new Set([
+  "content-type",
+  "content-length",
+  "content-encoding",
+  "transfer-encoding",
+  "x-juniper",
+]);
+
+async function responseToHttpError(response: Response): Promise<HttpError> {
+  const headers = new Headers(response.headers);
+  const contentType = response.headers.get("content-type");
+  if (contentType?.includes("application/problem+json")) {
+    const error = HttpError.from({
+      ...await response.json(),
+      status: errorStatus(response.status),
+    });
+    error.headers = headers;
+    return error;
+  }
+  return new HttpError(errorStatus(response.status), {
+    message: await response.text(),
+    headers,
+  });
+}
+
 async function convertToHttpError(cause: unknown): Promise<HttpError> {
   if (
     cause !== null &&
@@ -314,24 +358,15 @@ async function convertToHttpError(cause: unknown): Promise<HttpError> {
     "getResponse" in cause &&
     typeof cause.getResponse === "function"
   ) {
-    const response = cause.getResponse() as Response;
-    const status = response.status;
-    const headers = new Headers(response.headers);
-
-    let message: string | undefined;
-    const contentType = response.headers.get("content-type");
-    if (contentType?.includes("application/problem+json")) {
-      return HttpError.from({
-        status,
-        ...await response.json(),
-      });
-    } else {
-      message = await response.text();
-    }
-
-    const error = new HttpError(status, { message, headers });
-    error.headers = headers;
-    return error;
+    return await responseToHttpError(cause.getResponse() as Response);
+  }
+  if (cause instanceof Response) return await responseToHttpError(cause);
+  if (isDataWithResponseInit(cause)) {
+    const { data, init } = cause;
+    return new HttpError(errorStatus(init?.status), {
+      message: typeof data === "string" ? data : init?.statusText,
+      headers: new Headers(init?.headers),
+    });
   }
   return HttpError.from(cause);
 }
@@ -513,12 +548,17 @@ async function renderDocument(
   const actionHeaders = context.actionHeaders[deepestMatch.route.id];
   const loaderHeaders = context.loaderHeaders[deepestMatch.route.id];
 
-  const statusCode = (presetError?.status ??
-    Object.values(context.errors ?? {})
-      .find((value: unknown) => isHttpErrorLike(value))
-      ?.status ??
+  const reportedError = presetError ??
+    Object.values(context.errors ?? {}).find((value: unknown) =>
+      isHttpErrorLike(value)
+    );
+  const statusCode = (reportedError?.status ??
     context.statusCode ??
     200) as StatusCode;
+  const errorHeaders = reportedError && "headers" in reportedError &&
+      reportedError.headers instanceof Headers
+    ? reportedError.headers
+    : undefined;
 
   c.status(statusCode);
 
@@ -539,16 +579,11 @@ async function renderDocument(
     c.header("Set-Cookie", cookie, { append: true });
   }
 
-  if (presetError?.headers) {
-    for (const [key, value] of presetError.headers.entries()) {
-      if (
-        key.toLowerCase() !== "content-type" &&
-        key.toLowerCase() !== "set-cookie"
-      ) {
-        c.header(key, value);
-      }
+  if (errorHeaders) {
+    for (const [key, value] of errorHeaders) {
+      if (!BODY_HEADERS.has(key) && key !== "set-cookie") c.header(key, value);
     }
-    for (const cookie of presetError.headers.getSetCookie()) {
+    for (const cookie of errorHeaders.getSetCookie()) {
       c.header("Set-Cookie", cookie, { append: true });
     }
   }
@@ -927,12 +962,89 @@ function newDataResponse(
   const defaultPolicy = headers.get("Cache-Control") ?? "";
   headers.delete("Cache-Control");
   const response = c.newResponse(body, { ...init, headers });
-  const policy = ownPolicy ?? dataCachePolicy(
-    response.headers.get("Cache-Control"),
+  const policy = dataCachePolicy(
+    ownPolicy ?? response.headers.get("Cache-Control"),
     defaultPolicy,
   );
   response.headers.set("Cache-Control", policy);
   return commitResponse(c, response);
+}
+
+function newEnvelopeResponse(
+  c: Context,
+  envelope: Response,
+  status: StatusCode,
+  ownHeaders?: Headers,
+): Response {
+  const headers = new Headers();
+  for (const [key, value] of ownHeaders ?? []) {
+    if (!BODY_HEADERS.has(key) && key !== "set-cookie") {
+      headers.set(key, value);
+    }
+  }
+  for (const cookie of ownHeaders?.getSetCookie() ?? []) {
+    headers.append("Set-Cookie", cookie);
+  }
+  for (const [key, value] of envelope.headers) headers.set(key, value);
+  return newDataResponse(
+    c,
+    envelope.body,
+    { status, headers },
+    ownHeaders?.get("Cache-Control") ?? null,
+  );
+}
+
+class DataWithHeaders {
+  constructor(readonly data: unknown, readonly headers: Headers) {}
+}
+
+const ROUTER_REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+function isRedirect(result: unknown): boolean {
+  const init = result instanceof Response
+    ? result
+    : isDataWithResponseInit(result)
+    ? result.init
+    : undefined;
+  return ROUTER_REDIRECT_STATUSES.has(init?.status ?? 200) &&
+    new Headers(init?.headers).has("Location");
+}
+
+async function toDataRequestResult(
+  settled: DataStrategyResult,
+): Promise<DataStrategyResult> {
+  const { type, result } = settled;
+  if (isRedirect(result)) return settled;
+  if (
+    type === "error" &&
+    (result instanceof Response || isDataWithResponseInit(result))
+  ) {
+    return { type, result: await convertToHttpError(result) };
+  }
+  if (type === "data" && isDataWithResponseInit(result)) {
+    return {
+      type,
+      result: new DataWithHeaders(
+        result.data,
+        new Headers(result.init?.headers),
+      ),
+    };
+  }
+  return settled;
+}
+
+async function dataRequestStrategy(
+  { matches }: DataStrategyFunctionArgs<unknown>,
+): Promise<Record<string, DataStrategyResult>> {
+  const results: Record<string, DataStrategyResult> = {};
+  await Promise.all(
+    matches.filter((match) => match.shouldLoad).map(async (match) => {
+      results[match.route.id] = await toDataRequestResult(
+        await match.resolve(),
+      );
+    }),
+  );
+  return results;
 }
 
 /**
@@ -1001,6 +1113,7 @@ export function createHandlers<
         const dataOrResponse = await queryRoute(c.req.raw, {
           requestContext,
           routeId,
+          dataStrategy: dataRequestStrategy,
         });
 
         if (dataOrResponse instanceof Response) {
@@ -1016,14 +1129,15 @@ export function createHandlers<
           );
         }
 
-        const response = createLoaderDataResponse(
-          dataOrResponse,
-          c.req.raw.signal,
+        const { data, headers } = dataOrResponse instanceof DataWithHeaders
+          ? dataOrResponse
+          : { data: dataOrResponse, headers: undefined };
+        return newEnvelopeResponse(
+          c,
+          createLoaderDataResponse(data, c.req.raw.signal),
+          200,
+          headers,
         );
-        return newDataResponse(c, response.body, {
-          status: response.status as StatusCode,
-          headers: response.headers,
-        });
       });
     },
   );
@@ -1039,28 +1153,11 @@ export function createHandlers<
     console.error(error);
 
     if (c.req.header("X-Juniper-Route-Id")) {
-      const serialized = serializeError(error);
-      const response = createLoaderDataResponse(serialized, c.req.raw.signal);
-      const headers = new Headers(response.headers);
-      if (error.headers) {
-        for (const [key, value] of error.headers.entries()) {
-          if (
-            !["content-type", "content-length", "content-encoding", "x-juniper"]
-              .includes(key.toLowerCase()) &&
-            key.toLowerCase() !== "set-cookie"
-          ) {
-            headers.set(key, value);
-          }
-        }
-        for (const cookie of error.headers.getSetCookie()) {
-          headers.append("Set-Cookie", cookie);
-        }
-      }
-      return newDataResponse(
+      return newEnvelopeResponse(
         c,
-        response.body,
-        { status: error.status as StatusCode, headers },
-        error.headers?.get("Cache-Control") ?? null,
+        createLoaderDataResponse(serializeError(error), c.req.raw.signal),
+        error.status as StatusCode,
+        error.headers,
       );
     }
 
