@@ -72,7 +72,8 @@ export const builder = new Builder({
   // Absolute path to the project root (default: current working directory)
   projectRoot,
 
-  // Path to your deno.json configuration file (default: "./deno.json")
+  // Path to your deno.json configuration file (default: "./deno.json", falling
+  // back to "./deno.jsonc" when deno.json does not exist)
   configPath: "./deno.json",
 
   // Additional esbuild plugins
@@ -204,8 +205,8 @@ export const builder = new Builder({
 });
 ```
 
-Plugins are inserted after the Deno resolver but before the Deno loader,
-allowing you to transform files before they're processed by esbuild.
+Plugins run after Juniper's React compiler plugin and before the Deno plugin,
+allowing you to transform files before Deno resolves and loads them.
 
 ### Entry Points
 

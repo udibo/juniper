@@ -24,7 +24,8 @@ The template's `.env.production` sets `APP_ENV=production` and
 - Optimizes for smaller bundle sizes
 
 Keep the template's build and serve permission profiles and production tasks in
-`deno.json`:
+`deno.json`. This excerpt assumes a custom `build.ts`; a project without one
+runs `@udibo/juniper/build` in its place, as the minimal template does:
 
 ```json
 {
@@ -221,11 +222,11 @@ environment, CI/CD secrets, etc.).
 
 #### Application Variables
 
-| Variable   | Description                                                    |
-| ---------- | -------------------------------------------------------------- |
-| `APP_NAME` | Your application name, used in logging and error messages      |
-| `APP_ENV`  | Environment name: `development`, `test`, or `production`       |
-| `NODE_ENV` | Set to `production` for production builds (used by some tools) |
+| Variable   | Description                                                          |
+| ---------- | -------------------------------------------------------------------- |
+| `APP_NAME` | Your application name, used as the default OpenTelemetry tracer name |
+| `APP_ENV`  | Environment name: `development`, `test`, or `production`             |
+| `NODE_ENV` | Set to `production` for production builds (used by some tools)       |
 
 `APP_NAME` is optional; set it to give your application a useful identity. Keep
 build-time and server runtime production settings consistent. Only allowlisted

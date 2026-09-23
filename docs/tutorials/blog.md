@@ -81,8 +81,9 @@ OTEL_DENO=true
 OTEL_SERVICE_NAME="My Blog"
 ```
 
-The `APP_NAME` is used for logging and error messages. You can change it to
-whatever you like.
+The `APP_NAME` names the application's OpenTelemetry tracer and is included in
+the public environment sent to the browser. You can change it to whatever you
+like.
 
 Next, update `routes/main.tsx` to remove the default heading and add some basic
 styling:

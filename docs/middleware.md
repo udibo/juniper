@@ -258,20 +258,20 @@ navigation.
 
 ### Creating Client Middleware
 
-Export a `middleware` array from an eagerly loaded route module. The generated
-application eagerly imports `routes/main.tsx`; its other routes are lazy. React
-Router cannot discover middleware from a lazy module in time, so Juniper strips
-lazy `middleware` exports. Put shared client middleware in the root module and
-use `request.url` to scope it when needed.
+Export a `middleware` array from a route's `.tsx` module, declared as
+`export const middleware`. Route modules are normally loaded lazily, and React
+Router cannot discover middleware from a lazy module in time, so the builder
+imports every `.tsx` route module with an `export const middleware` declaration
+eagerly. A `middleware` export the builder cannot detect, such as one
+re-exported with `export { middleware }`, stays in a lazy module and is dropped.
+Middleware in `routes/main.tsx` runs for every client navigation.
 
-```typescript
-// routes/main.tsx
+```tsx
+// routes/dashboard/index.tsx
 import type { MiddlewareFunction } from "@udibo/juniper";
 
 export const middleware: MiddlewareFunction[] = [
-  async ({ context, request }) => {
-    console.log("Dashboard middleware running");
-
+  ({ context }) => {
     context.set(dashboardContext, { loadedAt: new Date() });
   },
 ];
@@ -286,10 +286,10 @@ export default function Dashboard() {
 Client middleware receives these arguments:
 
 ```typescript
-interface MiddlewareArgs {
-  context: RouterContextProvider; // Shared context object
+interface RouteMiddlewareArgs<Params extends AnyParams = AnyParams> {
+  context: RequestContext; // Shared context object
   request: Request; // The current request
-  params: Record<string, string>; // Route parameters
+  params: Params; // Route parameters (Record<string, string | undefined>)
 }
 ```
 

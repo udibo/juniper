@@ -468,20 +468,13 @@ export type Route = {
 
 export type LazyRouteResult = Omit<Route, "middleware">;
 
-/**
- * Converts a route module into a renderable route object.
- *
- * @returns A promise that resolves to the route object.
- */
+/** Loads a route module on demand and resolves its route object, without `middleware`. */
 export type LazyRoute = () => Promise<LazyRouteResult>;
 
 /**
- * Converts a `RouteModule` into the internal `Route` shape used by the client runtime.
- *
- * @param routeFile - The module exports for the route.
- * @param serverFlags - Flags indicating whether the route has server-side loader/action.
- * @param routeId - The route ID used for server data requests.
- * @returns A concrete `Route` instance.
+ * Adapts a `RouteModule` into a React Router route: components receive Juniper
+ * props, and `serverFlags` plus `routeId` wire `serverLoader`/`serverAction` to
+ * data requests. Without `routeId`, calling either bridge throws.
  */
 export function createRoute(
   routeFile: RouteModule,
@@ -715,11 +708,6 @@ export function createRoute(
  * `sessionStorage`; once the guard trips the error is left to surface in the
  * nearest ErrorBoundary. During recovery the route remains pending so the
  * current page stays visible until the document navigation completes.
- *
- * @param lazyRouteFile - The lazy route file to create a lazy route object from.
- * @param serverFlags - Flags indicating whether the route has server-side loader/action.
- * @param routeId - The route ID used for server data requests.
- * @returns A lazy route object.
  */
 export function createLazyRoute(
   lazyRouteFile: () => Promise<RouteModule>,

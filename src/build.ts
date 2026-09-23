@@ -5,7 +5,8 @@
  * including route generation, client bundling, and server entrypoint creation.
  *
  * Use the application's build task to supply its Deno permissions and environment.
- * The CLI accepts `--project-root` and uses the default Builder configuration.
+ * Run as a script, it builds the current working directory with the default
+ * Builder configuration; it takes no arguments.
  * Set `APP_ENV=production` in the task for production minification.
  *
  * @module
@@ -177,7 +178,7 @@ export class Builder implements AsyncDisposable {
   readonly outdir: string;
   /** Absolute esbuild entry paths: extra entries plus the main client entry. */
   readonly entryPoints: string[];
-  /** Whether build output is written to disk; `false` is used in tests. */
+  /** Whether build output is written to disk; see {@linkcode BuildOptions.write}. */
   protected write: boolean;
   /** Extra esbuild plugins run after the React compiler and before the Deno plugin. */
   protected plugins: esbuild.Plugin[];
@@ -224,17 +225,12 @@ export class Builder implements AsyncDisposable {
   }
 
   /**
-   * Resolves the absolute set of paths the dev server should hand to
-   * `Deno.watchFs`.
+   * Resolves the absolute paths the dev server passes to `Deno.watchFs`.
    *
-   * Starting from {@linkcode watchPaths} (the project root by default), any
-   * directory that contains an {@linkcode ignorePaths} entry is expanded into
-   * its children so the ignored subtree is never watched. This is what allows
-   * `ignorePaths` to exclude directories that would otherwise crash watcher
-   * setup with a permission error — most commonly root-owned Docker volume
-   * mounts such as `./docker/volumes`. Without this expansion `Deno.watchFs`
-   * recursively descends into every subdirectory and throws on the first one
-   * it cannot read.
+   * Covers {@linkcode watchPaths} minus every {@linkcode ignorePaths} subtree, so
+   * an ignored directory the process cannot read, such as a root-owned Docker
+   * volume, never reaches the watcher. Unreadable directories that contain an
+   * ignored path are skipped.
    *
    * @returns The absolute paths to watch, with ignored subtrees pruned.
    */
@@ -476,8 +472,9 @@ export const client = new Client(${routesConfigString});
   }
 
   /**
-   * Runs the first build of the application. Once one has succeeded, every
-   * build after it must go through {@linkcode Builder.rebuild}; calling this
+   * Runs the first build of the application. Once a build has created its
+   * esbuild context, every later build must go through
+   * {@linkcode Builder.rebuild}, even if that first build failed; calling this
    * again throws. A build that failed before esbuild started can be retried.
    *
    * Regenerates and overwrites the server and client entrypoints first unless

@@ -184,7 +184,7 @@ A route module can export:
 | `default`          | Component | The React component to render                     |
 | `loader`           | Function  | Fetches data before rendering                     |
 | `action`           | Function  | Handles form submissions                          |
-| `middleware`       | Array     | Functions that run before loaders/actions         |
+| `middleware`       | Array     | Runs before loaders/actions (client `.tsx` only)  |
 | `ErrorBoundary`    | Component | Displays errors for this route                    |
 | `HydrateFallback`  | Component | Shows while deferred route data is unresolved     |
 | `shouldRevalidate` | Function  | Decides if the loader reruns (client `.tsx` only) |

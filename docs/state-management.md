@@ -28,7 +28,7 @@ import type { AppEnv } from "@udibo/juniper/server";
 
 // Extend the Hono environment for type safety
 interface CustomEnv extends AppEnv {
-  Variables: {
+  Variables: AppEnv["Variables"] & {
     requestId: string;
     dbConnection: DatabaseConnection;
   };
@@ -61,7 +61,7 @@ app.use(async (c, next) => {
 });
 
 // In a Hono route handler (API endpoints)
-app.get("/api/data", (c) => {
+app.get("/api/data", async (c) => {
   const db = c.get("dbConnection");
   const data = await db.query("SELECT * FROM items");
   return c.json(data);
@@ -73,14 +73,17 @@ app.get("/api/data", (c) => {
 Use TypeScript generics for type safety:
 
 ```typescript
-interface AppEnv extends AppEnv {
-  Variables: {
+import { Hono } from "hono";
+import type { AppEnv } from "@udibo/juniper/server";
+
+interface TimedEnv extends AppEnv {
+  Variables: AppEnv["Variables"] & {
     requestId: string;
     startTime: number;
   };
 }
 
-const app = new Hono<AppEnv>();
+const app = new Hono<TimedEnv>();
 
 app.use(async (c, next) => {
   c.set("requestId", crypto.randomUUID()); // Type-checked
@@ -717,8 +720,7 @@ In client actions, invalidate or remove related queries after mutations:
 // routes/contacts/[id]/index.tsx
 import type { RouteActionArgs } from "@udibo/juniper";
 import { queryClientContext } from "@/context/query.ts";
-import { contactsQuery } from "../index.tsx";
-import { contactQuery } from "./index.tsx";
+import { contactQuery, contactsQuery } from "../index.tsx";
 
 export async function action(
   { context, params, serverAction }: RouteActionArgs<{ id: string }, void>,

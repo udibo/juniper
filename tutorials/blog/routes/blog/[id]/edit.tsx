@@ -17,7 +17,7 @@ export default function EditPost({
 
   return (
     <>
-      <title>Edit: {post.title}</title>
+      <title>{`Edit: ${post.title}`}</title>
       <div style={{ maxWidth: "600px", margin: "0 auto" }}>
         <Link
           to={`/blog/${post.id}`}

@@ -219,10 +219,11 @@ customize the caching behavior for specific responses.
 ### Migrating Previously Cached Stable URLs
 
 Changing response headers does not invalidate a copy a browser has already
-stored as fresh. A visitor who cached `/build/main.css` under an earlier
-four-hour policy keeps using it until that lifetime runs out, no matter what the
-origin sends now. To force the switch once, change the URL the layout links to
-so the stale entry is never looked up again:
+stored as fresh. If a stable URL such as `/build/main.css` was once served with
+a long lifetime, for example by custom middleware or a CDN rule, a visitor who
+cached it keeps using it until that lifetime runs out, no matter what the origin
+sends now. To force the switch once, change the URL the layout links to so the
+stale entry is never looked up again:
 
 ```tsx
 // routes/main.tsx
