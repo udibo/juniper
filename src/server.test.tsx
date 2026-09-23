@@ -6,9 +6,11 @@ import {
   assertStringIncludes,
 } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import * as path from "@std/path";
 import {
   Outlet,
+  redirect,
   redirectDocument,
   useLoaderData,
   useParams,
@@ -16,6 +18,9 @@ import {
 import type { LoaderFunctionArgs } from "react-router";
 
 import { Hono } from "hono";
+import type { MiddlewareHandler } from "hono";
+import { setCookie } from "hono/cookie";
+import { cors } from "hono/cors";
 import { NONCE, secureHeaders } from "hono/secure-headers";
 
 import type { RouteLoaderArgs } from "./mod.ts";
@@ -1257,6 +1262,213 @@ describe("redirect header preservation", () => {
     assertEquals(res.headers.get("X-Juniper"), null);
     await res.body?.cancel();
   });
+});
+
+describe("the headers a loader or action response sets itself", () => {
+  const appMiddleware: MiddlewareHandler = async (c, next) => {
+    c.header("X-Application", "app");
+    c.header("X-Owner", "app");
+    c.header("Cache-Control", "public, max-age=60");
+    setCookie(c, "app", "1");
+    await next();
+  };
+
+  const ownHeaders: [string, string][] = [
+    ["Set-Cookie", "session=abc; Path=/; HttpOnly"],
+    ["Set-Cookie", "csrf=xyz; Path=/"],
+    ["X-Owner", "route"],
+  ];
+
+  function serverWithRoute(
+    readsResponseFirst: boolean,
+    handle: () => unknown,
+  ) {
+    const client = new Client({
+      path: "/",
+      main: { default: () => <div>Home</div> },
+    });
+    const middleware = readsResponseFirst
+      ? [cors(), appMiddleware]
+      : [appMiddleware];
+    return createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        default: new Hono().use(...middleware),
+        loader: handle,
+        action: handle,
+      },
+    });
+  }
+
+  function assertOwnHeadersKept(response: Response): void {
+    assertEquals(response.headers.getSetCookie(), [
+      "app=1; Path=/",
+      "session=abc; Path=/; HttpOnly",
+      "csrf=xyz; Path=/",
+    ]);
+    assertEquals(response.headers.get("X-Owner"), "route");
+    assertEquals(response.headers.get("X-Application"), "app");
+  }
+
+  it("leaves a response middleware committed before next() without the handler's headers", async () => {
+    const client = new Client({
+      path: "/",
+      main: { default: () => <div>Home</div> },
+    });
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        default: new Hono().use(cors(), async (c, next) => {
+          c.res = new Response("maintenance", { status: 503 });
+          await next();
+        }),
+        loader: () => ({ now: 1 }),
+      },
+    });
+    const response = await server.request("http://localhost/", {
+      headers: { "X-Juniper-Route-Id": "/" },
+    });
+    assertEquals(response.status, 503);
+    assertEquals(await response.text(), "maintenance");
+    assertEquals(
+      response.headers.get("Content-Type"),
+      "text/plain;charset=UTF-8",
+    );
+    assertEquals(response.headers.get("X-Juniper"), null);
+    assertEquals(response.headers.get("Cache-Control"), null);
+  });
+
+  it("keeps the headers of a data error thrown after middleware committed a response", async () => {
+    using _log = stub(console, "error");
+    const client = new Client({
+      path: "/",
+      main: { default: () => <div>Home</div> },
+    });
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        default: new Hono().use(async (c, next) => {
+          c.res = new Response("maintenance", {
+            status: 503,
+            headers: { "Cache-Control": "public, max-age=60" },
+          });
+          await next();
+        }),
+        loader: () => {
+          throw new HttpError(401, {
+            message: "Signed out",
+            headers: new Headers([
+              ...ownHeaders,
+              ["Cache-Control", "no-store"],
+            ]),
+          });
+        },
+      },
+    });
+    const response = await server.request("http://localhost/", {
+      headers: { "X-Juniper-Route-Id": "/" },
+    });
+    await response.arrayBuffer();
+    assertEquals(response.status, 401);
+    assertEquals(response.headers.get("Cache-Control"), "no-store");
+    assertEquals(response.headers.getSetCookie(), [
+      "session=abc; Path=/; HttpOnly",
+      "csrf=xyz; Path=/",
+    ]);
+  });
+
+  for (
+    const [order, readsResponseFirst] of [
+      ["after middleware has read the response", true],
+      ["when no middleware has read the response", false],
+    ] as const
+  ) {
+    describe(order, () => {
+      for (const method of ["GET", "POST"]) {
+        for (
+          const [how, handle] of [
+            ["returns", () => redirect("/sign-in", { headers: ownHeaders })],
+            ["throws", () => {
+              throw redirect("/sign-in", { headers: ownHeaders });
+            }],
+          ] as const
+        ) {
+          it(`keeps every cookie a redirect a ${method} handler ${how} sets on a data request, after the app's`, async () => {
+            const server = serverWithRoute(readsResponseFirst, handle);
+            const response = await server.request("http://localhost/", {
+              method,
+              headers: { "X-Juniper-Route-Id": "/" },
+            });
+            assertEquals(response.status, 200);
+            assertEquals(response.headers.get("X-Juniper"), "redirect");
+            assertEquals(await response.json(), { location: "/sign-in" });
+            assertOwnHeadersKept(response);
+          });
+
+          it(`keeps every cookie a redirect a ${method} handler ${how} sets on a document request, after the app's`, async () => {
+            const server = serverWithRoute(readsResponseFirst, handle);
+            const response = await server.request("http://localhost/", {
+              method,
+            });
+            await response.body?.cancel();
+            assertEquals(response.status, 302);
+            assertEquals(response.headers.get("Location"), "/sign-in");
+            assertOwnHeadersKept(response);
+          });
+        }
+
+        it(`keeps the cache policy and headers of a response a ${method} handler returns`, async () => {
+          const server = serverWithRoute(
+            readsResponseFirst,
+            () =>
+              new Response("raw", {
+                headers: [...ownHeaders, ["Cache-Control", "no-store"]],
+              }),
+          );
+          const response = await server.request("http://localhost/", {
+            method,
+            headers: { "X-Juniper-Route-Id": "/" },
+          });
+          assertEquals(await response.text(), "raw");
+          assertEquals(response.headers.get("Cache-Control"), "no-store");
+          assertOwnHeadersKept(response);
+        });
+
+        it(`applies the app's cache policy to a response a ${method} handler returns without one`, async () => {
+          const server = serverWithRoute(
+            readsResponseFirst,
+            () => new Response("raw"),
+          );
+          const response = await server.request("http://localhost/", {
+            method,
+            headers: { "X-Juniper-Route-Id": "/" },
+          });
+          assertEquals(await response.text(), "raw");
+          assertEquals(
+            response.headers.get("Cache-Control"),
+            "public, max-age=60",
+          );
+          assertEquals(response.headers.getSetCookie(), ["app=1; Path=/"]);
+        });
+      }
+
+      it("keeps every cookie a thrown data error sets, after the app's", async () => {
+        using _log = stub(console, "error");
+        const server = serverWithRoute(readsResponseFirst, () => {
+          throw new HttpError(401, {
+            message: "Signed out",
+            headers: new Headers(ownHeaders),
+          });
+        });
+        const response = await server.request("http://localhost/", {
+          headers: { "X-Juniper-Route-Id": "/" },
+        });
+        await response.arrayBuffer();
+        assertEquals(response.status, 401);
+        assertOwnHeadersKept(response);
+      });
+    });
+  }
 });
 
 describe("build artifact cache control", () => {
