@@ -112,6 +112,14 @@ When a loader or action throws the error, the error document or the data
 request's error response carries those headers. Every `Set-Cookie` value is
 kept.
 
+The error document also carries the data of every loader that ran and the
+request's shared context, so the error's cache headers are made private there.
+For example, `Cache-Control: public, max-age=60` becomes `private, max-age=60`.
+This applies whether a loader, an action or middleware throws the error. The
+data request's error response keeps the headers as written. To send the error
+document's cache headers as written, set `publicDocument` in the route's
+middleware. See [Caching Documents](routing.md#caching-documents).
+
 A loader or action can also throw a `Response` other than a redirect, or throw
 `data()` from React Router. On a data request, Juniper sends it as an
 `HttpError` with that status and those headers. A status outside 400–599 becomes

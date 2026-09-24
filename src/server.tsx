@@ -57,7 +57,11 @@ function varyByRoute(headers: Headers): void {
  * private, no-cache`, plus `no-transform` when deferred; a policy route
  * middleware sets before `next()` replaces it, and a policy on a redirect or
  * error a loader or action returns or throws, or on the `data()` it returns,
- * replaces both.
+ * replaces both. On a document, cache headers from a loader, an action or a
+ * thrown error are made private: `Cache-Control` drops `public` and `s-maxage`
+ * and gains `private`, CDN cache fields become `no-store`, and an `Expires`
+ * without a `Cache-Control` is dropped. Route middleware that sets the
+ * `publicDocument` variable to `true` keeps them as written.
  *
  * @param moduleUrl - File URL of the application entrypoint; its directory owns `public/`.
  * @param client - Matching client route definitions from the same build.

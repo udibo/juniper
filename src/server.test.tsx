@@ -1734,6 +1734,468 @@ describe("the headers a loader or action response sets itself", () => {
   }
 });
 
+describe("the cache policy of a document", () => {
+  const readerState = "reader-state-for-ada";
+  const publicPolicy = "public, max-age=60";
+
+  const tagResponse: MiddlewareHandler = async (c, next) => {
+    c.header("X-Application", "app");
+    await next();
+  };
+
+  const allowPublicDocument: MiddlewareHandler = async (c, next) => {
+    c.set("publicDocument", true);
+    await next();
+  };
+
+  function throwFromMiddleware(policy: string): MiddlewareHandler {
+    return () => {
+      throw new HttpError(404, {
+        message: "Not found",
+        headers: new Headers({ "Cache-Control": policy }),
+      });
+    };
+  }
+
+  function serverWithPage(
+    readsResponseFirst: boolean,
+    page: {
+      loader?: () => unknown;
+      action?: () => unknown;
+      middleware?: MiddlewareHandler[];
+      rootLoader?: (() => unknown) | null;
+    },
+  ) {
+    const {
+      loader,
+      action,
+      middleware = [],
+      rootLoader = () => ({ reader: readerState }),
+    } = page;
+    const client = new Client({
+      path: "/",
+      main: {
+        default: () => <Outlet />,
+        ErrorBoundary: () => <div>Error page</div>,
+      },
+      children: [{
+        path: "page",
+        main: {
+          default: () => <div>Page</div>,
+          ErrorBoundary: () => <div>Page error</div>,
+        },
+      }],
+    });
+    return createServer(import.meta.url, client, {
+      path: "/",
+      main: {
+        default: new Hono().use(
+          ...(readsResponseFirst ? [cors(), tagResponse] : [tagResponse]),
+        ),
+        loader: rootLoader ?? undefined,
+      },
+      children: [{
+        path: "page",
+        main: {
+          default: middleware.length > 0
+            ? new Hono().use(...middleware)
+            : undefined,
+          loader,
+          action,
+        },
+      }],
+    });
+  }
+
+  async function requestDocument(
+    server: ReturnType<typeof serverWithPage>,
+    method = "GET",
+  ): Promise<{ response: Response; html: string }> {
+    const response = await server.request("http://localhost/page", {
+      method,
+    });
+    const html = await response.text();
+    assertEquals(
+      response.headers.get("Content-Type"),
+      "text/html; charset=utf-8",
+    );
+    assertEquals(response.headers.get("X-Application"), "app");
+    return { response, html };
+  }
+
+  const appPolicyAndCookie: MiddlewareHandler = async (c, next) => {
+    c.header("X-Owner", "app");
+    c.header("Cache-Control", "private, no-cache");
+    setCookie(c, "app", "1");
+    await next();
+  };
+
+  const cdnPolicies: [string, string][] = [
+    ["CDN-Cache-Control", "public, max-age=600"],
+    ["Cloudflare-CDN-Cache-Control", "max-age=600"],
+    ["Surrogate-Control", "max-age=600"],
+  ];
+
+  const rewrites: [string, string][] = [
+    ["public, max-age=60", "private, max-age=60"],
+    ["public, s-maxage=300, max-age=60", "private, max-age=60"],
+    ["S-MaxAge=300", "private"],
+    ['private="Set-Cookie, X-Owner", max-age=60', "private, max-age=60"],
+    [
+      "max-age=60, stale-while-revalidate=30",
+      "private, max-age=60, stale-while-revalidate=30",
+    ],
+    ["no-cache", "private, no-cache"],
+    ["public, no-store", "no-store"],
+    ["no-store", "no-store"],
+    ["private, max-age=60", "private, max-age=60"],
+    ["Private,max-age=60", "Private,max-age=60"],
+  ];
+
+  const pageSources: [
+    string,
+    (policy: string) => {
+      loader?: () => unknown;
+      action?: () => unknown;
+    },
+    string,
+    number,
+  ][] = [
+    [
+      "an HttpError the loader throws",
+      (policy) => ({
+        loader: () => {
+          throw new HttpError(404, {
+            message: "Not found",
+            headers: new Headers({ "Cache-Control": policy }),
+          });
+        },
+      }),
+      "GET",
+      404,
+    ],
+    [
+      "data() the loader returns",
+      (policy) => ({
+        loader: () =>
+          data({ page: "page" }, { headers: { "Cache-Control": policy } }),
+      }),
+      "GET",
+      200,
+    ],
+    [
+      "a Response the loader returns",
+      (policy) => ({
+        loader: () =>
+          new Response(null, { headers: { "Cache-Control": policy } }),
+      }),
+      "GET",
+      200,
+    ],
+    [
+      "data() the action returns",
+      (policy) => ({
+        loader: () => ({ page: "page" }),
+        action: () =>
+          data({ saved: true }, { headers: { "Cache-Control": policy } }),
+      }),
+      "POST",
+      200,
+    ],
+    [
+      "an HttpError the action throws",
+      (policy) => ({
+        loader: () => ({ page: "page" }),
+        action: () => {
+          throw new HttpError(409, {
+            message: "Conflict",
+            headers: new Headers({ "Cache-Control": policy }),
+          });
+        },
+      }),
+      "POST",
+      409,
+    ],
+  ];
+
+  for (
+    const [order, readsResponseFirst] of [
+      ["after middleware has read the response", true],
+      ["when no middleware has read the response", false],
+    ] as const
+  ) {
+    describe(order, () => {
+      for (const [source, page, method, status] of pageSources) {
+        for (const [policy, expected] of rewrites) {
+          it(`sends ${JSON.stringify(policy)} from ${source} on a document that hydrates loader data as ${JSON.stringify(expected)}`, async () => {
+            using _log = stub(console, "error");
+            const server = serverWithPage(readsResponseFirst, page(policy));
+            const { response, html } = await requestDocument(server, method);
+            assertEquals(response.status, status);
+            assertStringIncludes(html, readerState);
+            assertEquals(response.headers.get("Cache-Control"), expected);
+          });
+        }
+
+        it(`keeps ${publicPolicy} from ${source} on a document the route marks public`, async () => {
+          using _log = stub(console, "error");
+          const server = serverWithPage(readsResponseFirst, {
+            ...page(publicPolicy),
+            middleware: [allowPublicDocument],
+          });
+          const { response, html } = await requestDocument(server, method);
+          assertEquals(response.status, status);
+          assertStringIncludes(html, readerState);
+          assertEquals(response.headers.get("Cache-Control"), publicPolicy);
+        });
+      }
+
+      it("sends a shared policy from an HttpError middleware throws as private, although no loader ran", async () => {
+        using _log = stub(console, "error");
+        const server = serverWithPage(readsResponseFirst, {
+          loader: () => ({ page: "page" }),
+          middleware: [throwFromMiddleware(publicPolicy)],
+        });
+        const { response, html } = await requestDocument(server);
+        assertEquals(response.status, 404);
+        assertStringIncludes(html, "Error page");
+        assertFalse(html.includes(readerState));
+        assertEquals(
+          response.headers.get("Cache-Control"),
+          "private, max-age=60",
+        );
+      });
+
+      it("sends a shared policy from an HttpError as private on a document of routes without loaders", async () => {
+        using _log = stub(console, "error");
+        const server = serverWithPage(readsResponseFirst, {
+          rootLoader: null,
+          middleware: [throwFromMiddleware(publicPolicy)],
+        });
+        const { response, html } = await requestDocument(server);
+        assertEquals(response.status, 404);
+        assertStringIncludes(html, "Page error");
+        assertEquals(
+          response.headers.get("Cache-Control"),
+          "private, max-age=60",
+        );
+      });
+
+      it("keeps a shared policy from an HttpError middleware throws on a document the route marks public", async () => {
+        using _log = stub(console, "error");
+        const server = serverWithPage(readsResponseFirst, {
+          rootLoader: null,
+          middleware: [allowPublicDocument, throwFromMiddleware(publicPolicy)],
+        });
+        const { response } = await requestDocument(server);
+        assertEquals(response.status, 404);
+        assertEquals(response.headers.get("Cache-Control"), publicPolicy);
+      });
+
+      it("keeps the policy route middleware sets on a document", async () => {
+        const server = serverWithPage(readsResponseFirst, {
+          loader: () => ({ page: "page" }),
+          middleware: [async (c, next) => {
+            c.header("Cache-Control", publicPolicy);
+            await next();
+          }],
+        });
+        const { response, html } = await requestDocument(server);
+        assertEquals(response.status, 200);
+        assertStringIncludes(html, readerState);
+        assertEquals(response.headers.get("Cache-Control"), publicPolicy);
+      });
+
+      it("sends a document without a policy when no route or middleware sets one", async () => {
+        const server = serverWithPage(readsResponseFirst, {
+          loader: () => ({ page: "page" }),
+        });
+        const { response } = await requestDocument(server);
+        assertEquals(response.status, 200);
+        assertEquals(response.headers.get("Cache-Control"), null);
+      });
+
+      it("sends the cookies of the app, then the loader, and the loader's headers over the app's, on a document", async () => {
+        const server = serverWithPage(readsResponseFirst, {
+          middleware: [appPolicyAndCookie],
+          loader: () =>
+            data({ page: "page" }, {
+              headers: [
+                ["Set-Cookie", "loader=1; Path=/"],
+                ["Set-Cookie", "loader=2; Path=/"],
+                ["Cache-Control", "max-age=60"],
+                ["X-Owner", "loader"],
+              ],
+            }),
+        });
+        const { response, html } = await requestDocument(server);
+        assertEquals(response.status, 200);
+        assertStringIncludes(html, readerState);
+        assertEquals(response.headers.getSetCookie(), [
+          "app=1; Path=/",
+          "loader=1; Path=/",
+          "loader=2; Path=/",
+        ]);
+        assertEquals(response.headers.get("X-Owner"), "loader");
+        assertEquals(
+          response.headers.get("Cache-Control"),
+          "private, max-age=60",
+        );
+      });
+
+      it("sends the cookies of the app, the action, then the error, and the error's headers over the action's, on a document", async () => {
+        using _log = stub(console, "error");
+        const server = serverWithPage(readsResponseFirst, {
+          middleware: [appPolicyAndCookie],
+          action: () =>
+            data({ saved: true }, {
+              headers: [
+                ["Set-Cookie", "action=1; Path=/"],
+                ["Cache-Control", "max-age=60"],
+                ["X-Owner", "action"],
+              ],
+            }),
+          loader: () => {
+            throw new HttpError(409, {
+              message: "Conflict",
+              headers: new Headers([
+                ["Set-Cookie", "error=1; Path=/"],
+                ["Cache-Control", "public, max-age=5"],
+                ["X-Owner", "error"],
+              ]),
+            });
+          },
+        });
+        const { response, html } = await requestDocument(server, "POST");
+        assertEquals(response.status, 409);
+        assertStringIncludes(html, readerState);
+        assertEquals(response.headers.getSetCookie(), [
+          "app=1; Path=/",
+          "action=1; Path=/",
+          "error=1; Path=/",
+        ]);
+        assertEquals(response.headers.get("X-Owner"), "error");
+        assertEquals(
+          response.headers.get("Cache-Control"),
+          "private, max-age=5",
+        );
+      });
+
+      it("sends the policy of an error a layout loader throws over the page loader's on a document", async () => {
+        using _log = stub(console, "error");
+        const server = serverWithPage(readsResponseFirst, {
+          rootLoader: () => {
+            throw new HttpError(503, {
+              message: "Unavailable",
+              headers: new Headers({ "Cache-Control": "no-store" }),
+            });
+          },
+          loader: () =>
+            data({ page: "page" }, {
+              headers: { "Cache-Control": "public, max-age=60" },
+            }),
+        });
+        const { response } = await requestDocument(server);
+        assertEquals(response.status, 503);
+        assertEquals(response.headers.get("Cache-Control"), "no-store");
+      });
+
+      it("sends the CDN cache fields a loader sets as no-store on a document", async () => {
+        const server = serverWithPage(readsResponseFirst, {
+          loader: () => data({ page: "page" }, { headers: cdnPolicies }),
+        });
+        const { response, html } = await requestDocument(server);
+        assertEquals(response.status, 200);
+        assertStringIncludes(html, readerState);
+        for (const [name] of cdnPolicies) {
+          assertEquals(response.headers.get(name), "no-store", name);
+        }
+        assertEquals(response.headers.get("Cache-Control"), null);
+      });
+
+      it("keeps the CDN cache fields a loader sets on a document the route marks public", async () => {
+        const server = serverWithPage(readsResponseFirst, {
+          middleware: [allowPublicDocument],
+          loader: () => data({ page: "page" }, { headers: cdnPolicies }),
+        });
+        const { response } = await requestDocument(server);
+        assertEquals(response.status, 200);
+        for (const [name, policy] of cdnPolicies) {
+          assertEquals(response.headers.get(name), policy, name);
+        }
+      });
+
+      it("drops an Expires a loader sets without a Cache-Control from a document", async () => {
+        const server = serverWithPage(readsResponseFirst, {
+          loader: () =>
+            data({ page: "page" }, {
+              headers: { Expires: "Wed, 21 Oct 2099 07:28:00 GMT" },
+            }),
+        });
+        const { response, html } = await requestDocument(server);
+        assertEquals(response.status, 200);
+        assertStringIncludes(html, readerState);
+        assertEquals(response.headers.get("Expires"), null);
+        assertEquals(response.headers.get("Cache-Control"), null);
+      });
+
+      it("keeps an Expires a loader sets beside a Cache-Control, which becomes private, on a document", async () => {
+        const server = serverWithPage(readsResponseFirst, {
+          loader: () =>
+            data({ page: "page" }, {
+              headers: {
+                "Cache-Control": "public",
+                Expires: "Wed, 21 Oct 2099 07:28:00 GMT",
+              },
+            }),
+        });
+        const { response } = await requestDocument(server);
+        assertEquals(response.status, 200);
+        assertEquals(
+          response.headers.get("Expires"),
+          "Wed, 21 Oct 2099 07:28:00 GMT",
+        );
+        assertEquals(response.headers.get("Cache-Control"), "private");
+      });
+
+      it("keeps an Expires a loader sets on a document the route marks public", async () => {
+        const server = serverWithPage(readsResponseFirst, {
+          middleware: [allowPublicDocument],
+          loader: () =>
+            data({ page: "page" }, {
+              headers: { Expires: "Wed, 21 Oct 2099 07:28:00 GMT" },
+            }),
+        });
+        const { response } = await requestDocument(server);
+        assertEquals(response.status, 200);
+        assertEquals(
+          response.headers.get("Expires"),
+          "Wed, 21 Oct 2099 07:28:00 GMT",
+        );
+      });
+
+      it("keeps the shared policy of data() a loader returns on a data request, which carries only that loader's data", async () => {
+        const server = serverWithPage(readsResponseFirst, {
+          loader: () =>
+            data({ page: "page" }, {
+              headers: [["Cache-Control", publicPolicy], ...cdnPolicies],
+            }),
+        });
+        const response = await server.request("http://localhost/page", {
+          headers: { "X-Juniper-Route-Id": "/page" },
+        });
+        assertEquals(response.status, 200);
+        assertEquals(response.headers.get("X-Juniper"), "data");
+        assertFalse((await response.text()).includes(readerState));
+        assertEquals(response.headers.get("Cache-Control"), publicPolicy);
+        for (const [name, policy] of cdnPolicies) {
+          assertEquals(response.headers.get(name), policy, name);
+        }
+      });
+    });
+  }
+});
+
 describe("data requests React Router rejects before a loader or action runs", () => {
   const appMiddleware: MiddlewareHandler = async (c, next) => {
     c.header("X-Application", "app");
