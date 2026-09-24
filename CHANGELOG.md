@@ -1,3 +1,12 @@
+# [0.17.0](https://github.com/udibo/juniper/compare/0.16.6...0.17.0) (2026-09-24)
+
+### Features
+
+- keep documents private by default
+  ([#162](https://github.com/udibo/juniper/issues/162))
+  ([5cc63a5](https://github.com/udibo/juniper/commit/5cc63a57b32e216de423891cf67595871f80818b)),
+  closes [#157](https://github.com/udibo/juniper/issues/157)
+
 ## [0.16.6](https://github.com/udibo/juniper/compare/0.16.5...0.16.6) (2026-09-24)
 
 ### Bug Fixes
