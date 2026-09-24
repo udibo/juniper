@@ -117,6 +117,21 @@ A loader or action can also throw a `Response` other than a redirect, or throw
 `HttpError` with that status and those headers. A status outside 400–599 becomes
 `500`.
 
+A data request that no loader or action can handle also gets an `HttpError`:
+
+- `404` when its `X-Juniper-Route-Id` doesn't name a route that matches the URL.
+- `405` when the route has no handler for the method, such as a `POST` to a
+  route without an action. The `Allow` header lists the methods the route
+  accepts. It's left off while a lazily loaded route's module hasn't loaded on
+  the server yet.
+- `400` for a `GET` to a route without a loader. Until a lazily loaded route's
+  module has loaded on the server, React Router answers that request with
+  `undefined` data instead.
+
+These errors carry the generic message for their status. React Router's own
+message, which names the route, is logged on the server. Outside development, it
+isn't sent to the browser.
+
 ## Error Boundaries
 
 Error boundaries catch errors thrown during rendering, in loaders, actions, or

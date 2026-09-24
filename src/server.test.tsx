@@ -14,6 +14,7 @@ import {
   Outlet,
   redirect,
   redirectDocument,
+  UNSAFE_ErrorResponseImpl as ErrorResponseImpl,
   useLoaderData,
   useParams,
 } from "react-router";
@@ -1728,6 +1729,287 @@ describe("the headers a loader or action response sets itself", () => {
         assertInstanceOf(error, HttpError);
         assertEquals(error.status, 500);
         assertOwnHeadersKept(response);
+      });
+    });
+  }
+});
+
+describe("data requests React Router rejects before a loader or action runs", () => {
+  const appMiddleware: MiddlewareHandler = async (c, next) => {
+    c.header("X-Application", "app");
+    await next();
+  };
+
+  function serverWithRoutes(readsResponseFirst: boolean) {
+    const client = new Client({
+      path: "/",
+      main: { default: () => <Outlet /> },
+      children: [
+        { path: "page", main: { default: () => <div>Page</div> } },
+        { path: "reader", main: { default: () => <div>Reader</div> } },
+        {
+          path: "lazy",
+          main: () => Promise.resolve({ default: () => <div>Lazy</div> }),
+        },
+        { path: "writer", main: { default: () => <div>Writer</div> } },
+        { path: "thrower", main: { default: () => <div>Thrower</div> } },
+        { path: "members", main: { default: () => <div>Members</div> } },
+        { path: "closed", main: { default: () => <div>Closed</div> } },
+      ],
+    });
+    const middleware = readsResponseFirst
+      ? [cors(), appMiddleware]
+      : [appMiddleware];
+    return createServer(import.meta.url, client, {
+      path: "/",
+      main: { default: new Hono().use(...middleware) },
+      children: [
+        { path: "reader", main: { loader: () => ({ read: true }) } },
+        { path: "writer", main: { action: () => ({ written: true }) } },
+        {
+          path: "thrower",
+          main: {
+            loader: () => {
+              throw "a thrown value that must stay on the server";
+            },
+          },
+        },
+        {
+          path: "members",
+          main: {
+            loader: () => {
+              throw new ErrorResponseImpl(403, "Forbidden", "Members only");
+            },
+          },
+        },
+        {
+          path: "closed",
+          main: {
+            loader: () => {
+              throw new ErrorResponseImpl(405, "Method Not Allowed", "Closed");
+            },
+            action: () => {
+              throw new Response("Closed", {
+                status: 405,
+                headers: { Allow: "GET" },
+              });
+            },
+          },
+        },
+      ],
+    });
+  }
+
+  async function assertDataError(
+    response: Response,
+    status: number,
+    hiddenDetail: string,
+  ): Promise<void> {
+    const body = await response.text();
+    assertEquals(response.status, status);
+    assertEquals(response.headers.get("X-Juniper"), "data");
+    assertEquals(response.headers.get("Content-Type"), "application/json");
+    assertEquals(response.headers.get("Cache-Control"), "private, no-cache");
+    assertEquals(response.headers.get("X-Application"), "app");
+    const error = deserializeError(deserializeLoaderData(body));
+    assertInstanceOf(error, HttpError);
+    assertEquals(error.status, status);
+    assertEquals(
+      error.message,
+      new HttpError(status, { expose: false }).exposedMessage,
+    );
+    assertFalse(
+      body.includes(hiddenDetail),
+      `the body leaks "${hiddenDetail}"`,
+    );
+  }
+
+  for (
+    const [order, readsResponseFirst] of [
+      ["after middleware has read the response", true],
+      ["when no middleware has read the response", false],
+    ] as const
+  ) {
+    describe(order, () => {
+      for (const method of ["GET", "POST"]) {
+        for (const routeId of ["/unknown", "/reader"]) {
+          it(`answers a ${method} data request whose route id ${routeId} is not on the URL with a 404 data error`, async () => {
+            using _log = stub(console, "error");
+            const server = serverWithRoutes(readsResponseFirst);
+            const response = await server.request("http://localhost/page", {
+              method,
+              headers: { "X-Juniper-Route-Id": routeId },
+            });
+            await assertDataError(response, 404, "does not match URL");
+            assertEquals(response.headers.get("Allow"), null);
+          });
+        }
+      }
+
+      for (
+        const [path, allow] of [
+          ["/page", ""],
+          ["/reader", "GET, HEAD"],
+          ["/lazy", ""],
+        ] as const
+      ) {
+        it(`answers a POST data request to ${path}, which has no action, with a 405 data error that lists the methods it allows`, async () => {
+          using _log = stub(console, "error");
+          const server = serverWithRoutes(readsResponseFirst);
+          const response = await server.request(`http://localhost${path}`, {
+            method: "POST",
+            headers: { "X-Juniper-Route-Id": path },
+          });
+          await assertDataError(response, 405, "did not provide an `action`");
+          assertEquals(response.headers.get("Allow"), allow);
+        });
+      }
+
+      for (
+        const [path, allow] of [
+          ["/reader", "GET, HEAD"],
+          ["/writer", "POST, PUT, PATCH, DELETE"],
+        ] as const
+      ) {
+        it(`answers a data request to ${path} with a method React Router does not accept with a 405 data error that lists the methods the route allows`, async () => {
+          using _log = stub(console, "error");
+          const server = serverWithRoutes(readsResponseFirst);
+          const response = await server.request(`http://localhost${path}`, {
+            method: "PROPFIND",
+            headers: { "X-Juniper-Route-Id": path },
+          });
+          await assertDataError(response, 405, "Invalid request method");
+          assertEquals(response.headers.get("Allow"), allow);
+        });
+      }
+
+      for (
+        const [path, routeId, reason] of [
+          ["/page", "/reader", "whose route id is not on the URL"],
+          ["/lazy", "/lazy", "whose lazy route has not loaded"],
+        ] as const
+      ) {
+        it(`leaves Allow off a 405 data error for a method React Router does not accept, ${reason}`, async () => {
+          using _log = stub(console, "error");
+          const server = serverWithRoutes(readsResponseFirst);
+          const response = await server.request(`http://localhost${path}`, {
+            method: "PROPFIND",
+            headers: { "X-Juniper-Route-Id": routeId },
+          });
+          await assertDataError(response, 405, "Invalid request method");
+          assertEquals(response.headers.get("Allow"), null);
+        });
+      }
+
+      it("keeps the Allow header of a 405 Response an action throws on a data request", async () => {
+        using _log = stub(console, "error");
+        const server = serverWithRoutes(readsResponseFirst);
+        const response = await server.request("http://localhost/closed", {
+          method: "POST",
+          headers: { "X-Juniper-Route-Id": "/closed" },
+        });
+        await response.arrayBuffer();
+        assertEquals(response.status, 405);
+        assertEquals(response.headers.get("Allow"), "GET");
+      });
+
+      it("adds no Allow header to a 405 ErrorResponse a loader throws on a data request", async () => {
+        using _log = stub(console, "error");
+        const server = serverWithRoutes(readsResponseFirst);
+        const response = await server.request("http://localhost/closed", {
+          headers: { "X-Juniper-Route-Id": "/closed" },
+        });
+        const error = deserializeError(
+          deserializeLoaderData(await response.text()),
+        );
+        assertInstanceOf(error, HttpError);
+        assertEquals(error.message, "Closed");
+        assertEquals(response.status, 405);
+        assertEquals(response.headers.get("Allow"), null);
+      });
+
+      for (const path of ["/", "/page"]) {
+        it(`answers a GET data request to ${path}, which has no loader, with a 400 data error`, async () => {
+          using _log = stub(console, "error");
+          const server = serverWithRoutes(readsResponseFirst);
+          const response = await server.request(`http://localhost${path}`, {
+            headers: { "X-Juniper-Route-Id": path },
+          });
+          await assertDataError(response, 400, "did not provide a `loader`");
+          assertEquals(response.headers.get("Allow"), null);
+        });
+      }
+
+      it("sends a value that is not an Error, thrown by a loader, to a data request as a 500 data error", async () => {
+        using _log = stub(console, "error");
+        const server = serverWithRoutes(readsResponseFirst);
+        const response = await server.request("http://localhost/thrower", {
+          headers: { "X-Juniper-Route-Id": "/thrower" },
+        });
+        await assertDataError(
+          response,
+          500,
+          "a thrown value that must stay on the server",
+        );
+      });
+
+      it("keeps the status and message of an ErrorResponse a loader throws on a data request", async () => {
+        using _log = stub(console, "error");
+        const server = serverWithRoutes(readsResponseFirst);
+        const response = await server.request("http://localhost/members", {
+          headers: { "X-Juniper-Route-Id": "/members" },
+        });
+        assertEquals(response.status, 403);
+        assertEquals(response.headers.get("X-Juniper"), "data");
+        const error = deserializeError(
+          deserializeLoaderData(await response.text()),
+        );
+        assertInstanceOf(error, HttpError);
+        assertEquals(error.status, 403);
+        assertEquals(error.message, "Members only");
+      });
+
+      it("still sends a loader's data to a data request for its route", async () => {
+        const server = serverWithRoutes(readsResponseFirst);
+        const response = await server.request("http://localhost/reader", {
+          headers: { "X-Juniper-Route-Id": "/reader" },
+        });
+        assertEquals(response.status, 200);
+        assertEquals(response.headers.get("X-Juniper"), "data");
+        assertEquals(
+          response.headers.get("Cache-Control"),
+          "private, no-cache",
+        );
+        assertEquals(response.headers.get("X-Application"), "app");
+        assertEquals(deserializeLoaderData(await response.text()), {
+          read: true,
+        });
+      });
+
+      it("still renders a document for a route without a loader", async () => {
+        const server = serverWithRoutes(readsResponseFirst);
+        const response = await server.request("http://localhost/page");
+        assertEquals(response.status, 200);
+        assertEquals(
+          response.headers.get("Content-Type"),
+          "text/html; charset=utf-8",
+        );
+        assertStringIncludes(await response.text(), "<div>Page</div>");
+      });
+
+      it("still renders a 405 error document for a POST to a route without an action", async () => {
+        using _log = stub(console, "error");
+        const server = serverWithRoutes(readsResponseFirst);
+        const response = await server.request("http://localhost/page", {
+          method: "POST",
+        });
+        assertEquals(response.status, 405);
+        assertEquals(
+          response.headers.get("Content-Type"),
+          "text/html; charset=utf-8",
+        );
+        assertEquals(response.headers.get("X-Juniper"), null);
+        assertStringIncludes(await response.text(), "<html");
       });
     });
   }
