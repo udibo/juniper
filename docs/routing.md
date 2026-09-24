@@ -496,17 +496,23 @@ import { Hono } from "hono";
 
 const app = new Hono();
 
-// Blog data is the same for every visitor.
+// Blog data is the same for every visitor. Documents also carry the layout's
+// data, so only data requests get the public policy.
 app.use(async (c, next) => {
-  c.header("Cache-Control", "public, max-age=60");
+  if (c.req.header("X-Juniper-Route-Id")) {
+    c.header("Cache-Control", "public, max-age=60");
+  }
   await next();
 });
 
 export default app;
 ```
 
-Route middleware also runs for document requests. A data request carries the
-`X-Juniper-Route-Id` request header, so check for it when the policy is only for
+Route middleware also runs for document requests. Juniper doesn't rewrite a
+policy that middleware sets, although a policy from a loader, an action or an
+error still replaces it. A document carries more than this route's data (see
+[Caching Documents](#caching-documents)), so check for the `X-Juniper-Route-Id`
+request header, which only data requests carry, when the policy is only for
 data.
 
 A few other cases:
@@ -515,17 +521,103 @@ A few other cases:
   written, so add `no-transform` yourself if the response might be a deferred
   stream.
 - A `Cache-Control` header on a thrown `HttpError` is used for that error
-  response, instead of the middleware policy or the default.
+  response, instead of the middleware policy or the default. On a document, it
+  is made private first, as described below.
 - A `Cache-Control` header on a redirect is used for that redirect, instead of
   the middleware policy or the default. This holds whether a loader or action
   throws the redirect or returns it.
 - A `Response` other than a redirect that a loader or action returns keeps its
-  own headers. Juniper adds no default policy to it.
+  own headers on a data request. Juniper adds no default policy to it. On a
+  document, its cache headers are made private first.
 - `data()` from React Router that a loader or action returns arrives on a data
   request as data with a `200` status, because the client reads any other status
   as an error. Its headers are kept, and a `Cache-Control` header among them is
   used instead of the middleware policy or the default. Its status applies to
-  document requests.
+  document requests. On a document, its cache headers are made private first.
+
+#### Caching Documents
+
+A document is the HTML page Juniper renders for a full page load, including an
+error page. It carries the data of every loader that ran for the page, such as a
+layout loader that returns the signed-in user. It also carries the request's
+[shared context](state-management.md#sharing-server-context-with-the-client),
+which middleware often fills per user. The pages it renders can show any of
+these.
+
+A loader's own policy describes only its own data. So when a document's cache
+headers come from a loader or an action, Juniper doesn't let a shared cache
+store the document. This covers `data()` or a `Response` that a loader or action
+returns, and an `HttpError` that a loader, action or middleware throws. Juniper
+rewrites `Cache-Control`:
+
+- It removes `public`, `s-maxage`, and a `private` that names header fields.
+- It adds `private` at the front, unless `private` or `no-store` remains.
+- It keeps every other directive, such as `max-age`, `no-cache`, and `no-store`.
+
+| The route's `Cache-Control`        | The document's `Cache-Control` |
+| ---------------------------------- | ------------------------------ |
+| `public, max-age=60`               | `private, max-age=60`          |
+| `public, s-maxage=300, max-age=60` | `private, max-age=60`          |
+| `max-age=60`                       | `private, max-age=60`          |
+| `no-cache`                         | `private, no-cache`            |
+| `public, no-store`                 | `no-store`                     |
+| `private, max-age=60`              | `private, max-age=60`          |
+
+Juniper also changes two other kinds of cache header from the route:
+
+- Fields that only CDNs read become `no-store`. These are `Surrogate-Control`,
+  `CDN-Cache-Control`, and names that end in `-CDN-Cache-Control`, such as
+  `Cloudflare-CDN-Cache-Control`.
+- `Expires` is dropped when the route sends no `Cache-Control`, because it would
+  let a shared cache store the page on its own. Use `max-age` in `Cache-Control`
+  instead.
+
+This happens even when no loader ran, for example on the error page for an error
+that middleware throws. That page still carries the request's context and
+whatever the layouts render from it.
+
+It doesn't happen in these cases:
+
+- A data response keeps the route's policy as written, because it carries only
+  that route's data or error.
+- Juniper doesn't rewrite a header that route middleware sets. Middleware sets
+  it for every response of the route, documents included.
+- A document that gets no policy from the route or from middleware is sent
+  without one.
+
+When a page is the same for every visitor, set `publicDocument` in the route's
+middleware. Juniper then sends the route's policy on the document as written:
+
+```typescript
+// routes/blog/[id]/index.ts
+import { Hono } from "hono";
+import { data } from "react-router";
+import type { RouteLoaderArgs } from "@udibo/juniper";
+import type { AppEnv } from "@udibo/juniper/server";
+import { postService } from "@/services/post.ts";
+
+const app = new Hono<AppEnv>();
+
+// Every loader on this page, layouts included, returns the same data to every
+// visitor.
+app.use(async (c, next) => {
+  c.set("publicDocument", true);
+  await next();
+});
+
+export default app;
+
+export async function loader({ params }: RouteLoaderArgs<{ id: string }>) {
+  const post = await postService.get(params.id);
+  return data({ post }, {
+    headers: { "Cache-Control": "public, max-age=300" },
+  });
+}
+```
+
+Only set `publicDocument` for a page whose loaders, including every layout
+loader above it, and whose shared context give every visitor the same values. It
+applies to every document the middleware runs for, including error pages.
 
 ### Client Loaders
 

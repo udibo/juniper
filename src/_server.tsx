@@ -151,6 +151,20 @@ export type AppEnv = Env & {
      * exists.
      */
     buildId?: string;
+    /**
+     * Set to `true` in route middleware when the document for this request is
+     * the same for every reader. Juniper then sends the cache headers that a
+     * loader, an action, or a thrown error sets on that document as written.
+     *
+     * Without it, Juniper keeps those headers from letting a shared cache store
+     * the document, because a document carries the data of every loader that
+     * ran and the request's context. `Cache-Control` loses `public` and
+     * `s-maxage` and gains `private`. `CDN-Cache-Control`, `Surrogate-Control`
+     * and other CDN cache fields become `no-store`. An `Expires` without a
+     * `Cache-Control` is dropped. Headers on a data response, and headers that
+     * route middleware sets, are never rewritten.
+     */
+    publicDocument?: boolean;
   };
 };
 
@@ -580,37 +594,21 @@ async function renderDocument(
     ? reportedError.headers
     : undefined;
 
-  c.status(statusCode);
-
-  for (const [key, value] of actionHeaders?.entries() ?? []) {
-    if (key.toLowerCase() !== "set-cookie") {
-      c.header(key, value);
+  const headers = new Headers();
+  for (const routeHeaders of [actionHeaders, loaderHeaders, errorHeaders]) {
+    for (const [key, value] of routeHeaders ?? []) {
+      if (key === "set-cookie") continue;
+      if (routeHeaders === errorHeaders && BODY_HEADERS.has(key)) continue;
+      headers.set(key, value);
+    }
+    for (const cookie of routeHeaders?.getSetCookie() ?? []) {
+      headers.append("Set-Cookie", cookie);
     }
   }
-  for (const cookie of actionHeaders?.getSetCookie() ?? []) {
-    c.header("Set-Cookie", cookie, { append: true });
-  }
-  for (const [key, value] of loaderHeaders?.entries() ?? []) {
-    if (key.toLowerCase() !== "set-cookie") {
-      c.header(key, value);
-    }
-  }
-  for (const cookie of loaderHeaders?.getSetCookie() ?? []) {
-    c.header("Set-Cookie", cookie, { append: true });
-  }
+  if (!c.get("publicDocument")) keepDocumentPrivate(headers);
+  headers.set("Content-Type", "text/html; charset=utf-8");
 
-  if (errorHeaders) {
-    for (const [key, value] of errorHeaders) {
-      if (!BODY_HEADERS.has(key) && key !== "set-cookie") c.header(key, value);
-    }
-    for (const cookie of errorHeaders.getSetCookie()) {
-      c.header("Set-Cookie", cookie, { append: true });
-    }
-  }
-
-  c.header("Content-Type", "text/html; charset=utf-8");
-
-  const response = stream(c, async (streamInstance) => {
+  const { body } = stream(c, async (streamInstance) => {
     return await startActiveSpan("stream.pipe", async (streamSpan) => {
       try {
         await streamInstance.pipe(renderStream);
@@ -626,7 +624,7 @@ async function renderDocument(
       }
     });
   });
-  return response;
+  return newResponse(c, new Response(body, { status: statusCode, headers }));
 }
 
 /**
@@ -953,6 +951,40 @@ function dataCachePolicy(
       !hasCacheDirective(appPolicy, "no-transform")
     ? `${appPolicy}, no-transform`
     : appPolicy;
+}
+
+const CACHE_DIRECTIVE = /(?:[^,"]|"(?:[^"\\]|\\.)*")+/g;
+
+function isSharedCacheDirective(directive: string): boolean {
+  const name = directive.split("=", 1)[0].trim().toLowerCase();
+  return name === "public" || name === "s-maxage" ||
+    (name === "private" && directive.includes("="));
+}
+
+function privateCachePolicy(policy: string): string {
+  const directives = (policy.match(CACHE_DIRECTIVE) ?? [])
+    .map((directive) => directive.trim())
+    .filter(Boolean);
+  const kept = directives.filter((directive) =>
+    !isSharedCacheDirective(directive)
+  );
+  const isPrivate = kept.some((directive) =>
+    ["private", "no-store"].includes(directive.toLowerCase())
+  );
+  if (isPrivate && kept.length === directives.length) return policy;
+  return (isPrivate ? kept : ["private", ...kept]).join(", ");
+}
+
+const CDN_CACHE_FIELD =
+  /^(?:(?:[a-z0-9-]+-)?cdn-cache-control|surrogate-control)$/;
+
+function keepDocumentPrivate(routeHeaders: Headers): void {
+  const policy = routeHeaders.get("Cache-Control");
+  if (policy === null) routeHeaders.delete("Expires");
+  else routeHeaders.set("Cache-Control", privateCachePolicy(policy));
+  for (const name of [...routeHeaders.keys()]) {
+    if (CDN_CACHE_FIELD.test(name)) routeHeaders.set(name, "no-store");
+  }
 }
 
 function commitResponse(c: Context, response: Response): Response {
