@@ -50,7 +50,7 @@ your test project's import map if it is not already present.
 
 ### createRoutesStub
 
-`createRoutesStub` accepts a flat list of Juniper route modules and returns a
+`createRoutesStub` accepts a list of Juniper route modules and returns a
 component backed by a memory router. Spread the real module and replace only the
 loader or action whose dependency you want to control:
 
@@ -63,14 +63,37 @@ const Stub = createRoutesStub([{
 render(<Stub initialEntries={["/profile"]} />);
 ```
 
+Top-level routes are siblings. Give a route `children` to render them in its
+`Outlet`, the way a `main.tsx` layout wraps the routes beside it. A child's
+`path` is relative to its parent, `index: true` renders a child at the parent's
+own URL like an `index.tsx` route, and a child with neither is a pathless
+layout. An index route cannot have children.
+
+```tsx
+const Stub = createRoutesStub([{
+  ...teamLayout,
+  path: "/teams/:teamId",
+  loader: () => ({ team: { id: "1", name: "Core" } }),
+  children: [
+    { ...teamOverview, index: true },
+    { ...teamMembers, path: "members" },
+  ],
+}]);
+render(<Stub initialEntries={["/teams/1/members"]} />);
+```
+
 The default initial entry is the first route's `path`, or `/`. Pass
 `hydrationData` for data already available before the initial render. React
-Router assigns the memory-router IDs; a single unnamed route uses `"0"`.
+Router assigns the memory-router IDs: top-level routes use `"0"`, `"1"`, and so
+on, and the first child of `"0"` is `"0-0"`.
 
 The adapter exercises route props, loaders, actions, `HydrateFallback`, and
-error boundaries. It does **not** run the route's `middleware`, discover a
-matching `.ts` module, or model nested layout routes. Seed middleware-provided
-context explicitly:
+error boundaries, including a failure that bubbles from a child to its layout.
+It does **not** run the route's `middleware`, discover a matching `.ts` module,
+or add the catch-all route that answers an unmatched URL with `HttpError(404)`
+in production. In a stub, an unmatched URL still reaches the nearest boundary as
+an `HttpError` with status 404, but its message is React Router's "No route
+matches URL" text. Seed middleware-provided context explicitly:
 
 ```tsx
 const Stub = createRoutesStub([profileRoute], {
@@ -277,6 +300,64 @@ it("submits the name and displays the action result", async () => {
 Use `fetcher.data` for a `fetcher.Form` result; the route's `actionData` prop is
 for navigational submissions. Add a rejection case to verify the error boundary,
 and test the real server action separately.
+
+### Testing Error Boundaries
+
+A failure renders the nearest `ErrorBoundary` at or above the route that failed.
+Nest the page under its layout to test the layout's boundary against a child
+failure. The stub uses the same boundary adapter as production, so a thrown
+`data(...)` response reaches the boundary as an `HttpError`:
+
+```tsx
+import "@udibo/juniper/utils/global-jsdom";
+
+import { afterEach, it } from "@std/testing/bdd";
+import { cleanup, render, screen } from "@testing-library/react";
+import { Outlet } from "react-router";
+import { HttpError } from "@udibo/juniper";
+import type { AnyParams, ErrorBoundaryProps } from "@udibo/juniper";
+import { createRoutesStub } from "@udibo/juniper/utils/testing";
+
+interface TeamLoaderData {
+  name: string;
+}
+
+afterEach(cleanup);
+
+it("keeps the team name when a member page fails", async () => {
+  const Stub = createRoutesStub([{
+    path: "/teams/:teamId",
+    loader: () => ({ name: "Core" }),
+    default: () => <Outlet />,
+    ErrorBoundary: (
+      { error, loaderData }: ErrorBoundaryProps<AnyParams, TeamLoaderData>,
+    ) => (
+      <div>
+        {loaderData && <h1>{loaderData.name}</h1>}
+        <p role="alert">
+          {error instanceof HttpError ? error.exposedMessage : "Unknown error"}
+        </p>
+      </div>
+    ),
+    children: [{
+      path: "members/:memberId",
+      loader: () => {
+        throw new HttpError(404, "Not found", {
+          exposedMessage: "Member not found",
+        });
+      },
+      default: () => <p>Member</p>,
+    }],
+  }]);
+  render(<Stub initialEntries={["/teams/1/members/2"]} />);
+
+  await screen.findByText("Member not found");
+  await screen.findByRole("heading", { name: "Core" });
+});
+```
+
+Make the layout's own loader throw instead to test the boundary without
+`loaderData`.
 
 ## Integration Testing
 
