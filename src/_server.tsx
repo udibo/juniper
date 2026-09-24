@@ -14,12 +14,15 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import {
   createStaticHandler,
   createStaticRouter,
+  isRouteErrorResponse,
+  matchRoutes,
   StaticRouterProvider,
 } from "react-router";
 import type {
   DataRouteObject,
   DataStrategyFunctionArgs,
   DataStrategyResult,
+  ErrorResponse,
   RouterContextProvider,
   StaticHandlerContext,
 } from "react-router";
@@ -350,6 +353,22 @@ async function responseToHttpError(response: Response): Promise<HttpError> {
   });
 }
 
+function isRouterRejection(error: ErrorResponse): boolean {
+  return (error as { internal?: unknown }).internal === true;
+}
+
+function routeErrorResponseToHttpError(error: ErrorResponse): HttpError {
+  const fromRouter = isRouterRejection(error);
+  return new HttpError(
+    fromRouter && error.status === 403 ? 404 : errorStatus(error.status),
+    {
+      message: typeof error.data === "string" ? error.data : error.statusText,
+      expose: fromRouter ? false : undefined,
+      cause: error,
+    },
+  );
+}
+
 async function convertToHttpError(cause: unknown): Promise<HttpError> {
   if (
     cause !== null &&
@@ -368,6 +387,7 @@ async function convertToHttpError(cause: unknown): Promise<HttpError> {
       headers: new Headers(init?.headers),
     });
   }
+  if (isRouteErrorResponse(cause)) return routeErrorResponseToHttpError(cause);
   return HttpError.from(cause);
 }
 
@@ -1047,6 +1067,33 @@ async function dataRequestStrategy(
   return results;
 }
 
+function allowedDataMethods(route: DataRouteObject): string {
+  return [
+    ...(route.loader ? ["GET", "HEAD"] : []),
+    ...(route.action ? ["POST", "PUT", "PATCH", "DELETE"] : []),
+  ].join(", ");
+}
+
+async function toDataRequestError(
+  cause: unknown,
+  request: Request,
+  dataRoutes: DataRouteObject[],
+  routeId: string,
+): Promise<HttpError> {
+  const error = await convertToHttpError(cause);
+  if (
+    error.status === 405 && isRouteErrorResponse(cause) &&
+    isRouterRejection(cause)
+  ) {
+    const route = matchRoutes(dataRoutes, new URL(request.url).pathname)
+      ?.find((match) => match.route.id === routeId)?.route;
+    if (route && !route.lazy) {
+      error.headers.set("Allow", allowedDataMethods(route));
+    }
+  }
+  return error;
+}
+
 /**
  * Builds the Hono handlers for the client routes — server-rendered documents
  * and data requests — plus the error handler `createServer` installs alongside
@@ -1107,13 +1154,20 @@ export function createHandlers<
     },
     async function handleDataRequest(c) {
       return await startActiveSpan("handleDataRequest", async (_span) => {
-        const routeId = c.req.header("X-Juniper-Route-Id");
+        const routeId = c.req.header("X-Juniper-Route-Id") ?? "";
 
         const requestContext = c.get("context");
         const dataOrResponse = await queryRoute(c.req.raw, {
           requestContext,
           routeId,
           dataStrategy: dataRequestStrategy,
+        }).catch(async (cause: unknown) => {
+          throw await toDataRequestError(
+            cause,
+            c.req.raw,
+            dataRoutes,
+            routeId,
+          );
         });
 
         if (dataOrResponse instanceof Response) {
