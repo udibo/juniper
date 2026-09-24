@@ -1,3 +1,11 @@
+## [0.16.6](https://github.com/udibo/juniper/compare/0.16.5...0.16.6) (2026-09-24)
+
+### Bug Fixes
+
+- type boundary loaderData as optional and nest route stubs
+  ([#160](https://github.com/udibo/juniper/issues/160))
+  ([80c7320](https://github.com/udibo/juniper/commit/80c7320af03fa1c8a5a324b6aa5456785fcd5884))
+
 ## [0.16.5](https://github.com/udibo/juniper/compare/0.16.4...0.16.5) (2026-09-24)
 
 ### Bug Fixes
