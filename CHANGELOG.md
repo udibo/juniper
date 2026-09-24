@@ -1,3 +1,11 @@
+## [0.16.5](https://github.com/udibo/juniper/compare/0.16.4...0.16.5) (2026-09-24)
+
+### Bug Fixes
+
+- answer router-rejected data requests
+  ([#159](https://github.com/udibo/juniper/issues/159))
+  ([d075d4a](https://github.com/udibo/juniper/commit/d075d4a592ed50397d488160108fbced7d0e8316))
+
 ## [0.16.4](https://github.com/udibo/juniper/compare/0.16.3...0.16.4) (2026-09-23)
 
 ### Bug Fixes
