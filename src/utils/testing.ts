@@ -133,11 +133,19 @@ export function simulateEnvironment<T extends void | Promise<void>>(
  * A route definition for {@linkcode createRoutesStub}.
  *
  * Extends {@linkcode RouteModule} with the routing metadata the stub needs to
- * place the route in the test router.
+ * place the route in the test router, including nested child routes.
  */
 export interface RouteStub extends RouteModule<AnyParams, unknown, unknown> {
-  /** The route's URL path segment. */
+  /**
+   * The route's URL path. A top-level route defaults to `/`; a child's path is
+   * relative to its parent, and a child with neither `path` nor `index` is a
+   * pathless layout.
+   */
   path?: string;
+  /** Renders this child at its parent's own URL, like an `index.tsx` route; cannot have `children`. */
+  index?: boolean;
+  /** Routes rendered in this route's `Outlet`; their failures bubble to this route's `ErrorBoundary`. */
+  children?: RouteStub[];
   /** Flags marking which server-side handlers the route simulates. */
   serverFlags?: ServerFlags;
   /** Server data-request id sent in X-Juniper-Route-Id; does not set the memory router's id. */
@@ -176,6 +184,40 @@ export interface CreateRoutesStubOptions {
   getContext?: (context: RouterContextProvider) => void;
 }
 
+function createStubRouteObject(
+  routeStub: RouteStub,
+  defaultPath?: string,
+): RouteObject {
+  const {
+    path = defaultPath,
+    index,
+    children,
+    serverFlags,
+    routeId,
+    ...routeModule
+  } = routeStub;
+  const route = createRoute(routeModule, serverFlags, routeId);
+  const routeObject = {
+    path,
+    Component: route.Component,
+    ErrorBoundary: route.ErrorBoundary,
+    HydrateFallback: route.HydrateFallback,
+    loader: route.loader,
+    action: route.action,
+    shouldRevalidate: route.shouldRevalidate,
+  };
+  if (index) {
+    if (children) {
+      throw new TypeError("An index route cannot have children");
+    }
+    return { ...routeObject, index: true };
+  }
+  return {
+    ...routeObject,
+    children: children?.map((child) => createStubRouteObject(child)),
+  };
+}
+
 /**
  * Creates a memory-router component from Juniper route modules.
  *
@@ -184,11 +226,13 @@ export interface CreateRoutesStubOptions {
  * use `serverFlags`, `routeId`, and a controlled fetch to exercise a server bridge.
  * This does not execute Hono or route middleware. Seed context with `getContext`.
  *
- * Each call creates sibling routes, not a nested route tree. `hydrationData` uses
- * React Router's generated ids (`"0"`, `"1"`, …), not the server `routeId` values.
- * Create the stub outside your component's render and unmount it with `cleanup`.
+ * Top-level routes are siblings; nest routes under a layout with `children` so
+ * a child's loader or render failure reaches the layout's `ErrorBoundary`.
+ * `hydrationData` uses React Router's generated ids (`"0"`, `"1"`, and `"0-0"`
+ * for the first child of `"0"`), not the server `routeId` values. Create the
+ * stub outside your component's render and unmount it with `cleanup`.
  *
- * @param routes - Route modules with optional path and server-request metadata.
+ * @param routes - Route modules with optional path, children, and server-request metadata.
  * @param options - Initial context setup.
  * @returns A component; initial history defaults to the first route's path.
  * @example
@@ -224,20 +268,9 @@ export function createRoutesStub(
   options?: CreateRoutesStubOptions,
 ): React.ComponentType<RoutesStubProps> {
   const firstPath = routes[0]?.path ?? "/";
-  const routeObjects: RouteObject[] = routes.map((routeStub) => {
-    const { path = "/", serverFlags, routeId, ...routeModule } = routeStub;
-    const route = createRoute(routeModule, serverFlags, routeId);
-
-    return {
-      path,
-      Component: route.Component,
-      ErrorBoundary: route.ErrorBoundary,
-      HydrateFallback: route.HydrateFallback,
-      loader: route.loader,
-      action: route.action,
-      shouldRevalidate: route.shouldRevalidate,
-    };
-  });
+  const routeObjects = routes.map((routeStub) =>
+    createStubRouteObject(routeStub, "/")
+  );
 
   return function RoutesStub(
     { initialEntries, hydrationData }: RoutesStubProps,

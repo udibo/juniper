@@ -455,9 +455,15 @@ export interface RouteProps<
 /**
  * Props for the nearest route `ErrorBoundary` handling a failure.
  *
- * Loader and action data may be absent even when the normal component requires
- * them. A middleware denial renders without executing loaders. Preserve useful
- * navigation and display a safe message rather than an arbitrary exception.
+ * `loaderData` is this route's own data. It is usually present when a
+ * descendant failed after this route's loader succeeded. It is `undefined` when
+ * this route's own loader threw, it has no loader, middleware refused the
+ * request before loaders ran, or a document (no-JS) form submission failed at
+ * or below this route, because the server then skips those loaders. Data from
+ * an earlier navigation is not carried into those cases. `actionData` is
+ * `undefined` unless a submission to this route completed. Check both before
+ * reading them, and keep useful navigation with a safe message rather than an
+ * arbitrary exception.
  * Outside development, unexpected built-in or unregistered server `Error`
  * failures become generic 500 errors. `HttpError` uses its exposure policy;
  * custom serializers and explicitly returned error data remain application-owned.
@@ -478,7 +484,15 @@ export interface ErrorBoundaryProps<
   Params extends AnyParams = AnyParams,
   LoaderData = unknown,
   ActionData = unknown,
-> extends RouteProps<Params, LoaderData, ActionData> {
+> extends
+  Omit<
+    RouteProps<Params, LoaderData, ActionData>,
+    "loaderData" | "actionData"
+  > {
+  /** This route's loader data, or `undefined` when its loader did not produce any for this request. */
+  loaderData: LoaderData | undefined;
+  /** Result of a navigation submission to this route, or `undefined` when none completed. */
+  actionData: ActionData | undefined;
   /** The failure, with server error details sanitized outside development. */
   error: unknown;
   /** Retries the current URL, including query and fragment; failed imports require document navigation. */

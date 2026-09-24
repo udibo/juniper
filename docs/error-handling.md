@@ -199,12 +199,55 @@ interface ErrorBoundaryProps<
   resetErrorBoundary: () => void;
   /** The route params */
   params: Params;
-  /** The loader data (if available before the error) */
-  loaderData: LoaderData;
-  /** The action data (if available before the error) */
-  actionData: ActionData;
+  /** This route's loader data, or undefined when its own loader did not produce any */
+  loaderData: LoaderData | undefined;
+  /** The action data, or undefined when no submission to this route completed */
+  actionData: ActionData | undefined;
   /** The router context */
   context: RequestContext;
+}
+```
+
+`loaderData` is the boundary's own route data. It is usually present when a
+descendant route failed after this route's loader succeeded. It is `undefined`
+when:
+
+- this route's own loader threw
+- the route has no loader
+- middleware refused the request before loaders ran
+- a document form submission, sent without JavaScript, failed at or below this
+  route. The server skips those routes' loaders when rendering the error.
+
+A value from an earlier navigation is not carried into those cases. `actionData`
+is `undefined` unless a submission to this route completed. A layout boundary
+can use the difference in `loaderData` to keep its navigation when a child page
+failed and its own data is available:
+
+```tsx
+import { HttpError } from "@udibo/juniper";
+import type { AnyParams, ErrorBoundaryProps } from "@udibo/juniper";
+
+interface TeamLoaderData {
+  team: { id: string; name: string };
+}
+
+export function ErrorBoundary(
+  { error, loaderData }: ErrorBoundaryProps<AnyParams, TeamLoaderData>,
+) {
+  const message = error instanceof HttpError
+    ? error.exposedMessage
+    : "Something went wrong";
+  if (!loaderData) {
+    return <p role="alert">{message}</p>;
+  }
+  return (
+    <div>
+      <nav>
+        <a href={`/teams/${loaderData.team.id}`}>{loaderData.team.name}</a>
+      </nav>
+      <p role="alert">{message}</p>
+    </div>
+  );
 }
 ```
 
@@ -500,7 +543,9 @@ routes/
 ```
 
 If the `[id]/index.tsx` error boundary isn't defined or doesn't handle an error,
-it bubbles up to `blog/main.tsx`, then to `main.tsx`.
+it bubbles up to `blog/main.tsx`, then to `main.tsx`. See
+[Testing error boundaries](testing.md#testing-error-boundaries) to test a layout
+boundary against a child failure.
 
 ```tsx
 // routes/blog/main.tsx

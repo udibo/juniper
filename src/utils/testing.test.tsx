@@ -1,8 +1,14 @@
 import "./global-jsdom.ts";
 
-import { assertEquals, assertExists, assertRejects } from "@std/assert";
+import {
+  assertEquals,
+  assertExists,
+  assertRejects,
+  assertThrows,
+} from "@std/assert";
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { delay } from "@std/async/delay";
+import { stub } from "@std/testing/mock";
 import {
   cleanup,
   fireEvent,
@@ -10,15 +16,22 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { Link, useLocation } from "react-router";
+import { data, Link, Outlet, useLocation } from "react-router";
+
+import { HttpError } from "@udibo/juniper";
+import type { AnyParams, ErrorBoundaryProps } from "@udibo/juniper";
 
 import { getEnv, isBrowser, isProduction, isServer, isTest } from "./env.ts";
-import { createRoutesStub, simulateEnvironment } from "./testing.ts";
+import { createRoutesStub, simulateEnvironment, stubFetch } from "./testing.ts";
+import type { RouteStub } from "./testing.ts";
 
 import { simulateBrowser } from "./testing.internal.ts";
 
 import type { HydrationData } from "../_client.tsx";
-import { serializeHydrationData } from "../_serialization.ts";
+import {
+  createLoaderDataResponse,
+  serializeHydrationData,
+} from "../_serialization.ts";
 import { env } from "./_env.ts";
 
 describe("simulateEnvironment", () => {
@@ -701,4 +714,214 @@ describe("createRoutesStub", () => {
       },
     );
   }
+});
+
+describe("createRoutesStub with nested routes", () => {
+  afterEach(cleanup);
+
+  function LayoutBoundary(
+    { error, loaderData }: ErrorBoundaryProps<AnyParams, { name: string }>,
+  ) {
+    return (
+      <div>
+        <p>Layout boundary</p>
+        <p>
+          {error instanceof HttpError
+            ? `${error.status}: ${error.exposedMessage}`
+            : "Unexpected error"}
+        </p>
+        <p>{loaderData ? `Layout ${loaderData.name}` : "No layout data"}</p>
+      </div>
+    );
+  }
+
+  function layout(children: RouteStub[]): RouteStub {
+    return {
+      path: "/tenants/:tenant",
+      loader: ({ params }) => ({ name: params.tenant! }),
+      default: ({ loaderData }) => (
+        <div>
+          <p>Layout {(loaderData as { name: string }).name}</p>
+          <Outlet />
+        </div>
+      ),
+      ErrorBoundary: LayoutBoundary,
+      children,
+    };
+  }
+
+  it("renders an index child inside its layout's Outlet", async () => {
+    const Stub = createRoutesStub([
+      layout([{ index: true, default: () => <p>Overview</p> }]),
+    ]);
+    render(<Stub initialEntries={["/tenants/acme"]} />);
+
+    await screen.findByText("Overview");
+    screen.getByText("Layout acme");
+  });
+
+  it("resolves a child path relative to its layout", async () => {
+    const Stub = createRoutesStub([
+      layout([{ path: "users/:user", default: () => <p>User page</p> }]),
+    ]);
+    render(<Stub initialEntries={["/tenants/acme/users/ada"]} />);
+
+    await screen.findByText("User page");
+    screen.getByText("Layout acme");
+  });
+
+  it("treats a child without a path or index as a pathless layout", async () => {
+    const Stub = createRoutesStub([
+      layout([{
+        default: () => (
+          <section>
+            <p>Pathless shell</p>
+            <Outlet />
+          </section>
+        ),
+        children: [{ path: "users", default: () => <p>Users</p> }],
+      }]),
+    ]);
+    render(<Stub initialEntries={["/tenants/acme/users"]} />);
+
+    await screen.findByText("Users");
+    screen.getByText("Pathless shell");
+  });
+
+  it("lets a layout ErrorBoundary catch a child loader failure", async () => {
+    const Stub = createRoutesStub([
+      layout([{
+        path: "users",
+        loader: () => {
+          throw new HttpError(404, "Not found", {
+            exposedMessage: "User not found",
+          });
+        },
+        default: () => <p>Users</p>,
+      }]),
+    ]);
+    render(<Stub initialEntries={["/tenants/acme/users"]} />);
+
+    await screen.findByText("404: User not found");
+    screen.getByText("Layout acme");
+    assertEquals(screen.queryByText("Users"), null);
+  });
+
+  it("lets a layout ErrorBoundary catch a child render failure", async () => {
+    using _console = stub(console, "error");
+    const Stub = createRoutesStub([
+      layout([{
+        path: "users",
+        default: () => {
+          throw new HttpError(500, "Render failed", {
+            exposedMessage: "Could not show users",
+          });
+        },
+      }]),
+    ]);
+    render(<Stub initialEntries={["/tenants/acme/users"]} />);
+
+    await screen.findByText("500: Could not show users");
+    screen.getByText("Layout acme");
+  });
+
+  it("normalizes a child's thrown route error response the way production does", async () => {
+    const Stub = createRoutesStub([
+      layout([{
+        path: "users",
+        loader: () => {
+          throw data("Users moved away", { status: 410 });
+        },
+        default: () => <p>Users</p>,
+      }]),
+    ]);
+    render(<Stub initialEntries={["/tenants/acme/users"]} />);
+
+    await screen.findByText("410: Users moved away");
+  });
+
+  it("renders a child's own ErrorBoundary inside the layout", async () => {
+    const Stub = createRoutesStub([
+      layout([{
+        path: "users",
+        loader: () => {
+          throw new HttpError(404, "Not found");
+        },
+        default: () => <p>Users</p>,
+        ErrorBoundary: () => <p>Child boundary</p>,
+      }]),
+    ]);
+    render(<Stub initialEntries={["/tenants/acme/users"]} />);
+
+    await screen.findByText("Child boundary");
+    screen.getByText("Layout acme");
+    assertEquals(screen.queryByText("Layout boundary"), null);
+  });
+
+  it("keys hydrationData by React Router's nested route ids", async () => {
+    const Stub = createRoutesStub([{
+      path: "/tenants/:tenant",
+      loader: () => ({ name: "from loader" }),
+      default: ({ loaderData }) => (
+        <div>
+          <p>Layout {(loaderData as { name: string }).name}</p>
+          <Outlet />
+        </div>
+      ),
+      children: [{
+        path: "users",
+        loader: () => ({ count: -1 }),
+        default: ({ loaderData }) => (
+          <p>Users {(loaderData as { count: number }).count}</p>
+        ),
+      }],
+    }]);
+    render(
+      <Stub
+        initialEntries={["/tenants/acme/users"]}
+        hydrationData={{
+          loaderData: { "0": { name: "hydrated" }, "0-0": { count: 3 } },
+        }}
+      />,
+    );
+
+    await screen.findByText("Users 3");
+    screen.getByText("Layout hydrated");
+  });
+
+  it("sends a child's routeId with its server loader request", async () => {
+    using fetchStub = stubFetch((_input, init) =>
+      createLoaderDataResponse({
+        from: new Headers(init?.headers).get("X-Juniper-Route-Id"),
+      })
+    );
+    const Stub = createRoutesStub([
+      layout([{
+        path: "users",
+        serverFlags: { loader: true },
+        routeId: "/tenants/[tenant]/users",
+        default: ({ loaderData }) => (
+          <p>Users from {(loaderData as { from: string }).from}</p>
+        ),
+      }]),
+    ]);
+    render(<Stub initialEntries={["/tenants/acme/users"]} />);
+
+    await screen.findByText("Users from /tenants/[tenant]/users");
+    assertEquals(fetchStub.calls.length, 1);
+  });
+
+  it("refuses an index route with children", () => {
+    assertThrows(
+      () =>
+        createRoutesStub([
+          layout([{
+            index: true,
+            children: [{ path: "users", default: () => <p>Users</p> }],
+          }]),
+        ]),
+      TypeError,
+      "An index route cannot have children",
+    );
+  });
 });
