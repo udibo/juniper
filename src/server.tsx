@@ -45,13 +45,36 @@ function varyByRoute(headers: Headers): void {
   mergeVary(headers, ["accept", "x-juniper-route-id"]);
 }
 
+function rawRequestPath(url: string): string {
+  const pathStart = url.indexOf("/", url.indexOf("://") + 3);
+  if (pathStart === -1) return "/";
+  const queryStart = url.indexOf("?", pathStart);
+  return url.slice(pathStart, queryStart === -1 ? undefined : queryStart);
+}
+
+/**
+ * Whether the URL parser would rewrite the request path before React Router
+ * matched it: a dot segment, raw (`..`) or percent-encoded (`%2e%2e`), a
+ * backslash, or a fragment. Hono routes on the path as sent, so such a request
+ * can match one route's middleware while running another route's loader.
+ */
+function isUnresolvedPath(request: Request): boolean {
+  return rawRequestPath(request.url) !== new URL(request.url).pathname;
+}
+
 /**
  * Creates the Hono application from generated client and server route trees.
  *
  * `Builder` normally writes this call into `main.ts`; customize behavior in route
  * modules instead of editing generated files. Each request gets a fresh router
  * context. Hono middleware runs before SSR or route-data handlers. Errors denied
- * by middleware render without invoking loaders. Responses vary by `Accept` and
+ * by middleware render without invoking loaders. A request whose path the URL
+ * parser would rewrite — a `..` or `.` segment, raw or percent-encoded, a
+ * backslash, or a fragment — is refused with 400 before any route middleware
+ * runs, because Hono matches the path as sent while React Router matches the
+ * resolved one, and a request the two disagree on could pass one route's
+ * middleware and run another route's loader. Browsers resolve such paths before
+ * sending them, so only a hand-built request sees the refusal. Responses vary by `Accept` and
  * `X-Juniper-Route-Id` while retaining application cache variation. Route data
  * responses and redirects sent to data requests default to `Cache-Control:
  * private, no-cache`, plus `no-transform` when deferred; a policy route
@@ -91,6 +114,13 @@ export function createServer<
 ): Hono<E, S, BasePath> {
   const projectRoot = path.dirname(path.fromFileUrl(moduleUrl));
   const appWrapper = new Hono<E, S, BasePath>({ strict: true });
+
+  appWrapper.use(async (c, next) => {
+    if (isUnresolvedPath(c.req.raw)) {
+      throw new HttpError(400, "Request path is not normalized");
+    }
+    await next();
+  });
 
   appWrapper.use(async (c, next) => {
     c.set("context", new RouterContextProvider());
