@@ -127,9 +127,10 @@ middleware in Hono while React Router, which matches the resolved path, ran the
 `/admin` loader, so `app.use("/admin/*", requireAdmin)` would never see it. The
 check compares the raw path with `URL.pathname`, so it also refuses, fail
 closed, bytes the parser percent-encodes rather than resolves — raw UTF-8 such
-as `/café`, `"`, `<`, `>`, `` ` ``, `{`, `}` — and a `Host` header carrying `/`,
-`?` or `\`. Browsers resolve and encode such paths before sending them; only a
-hand-built request is refused.
+as `/café`, `"`, `<`, `>`, `` ` ``, `{`, `}` — and a `Host` header carrying `?`
+or `\`. A `Host` carrying `/` is not refused: the raw and parsed paths then
+agree, so both routers route the same path. Browsers resolve and encode such
+paths before sending them; only a hand-built request is refused.
 
 ### Common Patterns
 
