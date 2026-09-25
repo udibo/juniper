@@ -1,3 +1,11 @@
+## [0.17.1](https://github.com/udibo/juniper/compare/0.17.0...0.17.1) (2026-09-25)
+
+### Bug Fixes
+
+- refuse request paths the URL parser would rewrite
+  ([#163](https://github.com/udibo/juniper/issues/163))
+  ([cc4b1ad](https://github.com/udibo/juniper/commit/cc4b1adedf5a35514b47d78f0af1c72b4ba46411))
+
 # [0.17.0](https://github.com/udibo/juniper/compare/0.16.6...0.17.0) (2026-09-24)
 
 ### Features
