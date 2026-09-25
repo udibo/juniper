@@ -59,7 +59,7 @@ function rawRequestPath(url: string): string {
  * can match one route's middleware while running another route's loader. The
  * raw string is compared with `URL.pathname`, so bytes the parser
  * percent-encodes rather than resolves (raw UTF-8, `"`, `<`, `>`, `` ` ``, `{`,
- * `}`) and a `Host` carrying `/`, `?` or `\` are flagged too, fail closed.
+ * `}`) and a `Host` carrying `?` or `\` are flagged too, fail closed.
  */
 function isUnresolvedPath(request: Request): boolean {
   return rawRequestPath(request.url) !== new URL(request.url).pathname;
@@ -79,7 +79,8 @@ function isUnresolvedPath(request: Request): boolean {
  * middleware and run another route's loader. The same comparison also refuses,
  * fail closed, bytes the parser percent-encodes rather than resolves — raw
  * UTF-8 such as `/café`, `"`, `<`, `>`, `` ` ``, `{`, `}` — and a `Host`
- * header carrying `/`, `?` or `\`. Browsers resolve and encode such paths
+ * header carrying `?` or `\`. A `Host` carrying `/` is not refused: the raw
+ * and parsed paths then agree, so both routers route the same path. Browsers resolve and encode such paths
  * before sending them, so only a hand-built request sees the refusal. Responses vary by `Accept` and
  * `X-Juniper-Route-Id` while retaining application cache variation. Route data
  * responses and redirects sent to data requests default to `Cache-Control:
