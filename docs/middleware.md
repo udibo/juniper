@@ -119,6 +119,18 @@ app.use("/api/*", cors());
 app.use("/admin/*", requireAdmin);
 ```
 
+Path-specific middleware matches the path as the client sent it. Before any of
+it runs, the server refuses with `400` a request whose path the URL parser would
+rewrite — a `..` or `.` segment, raw or percent-encoded (`%2e%2e`), a backslash,
+or a fragment. Without that refusal, `GET /docs/../admin` would match `/docs/*`
+middleware in Hono while React Router, which matches the resolved path, ran the
+`/admin` loader, so `app.use("/admin/*", requireAdmin)` would never see it. The
+check compares the raw path with `URL.pathname`, so it also refuses, fail
+closed, bytes the parser percent-encodes rather than resolves — raw UTF-8 such
+as `/café`, `"`, `<`, `>`, `` ` ``, `{`, `}` — and a `Host` header carrying `/`,
+`?` or `\`. Browsers resolve and encode such paths before sending them; only a
+hand-built request is refused.
+
 ### Common Patterns
 
 #### Authentication

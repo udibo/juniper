@@ -2762,3 +2762,157 @@ describe("build id (deploy-skew handshake)", () => {
     }
   });
 });
+
+describe("a request path the URL parser would rewrite", () => {
+  async function overSocket(
+    server: { fetch(request: Request): Response | Promise<Response> },
+    path: string,
+    headers: Record<string, string> = {},
+  ): Promise<{ status: number; body: string }> {
+    const listener = Deno.serve(
+      { port: 0, hostname: "127.0.0.1", onListen() {} },
+      (request) => server.fetch(request),
+    );
+    const connection = await Deno.connect({
+      hostname: "127.0.0.1",
+      port: listener.addr.port,
+    });
+    try {
+      const lines = [
+        `GET ${path} HTTP/1.1`,
+        "host: localhost",
+        "connection: close",
+        ...Object.entries(headers).map(([name, value]) => `${name}: ${value}`),
+      ];
+      await connection.write(
+        new TextEncoder().encode(`${lines.join("\r\n")}\r\n\r\n`),
+      );
+      const chunks: number[] = [];
+      const buffer = new Uint8Array(65536);
+      for (let read; (read = await connection.read(buffer)) !== null;) {
+        chunks.push(...buffer.subarray(0, read));
+      }
+      const raw = new TextDecoder().decode(new Uint8Array(chunks));
+      return {
+        status: Number(raw.split(" ")[1]),
+        body: raw.slice(raw.indexOf("\r\n\r\n") + 4),
+      };
+    } finally {
+      connection.close();
+      await listener.shutdown();
+    }
+  }
+
+  function fixture(): {
+    server: ReturnType<typeof createServer>;
+    runs: { guard: number; admin: number; docs: number };
+  } {
+    const runs = { guard: 0, admin: 0, docs: 0 };
+    const client = new Client({
+      path: "/",
+      main: { default: () => <Outlet /> },
+      children: [
+        {
+          path: "docs",
+          main: { default: () => <Outlet /> },
+          catchall: () =>
+            Promise.resolve({
+              default: () => <div>Public docs</div>,
+            }),
+        },
+        {
+          path: "admin",
+          main: { default: () => <div>Private admin</div> },
+        },
+      ],
+    });
+    const server = createServer(import.meta.url, client, {
+      path: "/",
+      children: [
+        {
+          path: "docs",
+          catchall: {
+            loader: () => {
+              runs.docs++;
+              return { splat: true };
+            },
+          },
+        },
+        {
+          path: "admin",
+          main: {
+            default: new Hono().use(() => {
+              runs.guard++;
+              throw new HttpError(403, "Guarded");
+            }),
+            loader: () => {
+              runs.admin++;
+              return { secret: true };
+            },
+          },
+        },
+      ],
+    });
+    return { server, runs };
+  }
+
+  for (
+    const path of [
+      "/docs/../admin",
+      "/docs/%2e%2e/admin",
+      "/docs/%2E%2E/admin",
+      "/docs/.%2e/admin",
+      "/docs/%2e./admin",
+      "/docs\\..\\admin",
+      "/docs/./admin",
+      "/docs/x/../../admin",
+    ]
+  ) {
+    it(
+      `refuses ${JSON.stringify(path)} before Hono or React Router routes it`,
+      async () => {
+        const { server, runs } = fixture();
+        const response = await overSocket(server, path);
+        assertEquals(
+          response.status,
+          400,
+          `Hono matched the raw path under /docs while React Router resolved it to /admin, so the guard on /admin never ran: ${response.status} ${response.body}`,
+        );
+        assertEquals(runs, { guard: 0, admin: 0, docs: 0 });
+      },
+    );
+  }
+
+  it("refuses a data request the same way", async () => {
+    const { server, runs } = fixture();
+    const response = await overSocket(server, "/docs/../admin", {
+      "x-juniper-route-id": "/admin/main",
+    });
+    assertEquals(response.status, 400);
+    assertEquals(runs, { guard: 0, admin: 0, docs: 0 });
+  });
+
+  it("still lets the route's own guard answer the resolved path", async () => {
+    const { server, runs } = fixture();
+    const response = await overSocket(server, "/admin");
+    assertEquals(response.status, 403);
+    assertEquals(runs, { guard: 1, admin: 0, docs: 0 });
+  });
+
+  it("serves paths the parser leaves alone, including dots inside a segment and in the query", async () => {
+    const { server, runs } = fixture();
+    for (
+      const path of [
+        "/docs/a%20b",
+        "/docs/v1..v2/notes.md",
+        "/docs/x?next=../admin",
+        "/docs/x?next=%2e%2e%2Fadmin",
+      ]
+    ) {
+      const response = await overSocket(server, path);
+      assertEquals(response.status, 200, `${path}: ${response.body}`);
+      assertStringIncludes(response.body, "Public docs");
+    }
+    assertEquals(runs, { guard: 0, admin: 0, docs: 4 });
+  });
+});
