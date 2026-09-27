@@ -4,6 +4,26 @@ import { assert, assertEquals, assertInstanceOf } from "@std/assert";
 import { describe, it } from "@std/testing/bdd";
 
 describe("global-jsdom", () => {
+  it("uses the document's storage for browser globals", () => {
+    assertEquals(globalThis.localStorage, document.defaultView!.localStorage);
+    assertEquals(
+      globalThis.sessionStorage,
+      document.defaultView!.sessionStorage,
+    );
+    localStorage.setItem("browser-storage-test", "local");
+    sessionStorage.setItem("browser-storage-test", "session");
+    assertEquals(
+      document.defaultView!.localStorage.getItem("browser-storage-test"),
+      "local",
+    );
+    assertEquals(
+      document.defaultView!.sessionStorage.getItem("browser-storage-test"),
+      "session",
+    );
+    localStorage.removeItem("browser-storage-test");
+    sessionStorage.removeItem("browser-storage-test");
+  });
+
   it("defines ResizeObserver, which JSDOM omits", () => {
     assert(
       "ResizeObserver" in globalThis,

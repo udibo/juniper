@@ -52,6 +52,17 @@ globalJsdom(undefined, {
   pretendToBeVisual: true,
 });
 
+Object.defineProperties(globalThis, {
+  localStorage: {
+    configurable: true,
+    get: () => document.defaultView!.localStorage,
+  },
+  sessionStorage: {
+    configurable: true,
+    get: () => document.defaultView!.sessionStorage,
+  },
+});
+
 class NoopResizeObserver implements ResizeObserver {
   observe(): void {}
   unobserve(): void {}
