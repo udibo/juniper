@@ -1,3 +1,11 @@
+## [0.17.2](https://github.com/udibo/juniper/compare/0.17.1...0.17.2) (2026-09-27)
+
+### Bug Fixes
+
+- **testing:** use document browser storage
+  ([#165](https://github.com/udibo/juniper/issues/165))
+  ([d752f6b](https://github.com/udibo/juniper/commit/d752f6b8c32e1aa6fe850a4d349225613f6a548f))
+
 ## [0.17.1](https://github.com/udibo/juniper/compare/0.17.0...0.17.1) (2026-09-25)
 
 ### Bug Fixes
