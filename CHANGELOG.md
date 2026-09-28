@@ -1,3 +1,11 @@
+## [0.17.3](https://github.com/udibo/juniper/compare/0.17.2...0.17.3) (2026-09-28)
+
+### Bug Fixes
+
+- preserve ids across server hydration
+  ([#166](https://github.com/udibo/juniper/issues/166))
+  ([ba8c77b](https://github.com/udibo/juniper/commit/ba8c77ba55cb36b46fd343b8872eebe3c69512bb))
+
 ## [0.17.2](https://github.com/udibo/juniper/compare/0.17.1...0.17.2) (2026-09-27)
 
 ### Bug Fixes
