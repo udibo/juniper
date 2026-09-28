@@ -5,14 +5,16 @@ import { it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { waitFor } from "@testing-library/react";
 import globalJsdom from "global-jsdom";
-import { act } from "react";
+import { act, useId, useLayoutEffect } from "react";
 import { renderToString } from "react-dom/server";
 import { unstable_IdlePriority, unstable_scheduleCallback } from "scheduler";
 
 import { Client } from "@udibo/juniper/client";
+import { createServer } from "@udibo/juniper/server";
 import type { RootRouteModule } from "@udibo/juniper";
 
 import { App, registerRouter } from "./_client.tsx";
+import { deserializeHydrationData } from "./_serialization.ts";
 import { simulateBrowser } from "./utils/testing.internal.ts";
 
 function reactWorkSettled(): Promise<void> {
@@ -195,3 +197,66 @@ for (const failure of ["caught", "uncaught", "hook"] as const) {
     }),
   );
 }
+
+it("preserves useId values when hydrating an actual server document", async () => {
+  let hydratedId: string | undefined;
+  function NameField() {
+    const id = useId();
+    useLayoutEffect(() => {
+      hydratedId = id;
+    }, [id]);
+    return (
+      <>
+        <label htmlFor={id}>Name</label>
+        <input id={id} defaultValue="Ada" />
+      </>
+    );
+  }
+  const client = new Client({ path: "/", main: { default: NameField } });
+  const server = createServer(import.meta.url, client, { path: "/" });
+  const response = await server.request("http://localhost:8000/");
+  assertEquals(response.status, 200);
+  const html = await response.text();
+  const embedded = html.match(
+    /__juniperHydrationData = (.*?); await client\.hydrate\(\)/,
+  );
+  assertExists(embedded);
+  const hydrationData = deserializeHydrationData(JSON.parse(embedded[1]));
+  await simulateBrowser(hydrationData, async () => {
+    const cleanup = globalJsdom(html, { url: "http://localhost:8000/" });
+    using errors = stub(console, "error", () => {});
+    let scheduled: IdleRequestCallback | undefined;
+    const previousIdle = globalThis.requestIdleCallback;
+    globalThis.requestIdleCallback = (callback) => {
+      scheduled = callback;
+      return 1;
+    };
+    try {
+      const input = document.querySelector("input")!;
+      const serverId = input.id;
+      assert(serverId.length > 0);
+      await client.hydrate();
+      assertExists(scheduled);
+      await act(() =>
+        scheduled!({ didTimeout: false, timeRemaining: () => 50 })
+      );
+      await waitFor(() => assertExists(hydratedId));
+      assertEquals(hydratedId, serverId);
+      assert(document.querySelector("input") === input);
+      assertEquals(document.querySelector("label")!.htmlFor, hydratedId);
+      assertEquals(
+        errors.calls.filter(({ args }) =>
+          /hydrat|server rendered/i.test(String(args[0]))
+        ).length,
+        0,
+      );
+    } finally {
+      await reactWorkSettled();
+      if (previousIdle) globalThis.requestIdleCallback = previousIdle;
+      else Reflect.deleteProperty(globalThis, "requestIdleCallback");
+      registerRouter(undefined);
+      document.defaultView!.close();
+      cleanup();
+    }
+  })();
+});

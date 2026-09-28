@@ -164,15 +164,18 @@ export type ClientGlobals = {
 export interface AppProps {
   children: React.ReactNode;
   htmlProps?: React.HTMLAttributes<HTMLHtmlElement>;
+  /** Server scripts occupy a reserved slot so hydration keeps useId paths stable. */
+  hydrationScripts?: React.ReactNode;
 }
 
-export function App({ children, htmlProps }: AppProps) {
+export function App({ children, htmlProps, hydrationScripts }: AppProps) {
   return (
     <html lang="en" suppressHydrationWarning {...htmlProps}>
       <head>
       </head>
       <body>
         {children}
+        {hydrationScripts}
       </body>
     </html>
   );

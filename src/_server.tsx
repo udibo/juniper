@@ -493,7 +493,14 @@ async function renderDocument(
 
         renderStream = await renderToReadableStream(
           <StrictMode>
-            <App htmlProps={htmlProps}>
+            <App
+              htmlProps={htmlProps}
+              hydrationScripts={
+                <Suspense fallback={null}>
+                  <HydrationScript prepare={prepare} nonce={nonce} />
+                </Suspense>
+              }
+            >
               <JuniperContextProvider context={requestContext}>
                 <StaticRouterProvider
                   router={router}
@@ -501,9 +508,6 @@ async function renderDocument(
                   hydrate={false}
                 />
               </JuniperContextProvider>
-              <Suspense fallback={null}>
-                <HydrationScript prepare={prepare} nonce={nonce} />
-              </Suspense>
             </App>
           </StrictMode>,
           {
