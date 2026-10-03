@@ -213,7 +213,10 @@ export class DevServer {
     const normalizedAbsPath = absolutePath.replace(/\\/g, "/");
     for (const ignorePath of this.builder.ignorePaths) {
       const normalizedIgnorePath = ignorePath.replace(/\\/g, "/");
-      if (normalizedAbsPath.startsWith(normalizedIgnorePath)) {
+      if (
+        normalizedAbsPath === normalizedIgnorePath ||
+        normalizedAbsPath.startsWith(normalizedIgnorePath + "/")
+      ) {
         return false;
       }
     }
