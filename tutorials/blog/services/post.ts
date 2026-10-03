@@ -54,7 +54,8 @@ export const postService = {
 
     const post: Post = {
       id,
-      ...data,
+      title: data.title,
+      content: data.content,
       excerpt: data.content.slice(0, 150) +
         (data.content.length > 150 ? "..." : ""),
       createdAt: now,
@@ -68,14 +69,13 @@ export const postService = {
   async update(id: string, data: Partial<NewPost>): Promise<Post> {
     const db = await getKv();
     const existing = await this.get(id);
+    const content = data.content ?? existing.content;
 
     const updated: Post = {
       ...existing,
-      ...data,
-      excerpt: data.content
-        ? data.content.slice(0, 150) +
-          (data.content.length > 150 ? "..." : "")
-        : existing.excerpt,
+      title: data.title ?? existing.title,
+      content,
+      excerpt: content.slice(0, 150) + (content.length > 150 ? "..." : ""),
       updatedAt: new Date(),
     };
 

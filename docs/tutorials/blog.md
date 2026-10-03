@@ -197,7 +197,8 @@ export const postService = {
 
     const post: Post = {
       id,
-      ...data,
+      title: data.title,
+      content: data.content,
       excerpt: data.content.slice(0, 150) +
         (data.content.length > 150 ? "..." : ""),
       createdAt: now,
@@ -211,13 +212,13 @@ export const postService = {
   async update(id: string, data: Partial<NewPost>): Promise<Post> {
     const db = await getKv();
     const existing = await this.get(id);
+    const content = data.content ?? existing.content;
 
     const updated: Post = {
       ...existing,
-      ...data,
-      excerpt: data.content
-        ? data.content.slice(0, 150) + (data.content.length > 150 ? "..." : "")
-        : existing.excerpt,
+      title: data.title ?? existing.title,
+      content,
+      excerpt: content.slice(0, 150) + (content.length > 150 ? "..." : ""),
       updatedAt: new Date(),
     };
 
@@ -701,57 +702,72 @@ Create `routes/api/posts.ts`:
 ```typescript
 // routes/api/posts.ts
 import { Hono } from "hono";
-import { type NewPost, postService } from "@/services/post.ts";
+
+import { postService } from "@/services/post.ts";
+import type { NewPost } from "@/services/post.ts";
 
 const app = new Hono();
 
-// GET /api/posts - List all posts
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 app.get("/", async (c) => {
   const posts = await postService.list();
   return c.json({ data: posts });
 });
 
-// GET /api/posts/:id - Get a single post
 app.get("/:id", async (c) => {
   const id = c.req.param("id");
   const post = await postService.get(id);
   return c.json({ data: post });
 });
 
-// POST /api/posts - Create a post
 app.post("/", async (c) => {
-  const body = await c.req.json<NewPost>();
+  const body = await c.req.json<unknown>();
+  if (!isObject(body)) {
+    return c.json({ error: "Body must be a JSON object" }, 400);
+  }
 
-  // Validate
-  if (!body.title || body.title.length < 3) {
+  if (typeof body.title !== "string" || body.title.length < 3) {
     return c.json({ error: "Title must be at least 3 characters" }, 400);
   }
-  if (!body.content || body.content.length < 10) {
+  if (typeof body.content !== "string" || body.content.length < 10) {
     return c.json({ error: "Content must be at least 10 characters" }, 400);
   }
 
-  const post = await postService.create(body);
+  const post = await postService.create({
+    title: body.title,
+    content: body.content,
+  });
   return c.json({ data: post }, 201);
 });
 
-// PUT /api/posts/:id - Update a post
 app.put("/:id", async (c) => {
   const id = c.req.param("id");
-  const body = await c.req.json<Partial<NewPost>>();
-
-  // Validate
-  if (body.title !== undefined && body.title.length < 3) {
-    return c.json({ error: "Title must be at least 3 characters" }, 400);
-  }
-  if (body.content !== undefined && body.content.length < 10) {
-    return c.json({ error: "Content must be at least 10 characters" }, 400);
+  const body = await c.req.json<unknown>();
+  if (!isObject(body)) {
+    return c.json({ error: "Body must be a JSON object" }, 400);
   }
 
-  const post = await postService.update(id, body);
+  const data: Partial<NewPost> = {};
+  if (body.title !== undefined) {
+    if (typeof body.title !== "string" || body.title.length < 3) {
+      return c.json({ error: "Title must be at least 3 characters" }, 400);
+    }
+    data.title = body.title;
+  }
+  if (body.content !== undefined) {
+    if (typeof body.content !== "string" || body.content.length < 10) {
+      return c.json({ error: "Content must be at least 10 characters" }, 400);
+    }
+    data.content = body.content;
+  }
+
+  const post = await postService.update(id, data);
   return c.json({ data: post });
 });
 
-// DELETE /api/posts/:id - Delete a post
 app.delete("/:id", async (c) => {
   const id = c.req.param("id");
   await postService.delete(id);
@@ -760,6 +776,11 @@ app.delete("/:id", async (c) => {
 
 export default app;
 ```
+
+The API accepts JSON objects with string `title` and `content` fields. POST
+requires both fields; PUT accepts either field or an empty object. Extra fields
+are ignored. Projecting only the supported fields also keeps callers from
+overwriting the service's generated ID, timestamps, or derived excerpt.
 
 Now you can test your API:
 
