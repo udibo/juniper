@@ -36,6 +36,7 @@ import { getEnv } from "./utils/env.ts";
 import { getInstance } from "./utils/otel.ts";
 
 import { App, generateRouteId, JuniperContextProvider } from "./_client.tsx";
+import { compareRouteSegments } from "./_route-order.ts";
 import {
   createLoaderDataResponse,
   DATA_CACHE_CONTROL,
@@ -1427,7 +1428,7 @@ export function buildApp<
     ...(clientRoute.children || []).map((r) => r.path),
   ]);
 
-  for (const childPath of allChildPaths) {
+  for (const childPath of [...allChildPaths].sort(compareRouteSegments)) {
     const serverChild = serverRoute.children?.find((r) => r.path === childPath);
     const clientChild = clientRoute.children?.find((r) => r.path === childPath);
 

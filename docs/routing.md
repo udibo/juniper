@@ -93,6 +93,20 @@ export default function DocsPage({ params }: RouteProps) {
 }
 ```
 
+### Route Precedence
+
+At each directory level, named segments match before parameterized siblings,
+which match before catch-all routes. An index route matches its parent path. For
+example, `routes/posts/new.tsx` matches `/posts/new` before
+`routes/posts/[id].tsx`; other single-segment paths such as `/posts/123` still
+match `[id]`.
+
+This ordering applies to both files and directories, and to the combined server
+and client route tree. A named client-only page also takes precedence over a
+server-only parameterized sibling. Juniper mounts the named route's middleware
+and handlers before the parameterized sibling for document, data, action, and
+API requests. Shared middleware in an ancestor `main.ts` still applies.
+
 ### Route Groups
 
 A `main.ts` file creates a route group with shared configuration:
