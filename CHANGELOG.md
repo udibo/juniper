@@ -1,3 +1,12 @@
+## [0.17.5](https://github.com/udibo/juniper/compare/0.17.4...0.17.5) (2026-10-03)
+
+### Bug Fixes
+
+- **build:** drain entrypoint formatter pipes
+  ([#173](https://github.com/udibo/juniper/issues/173))
+  ([46bf9c8](https://github.com/udibo/juniper/commit/46bf9c805b05fefbabf7fb48ae09d1ab2ff3a7b0)),
+  closes [#172](https://github.com/udibo/juniper/issues/172)
+
 ## [0.17.4](https://github.com/udibo/juniper/compare/0.17.3...0.17.4) (2026-10-03)
 
 ### Bug Fixes
