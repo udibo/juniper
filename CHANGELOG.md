@@ -1,3 +1,12 @@
+## [0.17.4](https://github.com/udibo/juniper/compare/0.17.3...0.17.4) (2026-10-03)
+
+### Bug Fixes
+
+- prioritize named route siblings
+  ([#169](https://github.com/udibo/juniper/issues/169))
+  ([0a1d7ce](https://github.com/udibo/juniper/commit/0a1d7ce4da0378ad4d7fdf4215613ca11cff59f4)),
+  closes [#168](https://github.com/udibo/juniper/issues/168)
+
 ## [0.17.3](https://github.com/udibo/juniper/compare/0.17.2...0.17.3) (2026-09-28)
 
 ### Bug Fixes
