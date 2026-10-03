@@ -1,3 +1,12 @@
+## [0.17.7](https://github.com/udibo/juniper/compare/0.17.6...0.17.7) (2026-10-03)
+
+### Bug Fixes
+
+- decode omitted contexts as undefined
+  ([#177](https://github.com/udibo/juniper/issues/177))
+  ([2f3eba8](https://github.com/udibo/juniper/commit/2f3eba83be1f311625bf2025a3b6c52d5dd24c64)),
+  closes [#176](https://github.com/udibo/juniper/issues/176)
+
 ## [0.17.6](https://github.com/udibo/juniper/compare/0.17.5...0.17.6) (2026-10-03)
 
 ### Bug Fixes
