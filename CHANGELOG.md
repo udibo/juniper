@@ -1,3 +1,12 @@
+## [0.17.6](https://github.com/udibo/juniper/compare/0.17.5...0.17.6) (2026-10-03)
+
+### Bug Fixes
+
+- detect named server handler exports
+  ([#175](https://github.com/udibo/juniper/issues/175))
+  ([d192343](https://github.com/udibo/juniper/commit/d192343d0f878266b28bca354312ad248c100e63)),
+  closes [#174](https://github.com/udibo/juniper/issues/174)
+
 ## [0.17.5](https://github.com/udibo/juniper/compare/0.17.4...0.17.5) (2026-10-03)
 
 ### Bug Fixes
