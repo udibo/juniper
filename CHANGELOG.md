@@ -1,3 +1,12 @@
+## [0.17.10](https://github.com/udibo/juniper/compare/0.17.9...0.17.10) (2026-10-03)
+
+### Bug Fixes
+
+- **blog:** validate post fields and identity
+  ([#183](https://github.com/udibo/juniper/issues/183))
+  ([f7dcfc1](https://github.com/udibo/juniper/commit/f7dcfc196719514de54bb8e0202e983ab65a49ce)),
+  closes [#182](https://github.com/udibo/juniper/issues/182)
+
 ## [0.17.9](https://github.com/udibo/juniper/compare/0.17.8...0.17.9) (2026-10-03)
 
 ### Bug Fixes
