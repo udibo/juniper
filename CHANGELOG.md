@@ -1,3 +1,12 @@
+## [0.17.9](https://github.com/udibo/juniper/compare/0.17.8...0.17.9) (2026-10-03)
+
+### Bug Fixes
+
+- own development reload connections
+  ([#181](https://github.com/udibo/juniper/issues/181))
+  ([d772bd2](https://github.com/udibo/juniper/commit/d772bd2174f0f80f7f4f1fe38681b653a01b6b85)),
+  closes [#180](https://github.com/udibo/juniper/issues/180)
+
 ## [0.17.8](https://github.com/udibo/juniper/compare/0.17.7...0.17.8) (2026-10-03)
 
 ### Bug Fixes
