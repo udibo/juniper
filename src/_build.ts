@@ -1,6 +1,7 @@
 import { sortBy } from "@std/collections/sort-by";
 import { walk } from "@std/fs";
 import * as path from "@std/path";
+import * as babel from "@babel/core";
 
 export interface ServerFlags {
   loader?: boolean;
@@ -106,19 +107,80 @@ export async function getServerFlags(
 ): Promise<ServerFlags | undefined> {
   try {
     const content = await Deno.readTextFile(absoluteFilePath);
-    const hasLoader = /export\s+(async\s+)?function\s+loader\b/.test(content) ||
-      /export\s+const\s+loader(\s|=|:)/.test(content);
-    const hasAction = /export\s+(async\s+)?function\s+action\b/.test(content) ||
-      /export\s+const\s+action(\s|=|:)/.test(content);
-
-    if (hasLoader || hasAction) {
-      const flags: ServerFlags = {};
-      if (hasLoader) flags.loader = true;
-      if (hasAction) flags.action = true;
-      return flags;
+    const ast = babel.parseSync(content, {
+      filename: absoluteFilePath,
+      babelrc: false,
+      configFile: false,
+      sourceType: "module",
+      parserOpts: { plugins: ["typescript", "decorators"] },
+    });
+    if (!ast) return undefined;
+    const values = new Set<string>();
+    const exported = new Set<string>();
+    for (const statement of ast.program.body) {
+      const declaration = babel.types.isExportNamedDeclaration(statement)
+        ? statement.declaration
+        : statement;
+      if (babel.types.isImportDeclaration(declaration)) {
+        if (declaration.importKind === "type") continue;
+        for (const specifier of declaration.specifiers) {
+          if (
+            babel.types.isImportSpecifier(specifier) &&
+            specifier.importKind === "type"
+          ) continue;
+          values.add(specifier.local.name);
+        }
+      } else if (
+        babel.types.isVariableDeclaration(declaration) && !declaration.declare
+      ) {
+        for (const binding of declaration.declarations) {
+          for (
+            const name of Object.keys(
+              babel.types.getBindingIdentifiers(binding.id),
+            )
+          ) {
+            values.add(name);
+            if (babel.types.isExportNamedDeclaration(statement)) {
+              exported.add(name);
+            }
+          }
+        }
+      } else if (
+        (babel.types.isFunctionDeclaration(declaration) ||
+          babel.types.isClassDeclaration(declaration) ||
+          babel.types.isTSEnumDeclaration(declaration)) &&
+        !declaration.declare && babel.types.isIdentifier(declaration.id)
+      ) {
+        values.add(declaration.id.name);
+        if (babel.types.isExportNamedDeclaration(statement)) {
+          exported.add(declaration.id.name);
+        }
+      }
     }
+    for (const statement of ast.program.body) {
+      if (
+        !babel.types.isExportNamedDeclaration(statement) ||
+        statement.exportKind === "type"
+      ) continue;
+      for (const specifier of statement.specifiers) {
+        if (
+          !babel.types.isExportSpecifier(specifier) ||
+          specifier.exportKind === "type" ||
+          (!statement.source && !values.has(specifier.local.name))
+        ) continue;
+        exported.add(
+          babel.types.isIdentifier(specifier.exported)
+            ? specifier.exported.name
+            : specifier.exported.value,
+        );
+      }
+    }
+    const flags: ServerFlags = {};
+    if (exported.has("loader")) flags.loader = true;
+    if (exported.has("action")) flags.action = true;
+    if (flags.loader || flags.action) return flags;
   } catch {
-    // skip
+    return undefined;
   }
   return undefined;
 }
