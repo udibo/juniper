@@ -60,54 +60,73 @@ export function createDevClientScript(port: number = 9001): string {
  * automatically reloads the page when the server indicates a rebuild.
  */
 
-/**
- * Connects to the dev server SSE endpoint and handles automatic reloads
- */
-function connectToDevServer(devServerPort = ${port}) {
-  const devServerUrl = \`http://localhost:\${devServerPort}/sse\`;
+(() => {
+  let currentSource;
+  let retryTimer;
+  let disposed = false;
 
-  console.log("🔗 Connecting to dev server at", devServerUrl);
+  function connectToDevServer() {
+    if (disposed || currentSource || retryTimer !== undefined) return;
+    const devServerUrl = "http://localhost:${port}/sse";
 
-  const eventSource = new EventSource(devServerUrl);
+    console.log("🔗 Connecting to dev server at", devServerUrl);
 
-  eventSource.addEventListener("dev-connection", (_event) => {
-    console.log("✅ Connected to dev server");
-  });
+    const eventSource = new EventSource(devServerUrl);
+    currentSource = eventSource;
 
-  eventSource.addEventListener("dev-reload", (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      console.log("🔄 Dev server requested reload:", data);
-      globalThis.location.reload();
-    } catch (error) {
-      console.error("❌ Failed to parse reload message:", error);
-    }
-  });
+    eventSource.addEventListener("dev-connection", (_event) => {
+      if (disposed || eventSource !== currentSource) return;
+      console.log("✅ Connected to dev server");
+    });
 
-  eventSource.addEventListener("dev-keepalive", (_event) => {
-    console.debug("💓 Dev server keepalive");
-  });
+    eventSource.addEventListener("dev-reload", (event) => {
+      if (disposed || eventSource !== currentSource) return;
+      try {
+        const data = JSON.parse(event.data);
+        console.log("🔄 Dev server requested reload:", data);
+        globalThis.location.reload();
+      } catch (error) {
+        console.error("❌ Failed to parse reload message:", error);
+      }
+    });
 
-  eventSource.onerror = (error) => {
-    console.error("❌ Dev server connection error:", error);
-    setTimeout(() => {
-      console.log("🔄 Attempting to reconnect to dev server...");
-      connectToDevServer(devServerPort);
-    }, 5000);
-  };
+    eventSource.addEventListener("dev-keepalive", (_event) => {
+      if (disposed || eventSource !== currentSource) return;
+      console.debug("💓 Dev server keepalive");
+    });
+
+    eventSource.onerror = (error) => {
+      if (disposed || eventSource !== currentSource) return;
+      console.error("❌ Dev server connection error:", error);
+      eventSource.close();
+      currentSource = undefined;
+      retryTimer = setTimeout(() => {
+        retryTimer = undefined;
+        if (disposed) return;
+        console.log("🔄 Attempting to reconnect to dev server...");
+        connectToDevServer();
+      }, 5000);
+    };
+  }
 
   globalThis.addEventListener("beforeunload", () => {
-    eventSource.close();
+    if (disposed) return;
+    disposed = true;
+    document.removeEventListener("DOMContentLoaded", connectToDevServer);
+    if (retryTimer !== undefined) {
+      clearTimeout(retryTimer);
+      retryTimer = undefined;
+    }
+    currentSource?.close();
+    currentSource = undefined;
   });
-}
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", () => {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", connectToDevServer, { once: true });
+  } else {
     connectToDevServer();
-  });
-} else {
-  connectToDevServer();
-}
+  }
+})();
 `;
 }
 
