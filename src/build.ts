@@ -27,6 +27,7 @@ import {
   processDirectory,
 } from "./_build.ts";
 import { deno } from "./deno.ts";
+import { compareRouteSegments } from "./_route-order.ts";
 import { reactCompilerPlugin } from "./utils/react-compiler-plugin.ts";
 import { startActiveSpan } from "./utils/_otel.ts";
 
@@ -337,7 +338,9 @@ export class Builder implements AsyncDisposable {
         ...rootDirProperties.fileModuleChildren,
         ...rootDirProperties.parameterizedChildren,
         ...rootDirProperties.directoryChildren,
-      ].sort((a, b) => a.path.localeCompare(b.path));
+      ].sort((a, b) =>
+        compareRouteSegments(a.path, b.path) || a.path.localeCompare(b.path)
+      );
 
       const finalRoutesConfig: GeneratedRoute = {
         path: "/",
@@ -417,7 +420,9 @@ if (import.meta.main) {
         ...rootDirProperties.fileModuleChildren,
         ...rootDirProperties.parameterizedChildren,
         ...rootDirProperties.directoryChildren,
-      ].sort((a, b) => a.path.localeCompare(b.path));
+      ].sort((a, b) =>
+        compareRouteSegments(a.path, b.path) || a.path.localeCompare(b.path)
+      );
 
       const finalRoutesConfig: GeneratedRoute = {
         path: "/",
