@@ -1,3 +1,12 @@
+## [0.17.8](https://github.com/udibo/juniper/compare/0.17.7...0.17.8) (2026-10-03)
+
+### Bug Fixes
+
+- preserve ignore prefix sibling rebuilds
+  ([#179](https://github.com/udibo/juniper/issues/179))
+  ([4a97dde](https://github.com/udibo/juniper/commit/4a97dde6b24f063513e7f0d3b95cedeb10dc82c6)),
+  closes [#178](https://github.com/udibo/juniper/issues/178)
+
 ## [0.17.7](https://github.com/udibo/juniper/compare/0.17.6...0.17.7) (2026-10-03)
 
 ### Bug Fixes
