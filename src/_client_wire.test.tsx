@@ -81,9 +81,11 @@ describe("client tagged JSON data dispatch", () => {
 
 describe("hydration version recovery", () => {
   const key = "__juniper_build_skew_reload";
+  let time: FakeTime;
   let originalLocation: Location;
   let reloads: number;
   beforeEach(() => {
+    time = new FakeTime();
     reloads = 0;
     originalLocation = globalThis.location;
     Object.defineProperty(globalThis, "location", {
@@ -97,17 +99,21 @@ describe("hydration version recovery", () => {
     });
     sessionStorage.removeItem(key);
   });
-  afterEach(() => {
-    Object.defineProperty(globalThis, "location", {
-      configurable: true,
-      value: originalLocation,
-    });
-    sessionStorage.removeItem(key);
+  afterEach(async () => {
+    using _time = time;
+    try {
+      sessionStorage.removeItem(key);
+      await time.runAllAsync();
+    } finally {
+      Object.defineProperty(globalThis, "location", {
+        configurable: true,
+        value: originalLocation,
+      });
+    }
   });
 
   for (const version of [2, 5, 0]) {
     it(`reloads version ${version} before reading its data and coalesces concurrent attempts`, async () => {
-      using time = new FakeTime();
       let decoded = 0;
       let loaded = 0;
       using _data = stub(env, "getHydrationData", () => ({
@@ -139,7 +145,6 @@ describe("hydration version recovery", () => {
   }
 
   it("hydrates a version 4 payload with pending placeholders instead of reloading", async () => {
-    using time = new FakeTime();
     const { serialized } = prepareHydrationData({
       matches: [{ id: "/" }],
       loaderData: { "/": { later: Promise.resolve(1) } },
