@@ -204,6 +204,30 @@ A route module can export:
 | `shouldRevalidate` | Function  | Decides if the loader reruns (client `.tsx` only) |
 | `beforeHydrate`    | Function  | Runs before React hydrates (root `main.tsx` only) |
 
+Server `.ts` files can expose `loader` and `action` through direct declarations,
+local named exports (including aliases), or explicit named re-exports:
+
+```ts
+function load() {
+  return { message: "Ready" };
+}
+function submit() {
+  return { saved: true };
+}
+export { load as loader, submit as action };
+```
+
+You can also re-export named handlers from a shared server module:
+
+```ts
+export { load as loader, submit as action } from "./_handlers.ts";
+```
+
+The builder reads these value exports without evaluating server modules.
+Type-only declarations and exports do not advertise handlers. Use explicit named
+exports: wildcard and namespace re-exports are not followed. Browser middleware
+retains its [`export const middleware` convention](middleware.md).
+
 Export `publicEnvKeys` from the root **server** module, `routes/main.ts`, to
 allowlist additional environment values in hydration data. See
 [configuration](configuration.md#public-environment-variables).
