@@ -711,7 +711,9 @@ export function deserializeAllContext(
   routerContext: RouterContextProvider,
 ): void {
   for (const [name, serializer] of contextRegistry) {
-    const data = serializedContext?.[name];
+    const data = serializedContext && Object.hasOwn(serializedContext, name)
+      ? serializedContext[name]
+      : undefined;
     const value = serializer.deserialize(data);
     // deno-lint-ignore no-explicit-any
     routerContext.set(serializer.context as any, value);
