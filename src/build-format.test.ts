@@ -70,11 +70,15 @@ async function generate(
   options: {
     malformedInput?: boolean;
     rejectInput?: "write" | "close";
+    rejectOutput?: "stdout" | "stderr";
   } = {},
 ): Promise<void> {
   const children: Deno.ChildProcess[] = [];
   const pending = new Set<Deno.ChildProcess>();
   const inputObservers: Disposable[] = [];
+  const forwarding: Promise<void>[] = [];
+  const inputGate = options.rejectOutput ? Promise.withResolvers<void>() : null;
+  const killSignals: Deno.Signal[] = [];
   const spawn = Deno.Command.prototype.spawn;
   using _observer = stub(
     Deno.Command.prototype,
@@ -84,6 +88,43 @@ async function generate(
       children.push(child);
       pending.add(child);
       void child.status.then(() => pending.delete(child));
+      if (options.rejectOutput) {
+        const output = options.rejectOutput;
+        const failed = new TransformStream<Uint8Array, Uint8Array>({
+          start(controller) {
+            controller.error(new Error(`owned ${output} read failure`));
+          },
+        });
+        forwarding.push(child[output].pipeTo(failed.writable).catch(() => {}));
+        const getWriter = child.stdin.getWriter.bind(child.stdin);
+        inputObservers.push(stub(child.stdin, "getWriter", () => {
+          const writer = getWriter();
+          const write = writer.write.bind(writer);
+          inputObservers.push(stub(writer, "write", async (chunk) => {
+            await inputGate!.promise;
+            await write(chunk);
+          }));
+          return writer;
+        }));
+        const kill = child.kill.bind(child);
+        return new Proxy(child, {
+          get(target, property) {
+            if (property === output) return failed.readable;
+            if (property === "kill") {
+              return (signal: Deno.Signal) => {
+                killSignals.push(signal);
+                try {
+                  kill(signal);
+                } finally {
+                  inputGate!.resolve();
+                }
+              };
+            }
+            const value = Reflect.get(target, property, target);
+            return typeof value === "function" ? value.bind(target) : value;
+          },
+        });
+      }
       if (options.rejectInput || options.malformedInput) {
         const getWriter = child.stdin.getWriter.bind(child.stdin);
         inputObservers.push(stub(child.stdin, "getWriter", () => {
@@ -128,19 +169,22 @@ async function generate(
       delay(10_000, { signal: containment.signal }).then(() => "deadline"),
     ]);
     assertEquals(outcome, "settled", "the owned formatter must finish");
-    if (failure) throw failure;
-    assertEquals(children.length, 1);
-    assertEquals(pending.size, 0);
   } finally {
     containment.abort();
+    inputGate?.resolve();
     for (const child of children) {
       await closeChild(child, pending.has(child), settled);
     }
     await settled;
+    await Promise.all(forwarding);
     for (const inputObserver of inputObservers.reverse()) {
       inputObserver[Symbol.dispose]();
     }
   }
+  assertEquals(children.length, 1);
+  assertEquals(pending.size, 0);
+  if (options.rejectOutput) assertEquals(killSignals, ["SIGTERM"]);
+  if (failure) throw failure;
 }
 
 describe("Builder formatter ownership", () => {
@@ -189,6 +233,26 @@ describe("Builder formatter failure ownership", () => {
         );
       });
     });
+
+    for (const rejectOutput of ["stdout", "stderr"] as const) {
+      it(`${entrypoint} terminates and joins the formatter after a ${rejectOutput} read failure`, async () => {
+        await withRoutes(2, async (builder) => {
+          const artifactPath = entrypoint === "server"
+            ? builder.serverPath
+            : builder.clientPath;
+          await Deno.writeTextFile(artifactPath, "existing artifact\n");
+          await assertRejects(
+            () => generate(builder, entrypoint, { rejectOutput }),
+            Error,
+            `owned ${rejectOutput} read failure`,
+          );
+          assertEquals(
+            await Deno.readTextFile(artifactPath),
+            "existing artifact\n",
+          );
+        });
+      });
+    }
 
     for (const rejectInput of ["write", "close"] as const) {
       it(`${entrypoint} joins formatter resources after an input ${rejectInput} failure`, async () => {
