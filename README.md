@@ -1,3 +1,10 @@
+> [!WARNING]
+> **Juniper is no longer maintained and this repository is archived.** Udibo
+> moved to Node, React Router framework mode and Hono
+> ([ADR-0031](https://github.com/udibo/udibo/blob/main/docs/decisions/0031-node-react-router-hono.md)).
+> For new projects, use [React Router framework mode](https://reactrouter.com)
+> with [Hono](https://hono.dev). No further releases are planned.
+
 # Juniper
 
 [![JSR](https://jsr.io/badges/@udibo/juniper)](https://jsr.io/@udibo/juniper)
